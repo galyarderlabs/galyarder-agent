@@ -18,21 +18,6 @@
 
 ---
 
-## Monorepo Layout
-
-```text
-.
-├── backend/
-│   └── agent/          # Python g-agent backend + bridge
-├── landingpages/       # Next.js landing site + waitlist API
-└── README.md
-```
-
-Web app docs: `landingpages/README.md`  
-Backend docs: `backend/agent/README.md`
-
----
-
 ## Philosophy
 
 `g-agent` is built with one clear philosophy:
