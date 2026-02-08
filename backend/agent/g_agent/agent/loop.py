@@ -5,7 +5,7 @@ import json
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
@@ -59,6 +59,16 @@ from g_agent.agent.tools.google_workspace import (
 from g_agent.agent.subagent import SubagentManager
 from g_agent.session.manager import SessionManager
 
+if TYPE_CHECKING:
+    from g_agent.config.schema import (
+        BrowserToolsConfig,
+        ExecToolConfig,
+        GoogleWorkspaceConfig,
+        SMTPConfig,
+    )
+    from g_agent.cron.service import CronService
+    from g_agent.session.manager import Session
+
 
 class AgentLoop:
     """
@@ -80,13 +90,13 @@ class AgentLoop:
         model: str | None = None,
         max_iterations: int = 20,
         brave_api_key: str | None = None,
-        exec_config: "ExecToolConfig | None" = None,
-        cron_service: "CronService | None" = None,
+        exec_config: ExecToolConfig | None = None,
+        cron_service: CronService | None = None,
         restrict_to_workspace: bool = False,
         slack_webhook_url: str | None = None,
-        smtp_config: "SMTPConfig | None" = None,
-        google_config: "GoogleWorkspaceConfig | None" = None,
-        browser_config: "BrowserToolsConfig | None" = None,
+        smtp_config: SMTPConfig | None = None,
+        google_config: GoogleWorkspaceConfig | None = None,
+        browser_config: BrowserToolsConfig | None = None,
         tool_policy: dict[str, str] | None = None,
         risky_tools: list[str] | None = None,
         approval_mode: str = "off",
@@ -99,7 +109,6 @@ class AgentLoop:
             GoogleWorkspaceConfig,
             BrowserToolsConfig,
         )
-        from g_agent.cron.service import CronService
         self.bus = bus
         self.provider = provider
         self.workspace = workspace
@@ -818,7 +827,7 @@ class AgentLoop:
         except Exception:
             return draft
 
-    def _maybe_write_session_summary(self, session: "Session") -> None:
+    def _maybe_write_session_summary(self, session: Session) -> None:
         """Periodically write compact session summaries to memory."""
         assistant_turns = sum(1 for m in session.messages if m.get("role") == "assistant")
         if assistant_turns < self.summary_interval:
@@ -836,7 +845,7 @@ class AgentLoop:
             session.metadata["last_summary_turn"] = assistant_turns
             self.sessions.save(session)
 
-    def _build_session_summary(self, session: "Session", max_pairs: int = 4) -> str:
+    def _build_session_summary(self, session: Session, max_pairs: int = 4) -> str:
         """Build a compact heuristic summary from recent session turns."""
         recent = session.messages[-max_pairs * 2:]
         user_items: list[str] = []

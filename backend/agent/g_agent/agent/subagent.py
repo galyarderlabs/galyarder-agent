@@ -4,7 +4,7 @@ import asyncio
 import json
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
@@ -15,6 +15,9 @@ from g_agent.agent.tools.registry import ToolRegistry
 from g_agent.agent.tools.filesystem import ReadFileTool, WriteFileTool, ListDirTool
 from g_agent.agent.tools.shell import ExecTool
 from g_agent.agent.tools.web import WebSearchTool, WebFetchTool
+
+if TYPE_CHECKING:
+    from g_agent.config.schema import ExecToolConfig
 
 
 class SubagentManager:
@@ -33,7 +36,7 @@ class SubagentManager:
         bus: MessageBus,
         model: str | None = None,
         brave_api_key: str | None = None,
-        exec_config: "ExecToolConfig | None" = None,
+        exec_config: ExecToolConfig | None = None,
         restrict_to_workspace: bool = False,
     ):
         from g_agent.config.schema import ExecToolConfig

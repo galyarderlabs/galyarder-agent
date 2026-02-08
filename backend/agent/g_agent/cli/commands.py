@@ -307,7 +307,7 @@ def gateway(
     if cron_status["jobs"] > 0:
         console.print(f"[green]✓[/green] Cron: {cron_status['jobs']} scheduled jobs")
     
-    console.print(f"[green]✓[/green] Heartbeat: every 30m")
+    console.print("[green]✓[/green] Heartbeat: every 30m")
     
     async def run():
         try:
@@ -950,7 +950,7 @@ def cron_run(
         return await service.run_job(job_id, force=force)
     
     if asyncio.run(run()):
-        console.print(f"[green]✓[/green] Job executed")
+        console.print("[green]✓[/green] Job executed")
     else:
         console.print(f"[red]Failed to run job {job_id}[/red]")
 
