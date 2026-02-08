@@ -1,6 +1,34 @@
 # Security Policy — Galyarder Agent (`g-agent`)
 
-This document defines practical security guidance for running `g-agent` in real life (personal or shared mode).
+This document defines the practical security model for running `g-agent` as a personal assistant, plus the minimum controls required before shared access.
+
+---
+
+## Security Philosophy
+
+`g-agent` uses a **policy-first** security posture:
+
+- explicit access control (`allowFrom`)
+- explicit tool boundaries (`restrictToWorkspace`, tool policy)
+- explicit operator approvals (`approvalMode`)
+- explicit profile separation (personal vs guest data dirs)
+
+This keeps the runtime understandable and controllable, while staying lightweight.
+
+---
+
+## Threat Model (Practical)
+
+Primary risks:
+
+1. unauthorized message sender reaches your channels
+2. sensitive token/key leakage from config or logs
+3. over-permissive tool execution (filesystem/shell/network)
+4. shared profile leaks personal memory/context to guest users
+5. compromised integration tokens (Telegram, WhatsApp, Google, Brave, etc.)
+
+`g-agent` mitigates these with allowlists, workspace restriction, per-tool policy, and operator confirmation.  
+You still need correct host-level hygiene (file permissions, key rotation, profile separation).
 
 ---
 
@@ -8,29 +36,29 @@ This document defines practical security guidance for running `g-agent` in real 
 
 If you find a security issue:
 
-1. **Do not** open a public issue with exploit details.
-2. Use GitHub Security Advisory (private) on this repository.
-3. Include:
+1. do **not** publish exploit details in public issues
+2. open a private advisory via GitHub Security tab
+3. include:
    - affected version/commit
-   - reproducible steps
+   - reproduction steps
    - impact
-   - mitigation (if known)
+   - suggested mitigation (if known)
 
-Target initial response: **within 48 hours**.
+Target initial response: within `48` hours.
 
 ---
 
-## Security Baseline (Recommended)
+## Minimum Baseline (Required)
 
-Use this baseline before exposing any channel:
+Before exposing Telegram/WhatsApp:
 
-- Set `tools.restrictToWorkspace=true`
-- Set `tools.approvalMode="confirm"`
-- Use non-empty `channels.*.allowFrom`
-- Run as normal user (never root)
-- Keep separate profiles for personal vs guest (`G_AGENT_DATA_DIR`)
+- set `tools.restrictToWorkspace = true`
+- set `tools.approvalMode = "confirm"` (or stricter)
+- ensure non-empty `channels.*.allowFrom` for every enabled channel
+- run as normal user (never root)
+- separate personal and guest profiles (`G_AGENT_DATA_DIR`)
 
-Example:
+Baseline example:
 
 ```json
 {
@@ -51,9 +79,9 @@ Example:
 
 ---
 
-## Secrets & API Keys
+## Secrets and Key Management
 
-Secrets are stored in config files. Protect them:
+`g-agent` stores operational secrets in profile config. Lock file permissions:
 
 ```bash
 chmod 700 ~/.g-agent
@@ -61,64 +89,74 @@ chmod 600 ~/.g-agent/config.json
 chmod 700 ~/.g-agent/whatsapp-auth
 ```
 
-Notes:
+Rules:
 
-- Never commit tokens/keys into git.
-- Rotate keys immediately after accidental exposure.
-- Prefer separate keys for personal and guest profiles.
+- never commit secrets to git
+- rotate immediately after accidental exposure
+- use separate credentials for personal and guest profiles
+- keep OAuth tokens scoped to minimum required permissions
 
 ---
 
 ## Channel Access Control
 
-`allowFrom` is your primary chat access gate.
+`allowFrom` is the first security wall.
 
-- Empty allowlist = open access to everyone on that channel.
-- Telegram IDs should be numeric user IDs.
-- WhatsApp numbers should be normalized (E.164 style recommended).
-- If running guest bot, use separate bot token / separate WA account.
+- empty allowlist means open channel access
+- Telegram values should be numeric user IDs
+- WhatsApp values should be normalized numbers (E.164 recommended)
+- guest mode should use separate bot identity (Telegram token + WA account)
+
+Validate sender IDs from logs before allowing new users.
 
 ---
 
-## Tool Safety
+## Tool Safety and Policy
 
-`g-agent` includes guardrails, but operator discipline is still required.
+Core controls:
 
-Built-in controls include:
-
-- workspace boundary checks (when `restrictToWorkspace=true`)
+- workspace boundary checks (with `restrictToWorkspace=true`)
 - dangerous shell pattern blocking
-- browser denylist for localhost/metadata hosts
-- timeouts and output truncation
 - per-tool policy (`allow` / `ask` / `deny`)
+- approval mode for sensitive actions
+- browser denylist for localhost/metadata-style targets
+- execution timeouts and output truncation
 
-Recommended policy posture:
+Recommended posture:
 
-- keep risky tools (`exec`, send/message tools) on `ask`/`confirm`
-- deny tools you never need in shared mode
+- keep write/exec/send-like tools on `ask` in mixed-access setups
+- deny tools you do not need
+- prefer separate profile + stricter policy for guest assistants
 
----
-
-## Multi-Profile Isolation
-
-For shared usage, keep profiles separate:
-
-- Personal: `~/.g-agent`
-- Guest: `~/.g-agent-guest`
-
-Use:
+Policy shortcuts:
 
 ```bash
+g-agent policy apply personal_full --replace-scope
+g-agent policy apply guest_limited --channel telegram --sender 123456 --replace-scope
+g-agent policy apply guest_readonly --channel whatsapp --sender 6281234567890 --replace-scope
+```
+
+---
+
+## Profile Isolation (Personal vs Guest)
+
+Use separate data dirs:
+
+```bash
+mkdir -p ~/.g-agent-guest
+G_AGENT_DATA_DIR=~/.g-agent-guest g-agent onboard
 G_AGENT_DATA_DIR=~/.g-agent-guest g-agent status
 ```
 
-Each profile should have isolated:
+Each profile isolates:
 
-- config and secrets
+- config + secrets
 - memory/workspace
 - cron jobs
 - bridge/media/auth artifacts
-- integrations (Google, SMTP, Slack)
+- integration tokens
+
+Do not share one profile between personal and public/guest traffic.
 
 ---
 
@@ -126,10 +164,29 @@ Each profile should have isolated:
 
 If Google integration is enabled:
 
-- use OAuth client dedicated to this app
+- use dedicated OAuth client for this assistant
 - keep refresh token private
-- keep guest profile Google integration disabled unless required
-- revoke tokens from Google Account Security if compromise suspected
+- keep guest profile Google integration disabled by default
+- revoke tokens immediately from Google Account Security on suspicion
+- review scopes periodically and remove unused access
+
+---
+
+## Runtime Hardening
+
+For 24/7 operation:
+
+```bash
+systemctl --user enable --now g-agent-wa-bridge.service
+systemctl --user enable --now g-agent-gateway.service
+```
+
+Recommended extras:
+
+- enable linger only for trusted local user (`sudo loginctl enable-linger "$USER"`)
+- keep host OS patched
+- restrict shell account access on host
+- avoid running unrelated services under same user profile
 
 ---
 
@@ -149,7 +206,7 @@ cd bridge
 npm audit
 ```
 
-Keep both Python and Node dependencies updated regularly.
+Keep runtime dependencies updated on a regular schedule.
 
 ---
 
@@ -157,48 +214,51 @@ Keep both Python and Node dependencies updated regularly.
 
 If compromise is suspected:
 
-1. Revoke API keys/tokens immediately.
-2. Stop services:
+1. revoke exposed API keys/tokens immediately
+2. stop runtime services:
    ```bash
    systemctl --user stop g-agent-gateway.service g-agent-wa-bridge.service
    ```
-3. Inspect recent logs:
+3. inspect recent logs:
    ```bash
    journalctl --user -u g-agent-gateway.service -u g-agent-wa-bridge.service --since "2 hours ago" --no-pager
    ```
-4. Rotate credentials and re-auth integrations.
-5. Re-enable services after verification.
+4. rotate credentials and re-auth integrations
+5. verify policy and allowlists
+6. restart services only after validation
 
 ---
 
-## Known Limitations
+## Current Limitations
 
-Current tradeoffs to keep the project lightweight:
+Known tradeoffs to keep the project lean:
 
-- no built-in user rate limiting
-- config secrets are plaintext on disk
-- security logging is operational, not full SIEM-grade audit trail
-- tool safety is guardrail-based, not sandbox virtualization
+- no built-in global rate limiter
+- secrets are plaintext in local profile config
+- operational logging, not full SIEM-grade audit trail
+- guardrail model, not full sandbox virtualization by default
 
-Use external controls (firewall, dedicated OS user, profile isolation) for stronger defense.
+If you need stricter isolation, deploy with additional host/container controls.
 
 ---
 
 ## Security Checklist
 
-Before production-like use:
+Before production-like usage:
 
 - [ ] `restrictToWorkspace=true`
-- [ ] `approvalMode=confirm`
-- [ ] `allowFrom` set for enabled channels
-- [ ] running as non-root user
-- [ ] config and auth directories have strict permissions
-- [ ] dependencies audited and updated
-- [ ] personal and guest profiles separated if sharing bot access
+- [ ] `approvalMode=confirm` (or stricter)
+- [ ] non-empty allowlists on all enabled channels
+- [ ] non-root runtime user
+- [ ] strict file permissions on config/auth directories
+- [ ] audited dependencies (Python + Node bridge)
+- [ ] personal and guest profiles fully separated
 
 ---
 
 ## References
 
-- Security advisories: `https://github.com/galyarder/galyarder-agent/security/advisories`
-- Releases: `https://github.com/galyarder/galyarder-agent/releases`
+- Advisories: `https://github.com/galyarderlabs/galyarder-agent/security/advisories`
+- Releases: `https://github.com/galyarderlabs/galyarder-agent/releases`
+- Main docs: `../../README.md`
+- Backend docs: `README.md`
