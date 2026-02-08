@@ -81,6 +81,24 @@ If your assistant cannot run reliably on your own Linux machine, it is not your 
 
 ## Install
 
+### One-line install (Arch / Arch-based)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/galyarderlabs/galyarder-agent/main/deploy/arch/install.sh | bash
+```
+
+Optional env flags:
+
+- `G_AGENT_INSTALL_DIR=/path/to/repo` (default: `~/galyarder-agent`)
+- `G_AGENT_DATA_DIR=/path/to/data` (default: `~/.g-agent`)
+- `G_AGENT_SKIP_PACMAN=1` (skip package install)
+- `G_AGENT_SKIP_SERVICES=1` (skip systemd user units)
+- `G_AGENT_AUTO_START_SERVICES=0` (create units but do not restart now)
+
+Installer script path: `deploy/arch/install.sh`
+
+---
+
 ### From source (recommended)
 
 ```bash
@@ -478,6 +496,13 @@ cd ~/galyarder-agent/backend/agent
 pip install --no-deps -U --force-reinstall .
 systemctl --user restart g-agent-wa-bridge.service g-agent-gateway.service
 g-agent status
+```
+
+### 6) Run ops scripts
+
+```bash
+~/galyarder-agent/deploy/ops/healthcheck.sh
+~/galyarder-agent/deploy/ops/backup.sh
 ```
 
 ---
