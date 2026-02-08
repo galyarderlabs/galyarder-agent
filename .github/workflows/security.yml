@@ -44,6 +44,30 @@ jobs:
       - name: Audit high/critical vulnerabilities
         run: npm audit --audit-level=high
 
+  npm-audit-bridge:
+    name: NPM Audit (backend bridge)
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/agent/bridge
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: backend/agent/bridge/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Audit high/critical vulnerabilities
+        run: npm audit --audit-level=high
+
   pip-audit:
     name: Pip Audit (backend/agent)
     if: github.event_name != 'pull_request'

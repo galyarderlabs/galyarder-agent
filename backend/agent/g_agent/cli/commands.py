@@ -1616,33 +1616,31 @@ def doctor(
         if not network:
             add("Google API network", "warn", "skipped (--no-network)", "Run again with --network")
         else:
-            auth_header = None
-            if has_google_token:
-                auth_header = f"Bearer {google_cfg.access_token}"
             try:
-                with httpx.Client(timeout=timeout) as client:
-                    if auth_header:
-                        response = client.get(
-                            "https://www.googleapis.com/gmail/v1/users/me/profile",
-                            headers={"Authorization": auth_header},
-                        )
-                    else:
-                        response = client.post(
-                            "https://oauth2.googleapis.com/token",
-                            data={
-                                "client_id": google_cfg.client_id,
-                                "client_secret": google_cfg.client_secret,
-                                "refresh_token": google_cfg.refresh_token,
-                                "grant_type": "refresh_token",
-                            },
-                        )
-                if response.status_code == 200:
-                    add("Google API network", "pass", "reachable")
+                from g_agent.agent.tools.google_workspace import GoogleWorkspaceClient
+
+                google_client = GoogleWorkspaceClient(
+                    client_id=google_cfg.client_id,
+                    client_secret=google_cfg.client_secret,
+                    refresh_token=google_cfg.refresh_token,
+                    access_token=google_cfg.access_token,
+                    calendar_id=google_cfg.calendar_id,
+                )
+                ok, payload = asyncio.run(
+                    google_client.request(
+                        "GET",
+                        "https://gmail.googleapis.com/gmail/v1/users/me/profile",
+                    )
+                )
+                if ok:
+                    mode = "refresh-token flow" if has_google_refresh else "access token"
+                    add("Google API network", "pass", f"reachable ({mode})")
                 else:
+                    detail = payload.get("error", payload) if isinstance(payload, dict) else payload
                     add(
                         "Google API network",
                         "fail",
-                        f"HTTP {response.status_code}",
+                        str(detail),
                         "Verify Google token/refresh credentials",
                     )
             except Exception as e:

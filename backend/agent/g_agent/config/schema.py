@@ -2,7 +2,7 @@
 
 from pathlib import Path
 from pydantic import BaseModel, Field
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from g_agent.utils.helpers import get_data_path
 
@@ -250,6 +250,7 @@ class Config(BaseSettings):
 
         return None
     
-    class Config:
-        env_prefix = "G_AGENT_"
-        env_nested_delimiter = "__"
+    model_config = SettingsConfigDict(
+        env_prefix="G_AGENT_",
+        env_nested_delimiter="__",
+    )
