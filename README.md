@@ -1,87 +1,42 @@
-# GalyarderAgent Landing Page
+# Galyarder Agent — Landing Site
 
-**Execution, Engineered.**
+Landing website for **Galyarder Agent** at `agent.galyarderlabs.app`.
 
-Landing page for GalyarderAgent — a protocol-driven, memory-aware AI agent framework for sovereign automation.
+This repo is intentionally lean and focused on one job: a fast marketing site + waitlist API.
 
-🔗 **Live Site**: [agent.galyarderlabs.app](https://agent.galyarderlabs.app)
+## Stack
 
----
+- Next.js 15 (App Router)
+- TypeScript + Tailwind CSS
+- Radix UI + Framer Motion
+- Upstash KV + Upstash Ratelimit
+- Vercel Analytics + Speed Insights
 
-## Overview
+## Project Structure
 
-This is the official landing page for GalyarderAgent, built with Next.js 15 and deployed on Vercel. The site features:
+```text
+.
+├── app/                    # App Router pages + API routes
+│   └── api/waitlist/       # Waitlist endpoint
+├── components/             # Landing sections + UI primitives
+├── lib/                    # Copy, schemas, utilities, motion config
+├── public/                 # Static assets (robots, sitemap, icons)
+├── vercel.json             # Deployment/security headers
+└── package.json
+```
 
-- **Protocol-First Messaging**: Clear communication of GalyarderAgent's execution-over-chat philosophy
-- **Waitlist System**: Upstash Redis-backed waitlist with rate limiting
-- **Performance Optimized**: Vercel Analytics, Speed Insights, and Turbopack
-- **Production Ready**: Security headers, SEO optimized, fully responsive
-
----
-
-## Features
-
-### Core Functionality
-- ✅ Responsive landing page with smooth scroll navigation
-- ✅ Waitlist form with validation (email + role selection)
-- ✅ Rate-limited API endpoints (Upstash Redis)
-- ✅ Dark mode optimized design
-- ✅ Accessibility-first (WCAG 2.1 AA compliant)
-
-### Analytics & Monitoring
-- ✅ Vercel Analytics for traffic insights
-- ✅ Vercel Speed Insights for performance tracking
-- ✅ Server-side logging for waitlist signups
-
-### SEO & Social
-- ✅ Open Graph meta tags
-- ✅ Twitter Card optimization
-- ✅ Sitemap.xml for search engines
-- ✅ Robots.txt configuration
-- 📝 OG image template (see `OG_IMAGE_GUIDE.md`)
-
----
-
-## Tech Stack
-
-- **Framework**: [Next.js 15.5.3](https://nextjs.org/) (App Router)
-- **Language**: TypeScript 5
-- **Styling**: Tailwind CSS 3.4 + CSS Variables
-- **UI Components**: Radix UI primitives
-- **Forms**: React Hook Form + Zod validation
-- **Animations**: Framer Motion
-- **Database**: Upstash Redis (KV store)
-- **Deployment**: Vercel
-- **Build Tool**: Turbopack
-
----
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js 20.x or higher
-- npm or pnpm
-
-### Installation
+## Quick Start
 
 ```bash
-# Clone the repository
-git clone <repository-url>
-cd galyarderagent-landing
-
-# Install dependencies
 npm install
-
-# Run development server
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to view the site.
+Open `http://localhost:3000`.
 
-### Environment Variables
+## Environment Variables
 
-For waitlist functionality, create a `.env.local` file:
+Create `.env.local`:
 
 ```bash
 KV_REST_API_URL=your_upstash_redis_url
@@ -89,191 +44,56 @@ KV_REST_API_TOKEN=your_upstash_token
 KV_REST_API_READ_ONLY_TOKEN=your_upstash_readonly_token
 ```
 
-Get these from [Upstash Console](https://console.upstash.com/).
+Without these, the waitlist API will not work in production.
 
----
-
-## Project Structure
-
-```
-galyarderagent-landing/
-├── app/
-│   ├── api/waitlist/       # Waitlist API route
-│   ├── layout.tsx          # Root layout with analytics
-│   ├── page.tsx            # Landing page
-│   └── globals.css         # Global styles
-├── components/
-│   ├── ui/                 # Radix UI components
-│   ├── WaitlistForm.tsx    # Waitlist form component
-│   └── ...                 # Other components
-├── lib/
-│   ├── copy.ts             # All site copy/content
-│   ├── schema.ts           # Zod schemas
-│   └── utils.ts            # Utility functions
-├── public/
-│   ├── sitemap.xml         # SEO sitemap
-│   ├── robots.txt          # Crawler instructions
-│   └── og-image.png        # Social sharing image (add this)
-├── vercel.json             # Vercel configuration
-├── DEPLOYMENT.md           # Deployment guide
-└── OG_IMAGE_GUIDE.md       # OG image creation guide
-```
-
----
-
-## Development
-
-### Available Scripts
+## NPM Scripts
 
 ```bash
-# Development with Turbopack
-npm run dev
-
-# Production build
-npm run build
-
-# Start production server
-npm start
-
-# Lint code
-npm run lint
+npm run dev             # local dev
+npm run build           # production build
+npm run start           # serve production build
+npm run lint            # eslint
+npm run typecheck       # tsc --noEmit
 ```
 
-### Code Quality
+## Deploy
 
-- **Linting**: ESLint + Prettier
-- **Formatting**: Prettier with Tailwind plugin
-- **Commits**: Commitlint (conventional commits)
-- **Pre-commit**: Husky + lint-staged
+Primary deployment target:
 
----
+- `agent.galyarderlabs.app`
 
-## Deployment
-
-This project is configured for Vercel deployment with the domain:
-
-**Production URL**: `agent.galyarderlabs.app`
-
-### Quick Deploy
+Use:
 
 ```bash
-# Install Vercel CLI
-npm i -g vercel
-
-# Deploy to production
 vercel --prod
 ```
 
-For detailed deployment instructions, including DNS configuration and environment variables, see **[DEPLOYMENT.md](./DEPLOYMENT.md)**.
+## Content Updates
 
-### Domain Configuration
+All core landing copy is centralized in:
 
-- **Main Domain**: `galyarderlabs.app`
-- **Project Subdomain**: `agent.galyarderlabs.app`
+- `lib/copy.ts`
 
-DNS CNAME record:
-```
-Name: agent
-Value: cname.vercel-dns.com
-```
+Update copy there, then rebuild/redeploy.
 
----
+## API
 
-## Content Management
+### `POST /api/waitlist`
 
-All site copy is centralized in `lib/copy.ts` for easy updates:
+Stores waitlist entries in Upstash KV with:
 
-```typescript
-export const copy = {
-  meta: { /* SEO metadata */ },
-  hero: { /* Hero section */ },
-  problem: { /* Problem statement */ },
-  solution: { /* Solution overview */ },
-  // ... etc
-};
-```
+- input validation (Zod)
+- anti-spam honeypot
+- duplicate-email prevention
+- per-IP rate limiting
 
-Update copy there, rebuild, and deploy.
+## Security Notes
 
----
+- Security headers configured in `vercel.json`
+- API input validated with Zod
+- Rate limiting enabled in waitlist route
+- No client-side secret exposure
 
-## API Routes
+## Contact
 
-### POST `/api/waitlist`
-
-Add email to waitlist.
-
-**Request Body:**
-```json
-{
-  "email": "user@example.com",
-  "role": "Builder",
-  "consent": true
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Added to waitlist"
-}
-```
-
-**Rate Limiting**: 5 requests per minute per IP
-
----
-
-## Performance
-
-Current metrics:
-- **Lighthouse Score**: 95+ (Performance)
-- **First Contentful Paint**: <1.5s
-- **Time to Interactive**: <3s
-- **Bundle Size**: Optimized with code splitting
-
----
-
-## Security
-
-- ✅ Security headers (X-Frame-Options, CSP, etc.)
-- ✅ Rate limiting on API routes
-- ✅ Input validation with Zod
-- ✅ HTTPS enforced
-- ✅ No client-side secrets
-
----
-
-## Browser Support
-
-- Chrome (last 2 versions)
-- Firefox (last 2 versions)
-- Safari (last 2 versions)
-- Edge (last 2 versions)
-
----
-
-## Contributing
-
-This is a private project. For questions or issues, contact:
-
-**Email**: founders@galyarderlabs.app
-
----
-
-## License
-
-© 2025 GalyarderLabs. All rights reserved.
-
----
-
-## Related Projects
-
-- **GalyarderOS**: [galyarderos.app](https://galyarderos.app) — Sovereign OS for operators
-- **GalyarderCode**: [galyardercode.app](https://galyardercode.app) — Repo-aware code execution
-- **GalyarderWallet**: [galyarderwallet.app](https://galyarderwallet.app) — Treasury automation
-- **GalyarderID**: [galyarderid.app](https://galyarderid.app) — Identity & permissions
-
----
-
-**Built with discipline. Deployed with confidence.**
+- `founders@galyarderlabs.app`
