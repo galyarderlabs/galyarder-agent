@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="backend/agent/g_agent_logo.png" alt="Galyarder Agent" width="520">
+  <img src="backend/agent/g-agent_logo.png" alt="Galyarder Agent" width="520">
   <h1>Galyarder Agent (g-agent)</h1>
   <p><b>Private, practical, always-on personal AI assistant for cross-platform workflows (Linux, macOS, Windows, and mobile via Telegram/WhatsApp).</b></p>
   <p>
@@ -34,7 +34,7 @@ If your assistant cannot run reliably on your own Linux machine, it is not your 
 ## Architecture
 
 <p align="center">
-  <img src="backend/agent/g_agent_arch.png" alt="g-agent architecture" width="900">
+  <img src="backend/agent/g-agent_arch.png" alt="g-agent architecture" width="900">
 </p>
 
 ---
