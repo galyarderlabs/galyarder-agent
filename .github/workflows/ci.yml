@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  landingpages:
+    name: Landingpages Checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: landingpages
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: landingpages/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+  backend-agent:
+    name: Backend Agent Checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/agent
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/agent/pyproject.toml
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install backend + dev dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Compile package
+        run: python -m compileall -q g_agent
+
+      - name: Run tests
+        run: pytest -q
