@@ -94,6 +94,21 @@ Installer scripts:
 - `deploy/macos/install.sh`
 - `deploy/windows/install.ps1`
 
+### Uninstall (by OS)
+
+| OS | One-liner |
+|---|---|
+| Arch / Arch-based | `curl -fsSL https://raw.githubusercontent.com/galyarderlabs/galyarder-agent/main/deploy/arch/uninstall.sh \| bash` |
+| Debian / Ubuntu | `curl -fsSL https://raw.githubusercontent.com/galyarderlabs/galyarder-agent/main/deploy/debian/uninstall.sh \| bash` |
+| macOS | `curl -fsSL https://raw.githubusercontent.com/galyarderlabs/galyarder-agent/main/deploy/macos/uninstall.sh \| bash` |
+| Windows (PowerShell) | `irm https://raw.githubusercontent.com/galyarderlabs/galyarder-agent/main/deploy/windows/uninstall.ps1 \| iex` |
+
+Uninstall flags:
+
+- `G_AGENT_REMOVE_SERVICES=0` keep startup services/tasks
+- `G_AGENT_REMOVE_REPO=1` remove repo directory
+- `G_AGENT_WIPE_DATA=1` remove full `~/.g-agent` data
+
 ---
 
 ### From source (recommended)
