@@ -1,6 +1,6 @@
 <div align="center">
   <img src="backend/agent/g-agent_logo.png" alt="Galyarder Agent" width="520">
-  <h1>Galyarder Agent (g-agent)</h1>
+  <h1>Galyarder Agent</h1>
   <p><b>Private, practical, always-on personal AI assistant for cross-platform workflows (Linux, macOS, Windows, and mobile via Telegram/WhatsApp).</b></p>
   <p>
     <img src="https://img.shields.io/badge/PyPI-not%20published%20yet-6b7280" alt="PyPI not published">
