@@ -194,19 +194,22 @@ class GmailReadThreadTool(Tool):
     def __init__(self, client: GoogleWorkspaceClient):
         self.client = client
 
-    async def execute(self, threadId: str, **kwargs: Any) -> str:
+    async def execute(self, threadId: str | None = None, **kwargs: Any) -> str:
+        thread_id = (threadId or "").strip()
+        if not thread_id:
+            return "Error: threadId is required."
         if not self.client.is_configured():
             return "Error: Google Workspace not configured."
         ok, data = await self.client.request(
             "GET",
-            f"https://gmail.googleapis.com/gmail/v1/users/me/threads/{threadId}",
+            f"https://gmail.googleapis.com/gmail/v1/users/me/threads/{thread_id}",
             params={"format": "metadata"},
         )
         if not ok:
             return f"Error: {data.get('error', data)}"
 
         messages = data.get("messages", []) or []
-        lines = [f"Thread {threadId} ({len(messages)} messages):"]
+        lines = [f"Thread {thread_id} ({len(messages)} messages):"]
         for msg in messages[:20]:
             headers = msg.get("payload", {}).get("headers", []) or []
             hdr = {h.get("name", "").lower(): h.get("value", "") for h in headers}
@@ -234,11 +237,25 @@ class GmailSendTool(Tool):
     def __init__(self, client: GoogleWorkspaceClient):
         self.client = client
 
-    async def execute(self, to: str, subject: str, body: str, **kwargs: Any) -> str:
+    async def execute(
+        self,
+        to: str | None = None,
+        subject: str | None = None,
+        body: str | None = None,
+        **kwargs: Any,
+    ) -> str:
+        to_addr = (to or "").strip()
+        subject_text = (subject or "").strip()
+        if not to_addr:
+            return "Error: to is required."
+        if not subject_text:
+            return "Error: subject is required."
+        if body is None:
+            return "Error: body is required."
         if not self.client.is_configured():
             return "Error: Google Workspace not configured."
 
-        raw = f"To: {to}\r\nSubject: {subject}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n{body}"
+        raw = f"To: {to_addr}\r\nSubject: {subject_text}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n{body}"
         raw_b64 = base64.urlsafe_b64encode(raw.encode("utf-8")).decode("utf-8").rstrip("=")
         ok, data = await self.client.request(
             "POST",
@@ -268,11 +285,25 @@ class GmailDraftTool(Tool):
     def __init__(self, client: GoogleWorkspaceClient):
         self.client = client
 
-    async def execute(self, to: str, subject: str, body: str, **kwargs: Any) -> str:
+    async def execute(
+        self,
+        to: str | None = None,
+        subject: str | None = None,
+        body: str | None = None,
+        **kwargs: Any,
+    ) -> str:
+        to_addr = (to or "").strip()
+        subject_text = (subject or "").strip()
+        if not to_addr:
+            return "Error: to is required."
+        if not subject_text:
+            return "Error: subject is required."
+        if body is None:
+            return "Error: body is required."
         if not self.client.is_configured():
             return "Error: Google Workspace not configured."
 
-        raw = f"To: {to}\r\nSubject: {subject}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n{body}"
+        raw = f"To: {to_addr}\r\nSubject: {subject_text}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n{body}"
         raw_b64 = base64.urlsafe_b64encode(raw.encode("utf-8")).decode("utf-8").rstrip("=")
         ok, data = await self.client.request(
             "POST",
@@ -369,25 +400,34 @@ class CalendarCreateEventTool(Tool):
 
     async def execute(
         self,
-        summary: str,
-        start: str,
-        end: str,
+        summary: str | None = None,
+        start: str | None = None,
+        end: str | None = None,
         timeZone: str = "UTC",
         description: str = "",
         location: str = "",
         calendarId: str | None = None,
         **kwargs: Any,
     ) -> str:
+        summary_text = (summary or "").strip()
+        start_text = (start or "").strip()
+        end_text = (end or "").strip()
+        if not summary_text:
+            return "Error: summary is required."
+        if not start_text:
+            return "Error: start is required."
+        if not end_text:
+            return "Error: end is required."
         if not self.client.is_configured():
             return "Error: Google Workspace not configured."
 
         cal_id = calendarId or self.client.calendar_id or "primary"
         body = {
-            "summary": summary,
+            "summary": summary_text,
             "description": description,
             "location": location,
-            "start": {"dateTime": start, "timeZone": timeZone},
-            "end": {"dateTime": end, "timeZone": timeZone},
+            "start": {"dateTime": start_text, "timeZone": timeZone},
+            "end": {"dateTime": end_text, "timeZone": timeZone},
         }
         ok, data = await self.client.request(
             "POST",
@@ -431,7 +471,7 @@ class CalendarUpdateEventTool(Tool):
 
     async def execute(
         self,
-        eventId: str,
+        eventId: str | None = None,
         calendarId: str | None = None,
         summary: str | None = None,
         start: str | None = None,
@@ -441,6 +481,9 @@ class CalendarUpdateEventTool(Tool):
         location: str | None = None,
         **kwargs: Any,
     ) -> str:
+        event_id = (eventId or "").strip()
+        if not event_id:
+            return "Error: eventId is required."
         if not self.client.is_configured():
             return "Error: Google Workspace not configured."
 
@@ -461,7 +504,7 @@ class CalendarUpdateEventTool(Tool):
         cal_id = calendarId or self.client.calendar_id or "primary"
         ok, data = await self.client.request(
             "PATCH",
-            f"https://www.googleapis.com/calendar/v3/calendars/{quote(cal_id, safe='')}/events/{quote(eventId, safe='')}",
+            f"https://www.googleapis.com/calendar/v3/calendars/{quote(cal_id, safe='')}/events/{quote(event_id, safe='')}",
             json_body=body,
         )
         if not ok:
@@ -539,13 +582,16 @@ class DriveReadTextTool(Tool):
     def __init__(self, client: GoogleWorkspaceClient):
         self.client = client
 
-    async def execute(self, fileId: str, maxChars: int = 8000, **kwargs: Any) -> str:
+    async def execute(self, fileId: str | None = None, maxChars: int = 8000, **kwargs: Any) -> str:
+        file_id = (fileId or "").strip()
+        if not file_id:
+            return "Error: fileId is required."
         if not self.client.is_configured():
             return "Error: Google Workspace not configured."
 
         ok_meta, meta = await self.client.request(
             "GET",
-            f"https://www.googleapis.com/drive/v3/files/{quote(fileId, safe='')}",
+            f"https://www.googleapis.com/drive/v3/files/{quote(file_id, safe='')}",
             params={"fields": "id,name,mimeType,webViewLink"},
         )
         if not ok_meta:
@@ -560,11 +606,11 @@ class DriveReadTextTool(Tool):
 
         if mime == "application/vnd.google-apps.document":
             url = (
-                f"https://www.googleapis.com/drive/v3/files/{quote(fileId, safe='')}/export"
+                f"https://www.googleapis.com/drive/v3/files/{quote(file_id, safe='')}/export"
                 "?mimeType=text/plain"
             )
         else:
-            url = f"https://www.googleapis.com/drive/v3/files/{quote(fileId, safe='')}?alt=media"
+            url = f"https://www.googleapis.com/drive/v3/files/{quote(file_id, safe='')}?alt=media"
 
         try:
             async with httpx.AsyncClient(timeout=20.0) as client:
@@ -620,13 +666,16 @@ class DocsGetDocumentTool(Tool):
     def __init__(self, client: GoogleWorkspaceClient):
         self.client = client
 
-    async def execute(self, documentId: str, maxChars: int = 8000, **kwargs: Any) -> str:
+    async def execute(self, documentId: str | None = None, maxChars: int = 8000, **kwargs: Any) -> str:
+        document_id = (documentId or "").strip()
+        if not document_id:
+            return "Error: documentId is required."
         if not self.client.is_configured():
             return "Error: Google Workspace not configured."
 
         ok, data = await self.client.request(
             "GET",
-            f"https://docs.googleapis.com/v1/documents/{quote(documentId, safe='')}",
+            f"https://docs.googleapis.com/v1/documents/{quote(document_id, safe='')}",
         )
         if not ok:
             return f"Error: {data.get('error', data)}"
@@ -654,13 +703,24 @@ class SheetsGetValuesTool(Tool):
     def __init__(self, client: GoogleWorkspaceClient):
         self.client = client
 
-    async def execute(self, spreadsheetId: str, rangeA1: str, **kwargs: Any) -> str:
+    async def execute(
+        self,
+        spreadsheetId: str | None = None,
+        rangeA1: str | None = None,
+        **kwargs: Any,
+    ) -> str:
+        spreadsheet_id = (spreadsheetId or "").strip()
+        range_a1 = (rangeA1 or "").strip()
+        if not spreadsheet_id:
+            return "Error: spreadsheetId is required."
+        if not range_a1:
+            return "Error: rangeA1 is required."
         if not self.client.is_configured():
             return "Error: Google Workspace not configured."
 
         ok, data = await self.client.request(
             "GET",
-            f"https://sheets.googleapis.com/v4/spreadsheets/{quote(spreadsheetId, safe='')}/values/{quote(rangeA1, safe='')}",
+            f"https://sheets.googleapis.com/v4/spreadsheets/{quote(spreadsheet_id, safe='')}/values/{quote(range_a1, safe='')}",
         )
         if not ok:
             return f"Error: {data.get('error', data)}"
@@ -670,7 +730,7 @@ class SheetsGetValuesTool(Tool):
             return "No values found."
         rows = ["\t".join(str(cell) for cell in row) for row in values]
         preview = "\n".join(rows[:200])
-        return f"Range: {data.get('range', rangeA1)}\nRows: {len(values)}\n\n{preview}"
+        return f"Range: {data.get('range', range_a1)}\nRows: {len(values)}\n\n{preview}"
 
 
 class DocsAppendTextTool(Tool):
@@ -697,11 +757,16 @@ class DocsAppendTextTool(Tool):
 
     async def execute(
         self,
-        documentId: str,
-        text: str,
+        documentId: str | None = None,
+        text: str | None = None,
         ensureNewline: bool = True,
         **kwargs: Any,
     ) -> str:
+        document_id = (documentId or "").strip()
+        if not document_id:
+            return "Error: documentId is required."
+        if text is None:
+            return "Error: text is required."
         if not self.client.is_configured():
             return "Error: Google Workspace not configured."
 
@@ -721,7 +786,7 @@ class DocsAppendTextTool(Tool):
         }
         ok, data = await self.client.request(
             "POST",
-            f"https://docs.googleapis.com/v1/documents/{quote(documentId, safe='')}:batchUpdate",
+            f"https://docs.googleapis.com/v1/documents/{quote(document_id, safe='')}:batchUpdate",
             json_body=body,
         )
         if not ok:
@@ -729,7 +794,7 @@ class DocsAppendTextTool(Tool):
         return json.dumps(
             {
                 "ok": True,
-                "documentId": documentId,
+                "documentId": document_id,
                 "replyCount": len(data.get("replies", []) or []),
             }
         )
@@ -767,12 +832,20 @@ class SheetsAppendValuesTool(Tool):
 
     async def execute(
         self,
-        spreadsheetId: str,
-        rangeA1: str,
-        rows: list[list[str]],
+        spreadsheetId: str | None = None,
+        rangeA1: str | None = None,
+        rows: list[list[str]] | None = None,
         valueInputOption: str = "USER_ENTERED",
         **kwargs: Any,
     ) -> str:
+        spreadsheet_id = (spreadsheetId or "").strip()
+        range_a1 = (rangeA1 or "").strip()
+        if not spreadsheet_id:
+            return "Error: spreadsheetId is required."
+        if not range_a1:
+            return "Error: rangeA1 is required."
+        if rows is None:
+            return "Error: rows is required."
         if not self.client.is_configured():
             return "Error: Google Workspace not configured."
         if not rows:
@@ -781,7 +854,7 @@ class SheetsAppendValuesTool(Tool):
         normalized_rows = [[str(cell) for cell in row] for row in rows]
         ok, data = await self.client.request(
             "POST",
-            f"https://sheets.googleapis.com/v4/spreadsheets/{quote(spreadsheetId, safe='')}/values/{quote(rangeA1, safe='')}:append",
+            f"https://sheets.googleapis.com/v4/spreadsheets/{quote(spreadsheet_id, safe='')}/values/{quote(range_a1, safe='')}:append",
             params={
                 "valueInputOption": valueInputOption,
                 "insertDataOption": "INSERT_ROWS",
@@ -912,7 +985,7 @@ class ContactsGetTool(Tool):
     def __init__(self, client: GoogleWorkspaceClient):
         self.client = client
 
-    async def execute(self, resourceName: str, **kwargs: Any) -> str:
+    async def execute(self, resourceName: str | None = None, **kwargs: Any) -> str:
         if not self.client.is_configured():
             return "Error: Google Workspace not configured."
 

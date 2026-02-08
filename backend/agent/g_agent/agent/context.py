@@ -259,7 +259,8 @@ When writing durable user/context facts, use `remember` and `update_profile` too
                         attachment_notes.append(note)
                     continue
                 except Exception:
-                    pass
+                    attachment_notes.append(f"type={attachment_type}, path={path}, note=image embed failed")
+                    continue
 
             descriptor = f"type={attachment_type}, path={path}"
             if mime:

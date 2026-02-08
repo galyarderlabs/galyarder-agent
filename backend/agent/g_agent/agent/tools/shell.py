@@ -60,15 +60,18 @@ class ExecTool(Tool):
             "required": ["command"]
         }
     
-    async def execute(self, command: str, working_dir: str | None = None, **kwargs: Any) -> str:
+    async def execute(self, command: str | None = None, working_dir: str | None = None, **kwargs: Any) -> str:
+        command_text = (command or "").strip()
+        if not command_text:
+            return "Error: command is required"
         cwd = working_dir or self.working_dir or os.getcwd()
-        guard_error = self._guard_command(command, cwd)
+        guard_error = self._guard_command(command_text, cwd)
         if guard_error:
             return guard_error
         
         try:
             process = await asyncio.create_subprocess_shell(
-                command,
+                command_text,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=cwd,

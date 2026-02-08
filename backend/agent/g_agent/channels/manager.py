@@ -112,7 +112,7 @@ class ChannelManager:
             try:
                 await self._dispatch_task
             except asyncio.CancelledError:
-                pass
+                logger.debug("Outbound dispatcher task cancelled")
         
         # Stop all channels
         for name, channel in self.channels.items():

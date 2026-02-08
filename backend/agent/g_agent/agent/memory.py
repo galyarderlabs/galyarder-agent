@@ -97,11 +97,13 @@ class MemoryStore:
             profile_content = alias_content
 
         if self.profile_alias_file.exists():
+            alias_is_symlink = False
             try:
-                if self.profile_alias_file.is_symlink():
-                    return
+                alias_is_symlink = self.profile_alias_file.is_symlink()
             except OSError:
-                pass
+                alias_is_symlink = False
+            if alias_is_symlink:
+                return
             if profile_content and alias_content != profile_content:
                 self._safe_write(self.profile_alias_file, profile_content)
             return
@@ -110,7 +112,9 @@ class MemoryStore:
             self.profile_alias_file.symlink_to(self.profile_file.name)
             return
         except OSError:
-            pass
+            if profile_content:
+                self._safe_write(self.profile_alias_file, profile_content)
+            return
 
         if profile_content:
             self._safe_write(self.profile_alias_file, profile_content)

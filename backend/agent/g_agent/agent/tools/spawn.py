@@ -55,10 +55,13 @@ class SpawnTool(Tool):
             "required": ["task"],
         }
     
-    async def execute(self, task: str, label: str | None = None, **kwargs: Any) -> str:
+    async def execute(self, task: str | None = None, label: str | None = None, **kwargs: Any) -> str:
         """Spawn a subagent to execute the given task."""
+        task_text = (task or "").strip()
+        if not task_text:
+            return "Error: task is required"
         return await self._manager.spawn(
-            task=task,
+            task=task_text,
             label=label,
             origin_channel=self._origin_channel,
             origin_chat_id=self._origin_chat_id,

@@ -38,8 +38,11 @@ class RememberTool(Tool):
     def __init__(self, workspace: Path):
         self.memory = MemoryStore(workspace)
 
-    async def execute(self, fact: str, category: str = "general", **kwargs: Any) -> str:
-        ok = self.memory.append_long_term_fact(fact, category=category)
+    async def execute(self, fact: str | None = None, category: str = "general", **kwargs: Any) -> str:
+        fact_text = (fact or "").strip()
+        if not fact_text:
+            return "Error: fact is required."
+        ok = self.memory.append_long_term_fact(fact_text, category=category)
         if ok:
             return f"Saved to long-term memory ({category})."
         return "Fact already exists or was empty; no change."
@@ -70,22 +73,25 @@ class RecallTool(Tool):
 
     async def execute(
         self,
-        query: str,
+        query: str | None = None,
         maxItems: int = 12,
         lookbackDays: int = 30,
         scopes: list[str] | None = None,
         **kwargs: Any,
     ) -> str:
+        query_text = (query or "").strip()
+        if not query_text:
+            return "Error: query is required."
         items = self.memory.recall(
-            query=query,
+            query=query_text,
             max_items=maxItems,
             lookback_days=lookbackDays,
             scopes=scopes,
         )
         if not items:
-            return f"No memory matches found for: {query}"
+            return f"No memory matches found for: {query_text}"
 
-        lines = [f"Memory recall for: {query}"]
+        lines = [f"Memory recall for: {query_text}"]
         for idx, item in enumerate(items, 1):
             lines.append(f"{idx}. [{item['source']}] {item['text']}")
         return "\n".join(lines)
@@ -111,14 +117,19 @@ class UpdateProfileTool(Tool):
 
     async def execute(
         self,
-        key: str,
-        value: str,
+        key: str | None = None,
+        value: str | None = None,
         section: str = "Preferences",
         **kwargs: Any,
     ) -> str:
-        ok = self.memory.upsert_profile_field(section=section, key=key, value=value)
+        profile_key = (key or "").strip()
+        if not profile_key:
+            return "Error: key is required."
+        if value is None:
+            return "Error: value is required."
+        ok = self.memory.upsert_profile_field(section=section, key=profile_key, value=value)
         if ok:
-            return f"Updated profile: {section}.{key}"
+            return f"Updated profile: {section}.{profile_key}"
         return "Failed to update profile (invalid input or file not writable)."
 
 
@@ -145,8 +156,17 @@ class LogFeedbackTool(Tool):
     def __init__(self, workspace: Path):
         self.memory = MemoryStore(workspace)
 
-    async def execute(self, feedback: str, source: str = "user", severity: str = "medium", **kwargs: Any) -> str:
-        ok = self.memory.append_lesson(feedback, source=source, severity=severity)
+    async def execute(
+        self,
+        feedback: str | None = None,
+        source: str = "user",
+        severity: str = "medium",
+        **kwargs: Any,
+    ) -> str:
+        feedback_text = (feedback or "").strip()
+        if not feedback_text:
+            return "Error: feedback is required."
+        ok = self.memory.append_lesson(feedback_text, source=source, severity=severity)
         if ok:
             return "Logged feedback to lessons learned."
         return "Feedback was empty; no change."
@@ -169,14 +189,17 @@ class SlackWebhookTool(Tool):
     def __init__(self, webhook_url: str | None = None):
         self.webhook_url = webhook_url or _env("SLACK_WEBHOOK_URL", "")
 
-    async def execute(self, text: str, webhookUrl: str | None = None, **kwargs: Any) -> str:
+    async def execute(self, text: str | None = None, webhookUrl: str | None = None, **kwargs: Any) -> str:
+        message_text = (text or "").strip()
+        if not message_text:
+            return "Error: text is required."
         url = webhookUrl or self.webhook_url
         if not url:
             return "Error: Slack webhook URL not configured."
 
         try:
             async with httpx.AsyncClient(timeout=15.0) as client:
-                response = await client.post(url, json={"text": text})
+                response = await client.post(url, json={"text": message_text})
             if 200 <= response.status_code < 300:
                 return "Slack message sent."
             return f"Error: Slack webhook returned HTTP {response.status_code}"
@@ -216,7 +239,22 @@ class SendEmailTool(Tool):
         self.from_email = from_email or _env("SMTP_FROM", "")
         self.use_tls = use_tls
 
-    async def execute(self, to: str, subject: str, body: str, fromEmail: str | None = None, **kwargs: Any) -> str:
+    async def execute(
+        self,
+        to: str | None = None,
+        subject: str | None = None,
+        body: str | None = None,
+        fromEmail: str | None = None,
+        **kwargs: Any,
+    ) -> str:
+        to_addr = (to or "").strip()
+        subject_text = (subject or "").strip()
+        if not to_addr:
+            return "Error: to is required."
+        if not subject_text:
+            return "Error: subject is required."
+        if body is None:
+            return "Error: body is required."
         if not self.host:
             return "Error: SMTP host not configured."
 
@@ -226,8 +264,8 @@ class SendEmailTool(Tool):
 
         msg = EmailMessage()
         msg["From"] = sender
-        msg["To"] = to
-        msg["Subject"] = subject
+        msg["To"] = to_addr
+        msg["Subject"] = subject_text
         msg.set_content(body)
 
         try:
@@ -237,7 +275,7 @@ class SendEmailTool(Tool):
                 if self.username and self.password:
                     smtp.login(self.username, self.password)
                 smtp.send_message(msg)
-            return f"Email sent to {to}."
+            return f"Email sent to {to_addr}."
         except Exception as e:
             return f"Error: {e}"
 
@@ -276,21 +314,30 @@ class CreateCalendarEventTool(Tool):
 
     async def execute(
         self,
-        title: str,
-        start: str,
-        end: str,
+        title: str | None = None,
+        start: str | None = None,
+        end: str | None = None,
         description: str = "",
         location: str = "",
         outputFile: str | None = None,
         **kwargs: Any,
     ) -> str:
+        title_text = (title or "").strip()
+        start_text = (start or "").strip()
+        end_text = (end or "").strip()
+        if not title_text:
+            return json.dumps({"ok": False, "error": "title is required"})
+        if not start_text:
+            return json.dumps({"ok": False, "error": "start is required"})
+        if not end_text:
+            return json.dumps({"ok": False, "error": "end is required"})
         try:
-            start_dt = self._parse_iso(start)
-            end_dt = self._parse_iso(end)
+            start_dt = self._parse_iso(start_text)
+            end_dt = self._parse_iso(end_text)
             if end_dt <= start_dt:
                 return "Error: end must be after start."
 
-            uid = f"{int(datetime.now(tz=timezone.utc).timestamp())}-{abs(hash(title))}@g-agent"
+            uid = f"{int(datetime.now(tz=timezone.utc).timestamp())}-{abs(hash(title_text))}@g-agent"
             stamp = self._fmt_ics(datetime.now(tz=timezone.utc))
             ics = "\n".join([
                 "BEGIN:VCALENDAR",
@@ -302,7 +349,7 @@ class CreateCalendarEventTool(Tool):
                 f"DTSTAMP:{stamp}",
                 f"DTSTART:{self._fmt_ics(start_dt)}",
                 f"DTEND:{self._fmt_ics(end_dt)}",
-                f"SUMMARY:{title}",
+                f"SUMMARY:{title_text}",
                 f"DESCRIPTION:{description}",
                 f"LOCATION:{location}",
                 "END:VEVENT",
@@ -315,11 +362,11 @@ class CreateCalendarEventTool(Tool):
                 if not out.is_absolute():
                     out = self.workspace / outputFile
             else:
-                safe_name = "".join(ch if ch.isalnum() else "-" for ch in title.lower()).strip("-") or "event"
+                safe_name = "".join(ch if ch.isalnum() else "-" for ch in title_text.lower()).strip("-") or "event"
                 out = self.calendar_dir / f"{safe_name}-{start_dt.strftime('%Y%m%dT%H%M%SZ')}.ics"
 
             out.parent.mkdir(parents=True, exist_ok=True)
             out.write_text(ics, encoding="utf-8")
-            return json.dumps({"ok": True, "path": str(out), "title": title})
+            return json.dumps({"ok": True, "path": str(out), "title": title_text})
         except Exception as e:
             return json.dumps({"ok": False, "error": str(e)})

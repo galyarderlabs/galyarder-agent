@@ -59,11 +59,14 @@ class MessageTool(Tool):
     
     async def execute(
         self, 
-        content: str, 
+        content: str | None = None, 
         channel: str | None = None, 
         chat_id: str | None = None,
         **kwargs: Any
     ) -> str:
+        content_text = (content or "").strip()
+        if not content_text:
+            return "Error: content is required"
         channel = channel or self._default_channel
         chat_id = chat_id or self._default_chat_id
         
@@ -76,7 +79,7 @@ class MessageTool(Tool):
         msg = OutboundMessage(
             channel=channel,
             chat_id=chat_id,
-            content=content
+            content=content_text
         )
         
         try:

@@ -175,8 +175,8 @@ class TelegramChannel(BaseChannel):
                             await self._app.updater.stop()
                         await self._app.stop()
                         await self._app.shutdown()
-                    except Exception:
-                        pass
+                    except Exception as cleanup_error:
+                        logger.debug(f"Telegram cleanup after error failed: {cleanup_error}")
                     self._app = None
                 if self._running:
                     logger.info("Retrying Telegram connection in 5 seconds...")

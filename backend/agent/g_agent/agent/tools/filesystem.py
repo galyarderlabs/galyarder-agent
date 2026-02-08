@@ -41,13 +41,16 @@ class ReadFileTool(Tool):
             "required": ["path"]
         }
     
-    async def execute(self, path: str, **kwargs: Any) -> str:
+    async def execute(self, path: str | None = None, **kwargs: Any) -> str:
+        target_path = (path or "").strip()
+        if not target_path:
+            return "Error: path is required"
         try:
-            file_path = _resolve_path(path, self._allowed_dir)
+            file_path = _resolve_path(target_path, self._allowed_dir)
             if not file_path.exists():
-                return f"Error: File not found: {path}"
+                return f"Error: File not found: {target_path}"
             if not file_path.is_file():
-                return f"Error: Not a file: {path}"
+                return f"Error: Not a file: {target_path}"
             
             content = file_path.read_text(encoding="utf-8")
             return content
@@ -88,12 +91,17 @@ class WriteFileTool(Tool):
             "required": ["path", "content"]
         }
     
-    async def execute(self, path: str, content: str, **kwargs: Any) -> str:
+    async def execute(self, path: str | None = None, content: str | None = None, **kwargs: Any) -> str:
+        target_path = (path or "").strip()
+        if not target_path:
+            return "Error: path is required"
+        if content is None:
+            return "Error: content is required"
         try:
-            file_path = _resolve_path(path, self._allowed_dir)
+            file_path = _resolve_path(target_path, self._allowed_dir)
             file_path.parent.mkdir(parents=True, exist_ok=True)
             file_path.write_text(content, encoding="utf-8")
-            return f"Successfully wrote {len(content)} bytes to {path}"
+            return f"Successfully wrote {len(content)} bytes to {target_path}"
         except PermissionError as e:
             return f"Error: {e}"
         except Exception as e:
@@ -135,11 +143,24 @@ class EditFileTool(Tool):
             "required": ["path", "old_text", "new_text"]
         }
     
-    async def execute(self, path: str, old_text: str, new_text: str, **kwargs: Any) -> str:
+    async def execute(
+        self,
+        path: str | None = None,
+        old_text: str | None = None,
+        new_text: str | None = None,
+        **kwargs: Any,
+    ) -> str:
+        target_path = (path or "").strip()
+        if not target_path:
+            return "Error: path is required"
+        if old_text is None:
+            return "Error: old_text is required"
+        if new_text is None:
+            return "Error: new_text is required"
         try:
-            file_path = _resolve_path(path, self._allowed_dir)
+            file_path = _resolve_path(target_path, self._allowed_dir)
             if not file_path.exists():
-                return f"Error: File not found: {path}"
+                return f"Error: File not found: {target_path}"
             
             content = file_path.read_text(encoding="utf-8")
             
@@ -154,7 +175,7 @@ class EditFileTool(Tool):
             new_content = content.replace(old_text, new_text, 1)
             file_path.write_text(new_content, encoding="utf-8")
             
-            return f"Successfully edited {path}"
+            return f"Successfully edited {target_path}"
         except PermissionError as e:
             return f"Error: {e}"
         except Exception as e:
@@ -188,13 +209,16 @@ class ListDirTool(Tool):
             "required": ["path"]
         }
     
-    async def execute(self, path: str, **kwargs: Any) -> str:
+    async def execute(self, path: str | None = None, **kwargs: Any) -> str:
+        target_path = (path or "").strip()
+        if not target_path:
+            return "Error: path is required"
         try:
-            dir_path = _resolve_path(path, self._allowed_dir)
+            dir_path = _resolve_path(target_path, self._allowed_dir)
             if not dir_path.exists():
-                return f"Error: Directory not found: {path}"
+                return f"Error: Directory not found: {target_path}"
             if not dir_path.is_dir():
-                return f"Error: Not a directory: {path}"
+                return f"Error: Not a directory: {target_path}"
             
             items = []
             for item in sorted(dir_path.iterdir()):
@@ -202,7 +226,7 @@ class ListDirTool(Tool):
                 items.append(f"{prefix}{item.name}")
             
             if not items:
-                return f"Directory {path} is empty"
+                return f"Directory {target_path} is empty"
             
             return "\n".join(items)
         except PermissionError as e:

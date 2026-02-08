@@ -61,7 +61,10 @@ class WebSearchTool(Tool):
         self.api_key = api_key or os.environ.get("BRAVE_API_KEY", "")
         self.max_results = max_results
     
-    async def execute(self, query: str, count: int | None = None, **kwargs: Any) -> str:
+    async def execute(self, query: str | None = None, count: int | None = None, **kwargs: Any) -> str:
+        q = (query or "").strip()
+        if not q:
+            return "Error: query is required"
         if not self.api_key:
             return "Error: BRAVE_API_KEY not configured"
         
@@ -70,7 +73,7 @@ class WebSearchTool(Tool):
             async with httpx.AsyncClient() as client:
                 r = await client.get(
                     "https://api.search.brave.com/res/v1/web/search",
-                    params={"q": query, "count": n},
+                    params={"q": q, "count": n},
                     headers={"Accept": "application/json", "X-Subscription-Token": self.api_key},
                     timeout=10.0
                 )
@@ -78,9 +81,9 @@ class WebSearchTool(Tool):
             
             results = r.json().get("web", {}).get("results", [])
             if not results:
-                return f"No results for: {query}"
+                return f"No results for: {q}"
             
-            lines = [f"Results for: {query}\n"]
+            lines = [f"Results for: {q}\n"]
             for i, item in enumerate(results[:n], 1):
                 lines.append(f"{i}. {item.get('title', '')}\n   {item.get('url', '')}")
                 if desc := item.get("description"):
@@ -108,15 +111,24 @@ class WebFetchTool(Tool):
     def __init__(self, max_chars: int = 50000):
         self.max_chars = max_chars
     
-    async def execute(self, url: str, extractMode: str = "markdown", maxChars: int | None = None, **kwargs: Any) -> str:
+    async def execute(
+        self,
+        url: str | None = None,
+        extractMode: str = "markdown",
+        maxChars: int | None = None,
+        **kwargs: Any,
+    ) -> str:
         from readability import Document
 
         max_chars = maxChars or self.max_chars
+        target_url = (url or "").strip()
+        if not target_url:
+            return json.dumps({"error": "url is required"})
 
         # Validate URL before fetching
-        is_valid, error_msg = _validate_url(url)
+        is_valid, error_msg = _validate_url(target_url)
         if not is_valid:
-            return json.dumps({"error": f"URL validation failed: {error_msg}", "url": url})
+            return json.dumps({"error": f"URL validation failed: {error_msg}", "url": target_url})
 
         try:
             async with httpx.AsyncClient(
@@ -124,7 +136,7 @@ class WebFetchTool(Tool):
                 max_redirects=MAX_REDIRECTS,
                 timeout=30.0
             ) as client:
-                r = await client.get(url, headers={"User-Agent": USER_AGENT})
+                r = await client.get(target_url, headers={"User-Agent": USER_AGENT})
                 r.raise_for_status()
             
             ctype = r.headers.get("content-type", "")
@@ -145,10 +157,10 @@ class WebFetchTool(Tool):
             if truncated:
                 text = text[:max_chars]
             
-            return json.dumps({"url": url, "finalUrl": str(r.url), "status": r.status_code,
+            return json.dumps({"url": target_url, "finalUrl": str(r.url), "status": r.status_code,
                               "extractor": extractor, "truncated": truncated, "length": len(text), "text": text})
         except Exception as e:
-            return json.dumps({"error": str(e), "url": url})
+            return json.dumps({"error": str(e), "url": target_url})
     
     def _to_markdown(self, html: str) -> str:
         """Convert HTML to markdown."""

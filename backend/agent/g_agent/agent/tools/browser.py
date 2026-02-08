@@ -206,8 +206,17 @@ class BrowserOpenTool(Tool):
     def __init__(self, session: BrowserSession):
         self.session = session
 
-    async def execute(self, url: str, method: str = "GET", data: dict[str, Any] | None = None, **kwargs: Any) -> str:
-        result = await self.session.open_url(url=url, method=method, data=data)
+    async def execute(
+        self,
+        url: str | None = None,
+        method: str = "GET",
+        data: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> str:
+        target_url = (url or "").strip()
+        if not target_url:
+            return "Error: url is required."
+        result = await self.session.open_url(url=target_url, method=method, data=data)
         return json.dumps(result)
 
 
@@ -296,8 +305,8 @@ class BrowserTypeTool(Tool):
 
     async def execute(
         self,
-        field: str,
-        value: str,
+        field: str | None = None,
+        value: str | None = None,
         submitUrl: str | None = None,
         method: str = "GET",
         **kwargs: Any,
@@ -305,6 +314,8 @@ class BrowserTypeTool(Tool):
         key = (field or "").strip()
         if not key:
             return "Error: field is required."
+        if value is None:
+            return "Error: value is required."
         self.session.form_values[key] = value
 
         if not submitUrl:
@@ -336,7 +347,13 @@ class BrowserExtractTool(Tool):
     def __init__(self, session: BrowserSession):
         self.session = session
 
-    async def execute(self, selector: str, maxItems: int = 20, maxChars: int = 400, **kwargs: Any) -> str:
+    async def execute(
+        self,
+        selector: str | None = None,
+        maxItems: int = 20,
+        maxChars: int = 400,
+        **kwargs: Any,
+    ) -> str:
         if not self.session.current_html:
             return "Error: no current page. Use browser_open first."
 
@@ -344,7 +361,9 @@ class BrowserExtractTool(Tool):
             from lxml import html as lxml_html
 
             tree = lxml_html.fromstring(self.session.current_html)
-            selector = selector.strip()
+            selector = (selector or "").strip()
+            if not selector:
+                return "Error: selector is required."
             if selector.startswith("//"):
                 nodes = tree.xpath(selector)
             elif selector.startswith("#"):
@@ -392,12 +411,15 @@ class BrowserScreenshotTool(Tool):
     def __init__(self, session: BrowserSession):
         self.session = session
 
-    async def execute(self, path: str, fullPage: bool = True, **kwargs: Any) -> str:
+    async def execute(self, path: str | None = None, fullPage: bool = True, **kwargs: Any) -> str:
         if not self.session.current_url:
             return "Error: no current page. Use browser_open first."
-        out = Path(path)
+        target_path = (path or "").strip()
+        if not target_path:
+            return "Error: path is required."
+        out = Path(target_path)
         if not out.is_absolute():
-            out = self.session.workspace / path
+            out = self.session.workspace / target_path
         else:
             try:
                 resolved = out.resolve()

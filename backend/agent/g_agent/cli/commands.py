@@ -774,7 +774,7 @@ def google_verify(timeout: float = typer.Option(10.0, "--timeout", help="HTTP ti
         try:
             console.print(profile_resp.json())
         except Exception:
-            pass
+            console.print(profile_resp.text)
         raise typer.Exit(1)
 
     profile = profile_resp.json()

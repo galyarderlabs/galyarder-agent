@@ -60,13 +60,15 @@ class CronTool(Tool):
     
     async def execute(
         self,
-        action: str,
+        action: str | None = None,
         message: str = "",
         every_seconds: int | None = None,
         cron_expr: str | None = None,
         job_id: str | None = None,
         **kwargs: Any
     ) -> str:
+        if not action:
+            return "Error: action is required"
         if action == "add":
             return self._add_job(message, every_seconds, cron_expr)
         elif action == "list":
