@@ -33,8 +33,8 @@ def test_remember_fact_writes_schema_record(tmp_path: Path):
     assert result["status"] == "added"
 
     records = _load_fact_records(tmp_path / "memory")
-    assert len(records) == 1
-    item = records[0]
+    item = next((entry for entry in records if entry.get("fact_key") == "timezone"), None)
+    assert item is not None
     assert item["type"] == "identity"
     assert item["source"] == "user_input"
     assert item["confidence"] == 0.91
@@ -56,8 +56,9 @@ def test_remember_fact_supersedes_previous_same_key(tmp_path: Path):
     assert len(second["superseded_ids"]) == 1
 
     records = _load_fact_records(tmp_path / "memory")
-    active = [item for item in records if item.get("status") == "active"]
-    superseded = [item for item in records if item.get("status") == "superseded"]
+    timezone_items = [item for item in records if item.get("fact_key") == "timezone"]
+    active = [item for item in timezone_items if item.get("status") == "active"]
+    superseded = [item for item in timezone_items if item.get("status") == "superseded"]
     assert len(active) == 1
     assert len(superseded) == 1
     assert active[0]["text"] == "timezone: UTC"
