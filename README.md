@@ -3,13 +3,13 @@
   <h1>Galyarder Agent (g-agent)</h1>
   <p><b>Private, practical, always-on personal AI assistant for Linux + Android workflows.</b></p>
   <p>
-    <a href="https://pypi.org/project/galyarder-agent/"><img src="https://img.shields.io/pypi/v/galyarder-agent?label=PyPI" alt="PyPI"></a>
+    <img src="https://img.shields.io/badge/PyPI-not%20published%20yet-6b7280" alt="PyPI not published">
     <img src="https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white" alt="Python 3.11+">
     <img src="https://img.shields.io/badge/CLI-g--agent-6f42c1" alt="g-agent CLI">
     <img src="https://img.shields.io/badge/License-MIT-22c55e" alt="MIT">
   </p>
   <p>
-    <img src="https://img.shields.io/badge/Channels-Telegram%20%7C%20WhatsApp%20%7C%20Discord%20%7C%20Feishu-10b981" alt="Channels">
+    <img src="https://img.shields.io/badge/Channels-Telegram%20%7C%20WhatsApp%20%7C%20Discord*%20%7C%20Feishu*-10b981" alt="Channels">
     <img src="https://img.shields.io/badge/Model%20Routing-LiteLLM%20%2B%20OpenAI%20Compatible-0ea5e9" alt="Model Routing">
     <img src="https://img.shields.io/badge/Ops-systemd%20--user-f59e0b" alt="systemd user">
     <img src="https://img.shields.io/badge/Safety-restrictToWorkspace%20%2B%20tool%20policy-ef4444" alt="Safety">
@@ -60,7 +60,7 @@ If your assistant cannot run reliably on your own Linux machine, it is not your 
 |---|---|
 | CLI & Runtime | `Python 3.11+`, `Typer`, `Rich`, `asyncio` |
 | LLM Routing | `LiteLLM` + OpenAI-compatible endpoints (vLLM/local proxy/OpenRouter/others) |
-| Channels | Telegram (`python-telegram-bot`), WhatsApp bridge (`Baileys` + Node), Discord, Feishu |
+| Channels | Telegram (`python-telegram-bot`) + WhatsApp bridge (`Baileys` + Node) are primary; Discord + Feishu are available (experimental) |
 | Memory | Markdown-first memory files (`MEMORY.md`, `PROFILE.md`, `PROJECTS.md`, etc.) |
 | Scheduling | Built-in cron service + proactive digest/lessons jobs |
 | Integrations | Google Workspace (Gmail, Calendar, Drive, Docs, Sheets, Contacts), Slack webhook, SMTP |
@@ -70,7 +70,7 @@ If your assistant cannot run reliably on your own Linux machine, it is not your 
 
 ## What You Can Do Today
 
-- Chat via CLI, Telegram, WhatsApp, Discord, or Feishu.
+- Chat via CLI, Telegram, and WhatsApp (Discord/Feishu available, experimental).
 - Run local-proxy models (including Gemini-compatible routes) through OpenAI-compatible APIs.
 - Save and recall durable memory automatically.
 - Use web/browser tools (`browser_open`, `browser_snapshot`, `browser_click`, etc.).
