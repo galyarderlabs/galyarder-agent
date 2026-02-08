@@ -175,6 +175,17 @@ g-agent doctor --network
 
 ## Channel Setup
 
+Supported channels and typical setup effort:
+
+| Channel | Setup |
+|---|---|
+| Telegram | Easy (bot token + user ID allowlist) |
+| WhatsApp | Medium (Node bridge + QR pairing) |
+| Discord* | Medium (bot token + intents + invite URL) |
+| Feishu* | Medium (app credentials + event subscription) |
+
+`*` Experimental in current release.
+
 ### Telegram
 
 ```json
@@ -203,6 +214,8 @@ g-agent doctor --network
 }
 ```
 
+> For WhatsApp bridge, use Node.js 18+.
+
 Pair WhatsApp:
 
 ```bash
@@ -214,6 +227,61 @@ Then in another terminal:
 ```bash
 g-agent gateway
 ```
+
+### Discord (experimental)
+
+1. Create app + bot in Discord Developer Portal.
+2. Enable **Message Content Intent** in bot settings.
+3. Get your Discord user ID (Developer Mode → Copy User ID).
+4. Invite bot with permissions like `Send Messages` and `Read Message History`.
+
+```json
+{
+  "channels": {
+    "discord": {
+      "enabled": true,
+      "token": "DISCORD_BOT_TOKEN",
+      "allowFrom": ["YOUR_DISCORD_USER_ID"]
+    }
+  }
+}
+```
+
+Run:
+
+```bash
+g-agent gateway
+```
+
+### Feishu / Lark (experimental)
+
+1. Create app on Feishu Open Platform and enable **Bot** capability.
+2. Add permission to send/receive IM messages.
+3. Add event subscription for message receive using **Long Connection** mode.
+4. Copy `appId` and `appSecret` to config.
+
+```json
+{
+  "channels": {
+    "feishu": {
+      "enabled": true,
+      "appId": "cli_xxx",
+      "appSecret": "xxx",
+      "encryptKey": "",
+      "verificationToken": "",
+      "allowFrom": []
+    }
+  }
+}
+```
+
+Run:
+
+```bash
+g-agent gateway
+```
+
+> Feishu long-connection mode does not require public webhook hosting.
 
 ---
 
@@ -293,6 +361,19 @@ Optional lingering:
 
 ```bash
 sudo loginctl enable-linger "$USER"
+```
+
+---
+
+## Docker Quick Run
+
+From repo root:
+
+```bash
+docker build -t g-agent ./backend/agent
+docker run -v ~/.g-agent:/root/.g-agent --rm g-agent g-agent onboard
+docker run -v ~/.g-agent:/root/.g-agent --rm g-agent g-agent status
+docker run -v ~/.g-agent:/root/.g-agent -p 18790:18790 g-agent g-agent gateway
 ```
 
 ---
