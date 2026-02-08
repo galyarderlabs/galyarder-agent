@@ -569,6 +569,8 @@ Huge respect to both communities and contributors.
 
 MIT — see `LICENSE`.
 
+Changelog — see `../../CHANGELOG.md`.
+
 ---
 
 > “Digital sovereignty is not isolation — it is ascendancy with ownership: your memory, your tools, your systems, your future.”
