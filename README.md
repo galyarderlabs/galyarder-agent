@@ -428,6 +428,60 @@ systemctl --user restart g-agent-wa-bridge.service g-agent-gateway.service
 
 ---
 
+## Production Checklist
+
+Use this checklist for stable 24/7 personal deployment.
+
+### 1) Lock access
+
+- Keep `channels.*.allowFrom` non-empty for every enabled channel.
+- Keep `tools.restrictToWorkspace: true`.
+- Keep `tools.approvalMode: "confirm"` (or stricter).
+- Use a separate `G_AGENT_DATA_DIR` profile for guest/public assistants.
+
+### 2) Monitor health
+
+```bash
+g-agent doctor --network
+systemctl --user status g-agent-gateway.service g-agent-wa-bridge.service
+journalctl --user -u g-agent-gateway.service -u g-agent-wa-bridge.service -n 120 --no-pager
+```
+
+### 3) Backup critical state
+
+```bash
+mkdir -p ~/.g-agent-backups
+tar -czf ~/.g-agent-backups/g-agent-$(date +%F).tar.gz \
+  ~/.g-agent/config.json \
+  ~/.g-agent/workspace/memory \
+  ~/.g-agent/cron
+```
+
+### 4) Rotate keys/tokens safely
+
+```bash
+NEW_TG_TOKEN='YOUR_NEW_TOKEN'
+tmp=$(mktemp) && jq --arg v "$NEW_TG_TOKEN" '.channels.telegram.token = $v' ~/.g-agent/config.json > "$tmp" && mv "$tmp" ~/.g-agent/config.json
+systemctl --user restart g-agent-gateway.service
+```
+
+```bash
+NEW_BRAVE_KEY='YOUR_NEW_BRAVE_KEY'
+tmp=$(mktemp) && jq --arg v "$NEW_BRAVE_KEY" '.tools.web.search.apiKey = $v' ~/.g-agent/config.json > "$tmp" && mv "$tmp" ~/.g-agent/config.json
+systemctl --user restart g-agent-gateway.service
+```
+
+### 5) Upgrade safely
+
+```bash
+cd ~/galyarder-agent/backend/agent
+pip install --no-deps -U --force-reinstall .
+systemctl --user restart g-agent-wa-bridge.service g-agent-gateway.service
+g-agent status
+```
+
+---
+
 ## Acknowledgements
 
 This project stands on the shoulders of open-source work:
