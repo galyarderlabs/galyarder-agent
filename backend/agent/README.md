@@ -69,8 +69,8 @@ If your assistant cannot run reliably on your own Linux machine, it is not your 
 ### From source (recommended)
 
 ```bash
-git clone https://github.com/galyarder/galyarder-agent.git
-cd galyarder-agent
+git clone https://github.com/galyarderlabs/galyarder-agent.git
+cd galyarder-agent/backend/agent
 pip install -e .
 ```
 

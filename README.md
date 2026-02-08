@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="backend/g-agent/g_agent_logo.png" alt="Galyarder Agent" width="520">
+  <img src="backend/agent/g_agent_logo.png" alt="Galyarder Agent" width="520">
   <h1>Galyarder Agent (g-agent)</h1>
   <p><b>Private, practical, always-on personal AI assistant for Linux + Android workflows.</b></p>
   <p>
@@ -15,6 +15,21 @@
     <img src="https://img.shields.io/badge/Safety-restrictToWorkspace%20%2B%20tool%20policy-ef4444" alt="Safety">
   </p>
 </div>
+
+---
+
+## Monorepo Layout
+
+```text
+.
+├── backend/
+│   └── agent/          # Python g-agent backend + bridge
+├── landingpages/       # Next.js landing site + waitlist API
+└── README.md
+```
+
+Web app docs: `landingpages/README.md`  
+Backend docs: `backend/agent/README.md`
 
 ---
 
@@ -34,7 +49,7 @@ If your assistant cannot run reliably on your own Linux machine, it is not your 
 ## Architecture
 
 <p align="center">
-  <img src="backend/g-agent/g_agent_arch.png" alt="g-agent architecture" width="900">
+  <img src="backend/agent/g_agent_arch.png" alt="g-agent architecture" width="900">
 </p>
 
 ---
@@ -70,7 +85,7 @@ If your assistant cannot run reliably on your own Linux machine, it is not your 
 
 ```bash
 git clone https://github.com/galyarderlabs/galyarder-agent.git
-cd galyarder-agent/backend/g-agent
+cd galyarder-agent/backend/agent
 pip install -e .
 ```
 
