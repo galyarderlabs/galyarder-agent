@@ -1,64 +1,346 @@
-# Galyarder Agent Monorepo
+<div align="center">
+  <img src="backend/g-agent/g_agent_logo.png" alt="Galyarder Agent" width="520">
+  <h1>Galyarder Agent (g-agent)</h1>
+  <p><b>Private, practical, always-on personal AI assistant for Linux + Android workflows.</b></p>
+  <p>
+    <a href="https://pypi.org/project/galyarder-agent/"><img src="https://img.shields.io/pypi/v/galyarder-agent?label=PyPI" alt="PyPI"></a>
+    <img src="https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white" alt="Python 3.11+">
+    <img src="https://img.shields.io/badge/CLI-g--agent-6f42c1" alt="g-agent CLI">
+    <img src="https://img.shields.io/badge/License-MIT-22c55e" alt="MIT">
+  </p>
+  <p>
+    <img src="https://img.shields.io/badge/Channels-Telegram%20%7C%20WhatsApp%20%7C%20Discord%20%7C%20Feishu-10b981" alt="Channels">
+    <img src="https://img.shields.io/badge/Model%20Routing-LiteLLM%20%2B%20OpenAI%20Compatible-0ea5e9" alt="Model Routing">
+    <img src="https://img.shields.io/badge/Ops-systemd%20--user-f59e0b" alt="systemd user">
+    <img src="https://img.shields.io/badge/Safety-restrictToWorkspace%20%2B%20tool%20policy-ef4444" alt="Safety">
+  </p>
+</div>
 
-One repo for:
+---
 
-- **Landing web** (Next.js) at repo root
-- **Backend assistant** (`g-agent`) at `backend/g-agent`
+## Philosophy
 
-This keeps branding, product site, and runtime agent in one place.
+`g-agent` is built with one clear philosophy:
 
-## Structure
+- **Useful over flashy**: solve real daily tasks first.
+- **Private over cloud-lock**: local workspace + local memory by default.
+- **Minimal over bloated**: keep the stack lean and understandable.
+- **Controllable over magical**: explicit tool policy, approvals, and allowlists.
 
-```text
-.
-├── app/                      # Landing pages + waitlist API
-├── components/               # Landing UI blocks
-├── lib/                      # Landing copy/schema/utils
-├── public/                   # Static assets
-├── backend/g-agent/          # Python assistant backend
-│   ├── g_agent/              # Core agent package
-│   ├── bridge/               # WhatsApp bridge (Baileys)
-│   ├── tests/                # Backend tests
-│   └── pyproject.toml
-└── package.json
-```
+If your assistant cannot run reliably on your own Linux machine, it is not your assistant.
 
-## Run Landing (Web)
+---
+
+## Architecture
+
+<p align="center">
+  <img src="backend/g-agent/g_agent_arch.png" alt="g-agent architecture" width="900">
+</p>
+
+---
+
+## Core Stack
+
+| Layer | Stack |
+|---|---|
+| CLI & Runtime | `Python 3.11+`, `Typer`, `Rich`, `asyncio` |
+| LLM Routing | `LiteLLM` + OpenAI-compatible endpoints (vLLM/local proxy/OpenRouter/others) |
+| Channels | Telegram (`python-telegram-bot`), WhatsApp bridge (`Baileys` + Node), Discord, Feishu |
+| Memory | Markdown-first memory files (`MEMORY.md`, `PROFILE.md`, `PROJECTS.md`, etc.) |
+| Scheduling | Built-in cron service + proactive digest/lessons jobs |
+| Integrations | Google Workspace (Gmail, Calendar, Drive, Docs, Sheets, Contacts), Slack webhook, SMTP |
+| Safety | `restrictToWorkspace`, `allowFrom`, browser denylist, per-tool policy, approval mode |
+
+---
+
+## What You Can Do Today
+
+- Chat via CLI, Telegram, WhatsApp, Discord, or Feishu.
+- Run local-proxy models (including Gemini-compatible routes) through OpenAI-compatible APIs.
+- Save and recall durable memory automatically.
+- Use web/browser tools (`browser_open`, `browser_snapshot`, `browser_click`, etc.).
+- Access Google Workspace (email/calendar/files/docs/sheets/contacts) via OAuth.
+- Schedule proactive reminders and daily/weekly assistant jobs.
+
+---
+
+## Install
+
+### From source (recommended)
 
 ```bash
-npm install
-npm run dev
-```
-
-## Run Backend (`g-agent`)
-
-```bash
-cd backend/g-agent
+git clone https://github.com/galyarderlabs/galyarder-agent.git
+cd galyarder-agent/backend/g-agent
 pip install -e .
-g-agent onboard
-g-agent status
 ```
 
-For channels runtime:
+### From PyPI
+
+```bash
+pip install galyarder-agent
+```
+
+---
+
+## Quick Start
+
+### 1) Initialize
+
+```bash
+g-agent onboard
+```
+
+Default data directory: `~/.g-agent`
+
+### 2) Configure model provider
+
+Edit `~/.g-agent/config.json`:
+
+```json
+{
+  "providers": {
+    "vllm": {
+      "apiKey": "sk-local-xxx",
+      "apiBase": "http://127.0.0.1:8317/v1"
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": "gemini-3-pro-preview"
+    }
+  },
+  "tools": {
+    "restrictToWorkspace": true,
+    "web": {
+      "search": {
+        "apiKey": "BSA-xxx"
+      }
+    }
+  }
+}
+```
+
+### 3) Chat
+
+```bash
+g-agent agent -m "Halo, siapa kamu?"
+```
+
+### 4) Check health
+
+```bash
+g-agent status
+g-agent doctor --network
+```
+
+---
+
+## CLI Commands
+
+| Command | Purpose |
+|---|---|
+| `g-agent onboard` | Init config + workspace template |
+| `g-agent agent -m "..."` | One-shot chat |
+| `g-agent agent` | Interactive chat |
+| `g-agent gateway` | Start channel gateway |
+| `g-agent status` | Full runtime status |
+| `g-agent doctor` | Diagnostics + fix hints |
+| `g-agent feedback "..."` | Save lessons memory |
+| `g-agent digest` | Generate daily digest |
+| `g-agent proactive-enable` | Install default proactive jobs |
+| `g-agent proactive-disable` | Remove default proactive jobs |
+| `g-agent channels status` | Show channel config status |
+| `g-agent channels login` | WhatsApp QR linking |
+| `g-agent google configure/auth-url/exchange/verify` | Google OAuth flow |
+| `g-agent cron add/list/remove/enable/run` | Scheduled jobs |
+
+---
+
+## Channel Setup
+
+### Telegram
+
+```json
+{
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "token": "BOTFATHER_TOKEN",
+      "allowFrom": ["6218572023"]
+    }
+  }
+}
+```
+
+### WhatsApp
+
+```json
+{
+  "channels": {
+    "whatsapp": {
+      "enabled": true,
+      "bridgeUrl": "ws://localhost:3001",
+      "allowFrom": ["6281234567890"]
+    }
+  }
+}
+```
+
+Pair WhatsApp:
 
 ```bash
 g-agent channels login
+```
+
+Then in another terminal:
+
+```bash
 g-agent gateway
 ```
 
-## Landing Env
+---
 
-Create `.env.local` for waitlist API:
+## Google Workspace (OAuth)
 
 ```bash
-KV_REST_API_URL=your_upstash_redis_url
-KV_REST_API_TOKEN=your_upstash_token
-KV_REST_API_READ_ONLY_TOKEN=your_upstash_readonly_token
+g-agent google configure --client-id "YOUR_CLIENT_ID" --client-secret "YOUR_CLIENT_SECRET" --calendar-id "primary"
+g-agent google auth-url
+# open URL, approve consent, copy value after ?code=
+g-agent google exchange --code "PASTE_CODE"
+g-agent google verify
 ```
+
+Default scopes include:
+- `gmail.modify`
+- `calendar`
+- `drive.readonly`
+- `documents`
+- `spreadsheets`
+- `contacts.readonly`
+
+---
+
+## Memory Model
+
+Memory lives inside `workspace/memory`:
+
+- `MEMORY.md`: durable long-term notes
+- `PROFILE.md`: user identity/preferences
+- `RELATIONSHIPS.md`: people context
+- `PROJECTS.md`: active and backlog project context
+- `LESSONS.md`: behavior improvements and feedback
+- `YYYY-MM-DD.md`: daily memory note
+
+The agent can use `remember` and `recall` tools to write/read useful context across sessions.
+
+---
+
+## Security Model
+
+Primary controls:
+
+- `tools.restrictToWorkspace`: keep file/shell actions inside workspace.
+- `channels.*.allowFrom`: whitelist chat users/numbers.
+- `tools.policy`: per-tool `allow` / `ask` / `deny`.
+- `tools.approvalMode`: `confirm` for risky tool calls.
+- Browser denylist for localhost/metadata endpoints.
+
+Recommended baseline for personal usage:
+
+```json
+{
+  "tools": {
+    "restrictToWorkspace": true,
+    "approvalMode": "confirm"
+  }
+}
+```
+
+---
+
+## 24/7 Service Mode (systemd --user)
+
+```bash
+systemctl --user enable --now g-agent-wa-bridge.service
+systemctl --user enable --now g-agent-gateway.service
+```
+
+Check:
+
+```bash
+systemctl --user status g-agent-wa-bridge.service
+systemctl --user status g-agent-gateway.service
+```
+
+Optional lingering:
+
+```bash
+sudo loginctl enable-linger "$USER"
+```
+
+---
+
+## Guest Profile Isolation (Clone Assistant Mode)
+
+`g-agent` supports isolated profiles using `G_AGENT_DATA_DIR`.
+
+Example guest profile:
+
+```bash
+mkdir -p ~/.g-agent-guest
+G_AGENT_DATA_DIR=~/.g-agent-guest g-agent onboard
+G_AGENT_DATA_DIR=~/.g-agent-guest g-agent status
+```
+
+Each profile has isolated:
+- config
+- workspace/memory
+- cron jobs
+- media/bridge data
+- OAuth/session artifacts
+
+Use separate Telegram bot token and separate WhatsApp account for guest profile.
+
+---
+
+## Troubleshooting
+
+### Telegram timeout
+
+- verify internet/proxy
+- check token:
+
+```bash
+curl -sS "https://api.telegram.org/bot<YOUR_TOKEN>/getMe"
+```
+
+### WhatsApp bridge reconnect loops
+
+- rebuild bridge:
+
+```bash
+g-agent channels login --rebuild
+```
+
+- then restart services:
+
+```bash
+systemctl --user restart g-agent-wa-bridge.service g-agent-gateway.service
+```
+
+---
 
 ## Acknowledgements
 
-Built from practical learnings and inspiration from:
+This project stands on the shoulders of open-source work:
 
-- `nanobot`
-- `openclaw`
+- [`HKUDS/nanobot`](https://github.com/HKUDS/nanobot) — lightweight personal assistant foundation and practical CLI/channel ideas.
+- [`openclaw/openclaw`](https://github.com/openclaw/openclaw) — broader agent architecture inspiration for memory, tooling, and personal assistant direction.
+
+Huge respect to both communities and contributors.
+
+---
+
+## License
+
+MIT — see `LICENSE`.
