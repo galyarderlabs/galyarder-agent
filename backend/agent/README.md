@@ -66,21 +66,33 @@ If your assistant cannot run reliably on your own Linux machine, it is not your 
 
 ## Install
 
-### One-line install (Arch / Arch-based)
+### One-line install (by OS)
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/galyarderlabs/galyarder-agent/main/deploy/arch/install.sh | bash
-```
+| OS | One-liner |
+|---|---|
+| Arch / Arch-based | `curl -fsSL https://raw.githubusercontent.com/galyarderlabs/galyarder-agent/main/deploy/arch/install.sh \| bash` |
+| Debian / Ubuntu | `curl -fsSL https://raw.githubusercontent.com/galyarderlabs/galyarder-agent/main/deploy/debian/install.sh \| bash` |
+| macOS | `curl -fsSL https://raw.githubusercontent.com/galyarderlabs/galyarder-agent/main/deploy/macos/install.sh \| bash` |
+| Windows (PowerShell) | `irm https://raw.githubusercontent.com/galyarderlabs/galyarder-agent/main/deploy/windows/install.ps1 \| iex` |
 
-Optional env flags:
+Script-specific env flags:
+
+- Arch: `G_AGENT_SKIP_PACMAN=1`, `G_AGENT_SKIP_SERVICES=1`, `G_AGENT_AUTO_START_SERVICES=0`
+- Debian/Ubuntu: `G_AGENT_SKIP_APT=1`, `G_AGENT_SKIP_SERVICES=1`, `G_AGENT_AUTO_START_SERVICES=0`
+- macOS: `G_AGENT_SKIP_BREW=1`, `G_AGENT_SETUP_LAUNCHD=1`, `G_AGENT_AUTO_START_SERVICES=0`
+- Windows: `G_AGENT_SKIP_WINGET=1`, `G_AGENT_SETUP_TASKS=1`
+
+Common flags (all installers):
 
 - `G_AGENT_INSTALL_DIR=/path/to/repo` (default: `~/galyarder-agent`)
 - `G_AGENT_DATA_DIR=/path/to/data` (default: `~/.g-agent`)
-- `G_AGENT_SKIP_PACMAN=1` (skip package install)
-- `G_AGENT_SKIP_SERVICES=1` (skip systemd user units)
-- `G_AGENT_AUTO_START_SERVICES=0` (create units but do not restart now)
 
-Installer script path: `deploy/arch/install.sh`
+Installer scripts:
+
+- `deploy/arch/install.sh`
+- `deploy/debian/install.sh`
+- `deploy/macos/install.sh`
+- `deploy/windows/install.ps1`
 
 ---
 
