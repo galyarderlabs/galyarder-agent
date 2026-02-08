@@ -81,11 +81,29 @@ class WhatsAppChannel(BaseChannel):
             return
         
         try:
+            metadata = msg.metadata if isinstance(msg.metadata, dict) else {}
+            media_items = msg.media if isinstance(msg.media, list) else []
+            media_path = ""
+            if media_items:
+                media_path = str(media_items[0]).strip()
+                if media_path:
+                    path_obj = Path(media_path).expanduser()
+                    if not path_obj.exists() or not path_obj.is_file():
+                        logger.warning(f"WhatsApp outbound media not found: {media_path}")
+                        media_path = ""
+                    else:
+                        media_path = str(path_obj.resolve())
+
             payload = {
                 "type": "send",
                 "to": msg.chat_id,
-                "text": msg.content
+                "text": msg.content,
             }
+            if media_path:
+                payload["mediaPath"] = media_path
+                payload["mediaType"] = str(metadata.get("media_type", "")).strip()
+                payload["mimeType"] = str(metadata.get("mime_type", "")).strip()
+                payload["caption"] = str(metadata.get("caption", "")).strip() or msg.content
             await self._ws.send(json.dumps(payload))
         except Exception as e:
             logger.error(f"Error sending WhatsApp message: {e}")

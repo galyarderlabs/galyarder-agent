@@ -35,7 +35,7 @@ def _compute_next_run(schedule: CronSchedule, now_ms: int) -> int | None:
             cron = croniter(schedule.expr, base)
             next_dt = cron.get_next(datetime)
             return int(next_dt.timestamp() * 1000)
-        except Exception:
+        except (ImportError, TypeError, ValueError):
             return None
     
     return None
@@ -260,6 +260,7 @@ class CronService:
         name: str,
         schedule: CronSchedule,
         message: str,
+        kind: str = "agent_turn",
         deliver: bool = False,
         channel: str | None = None,
         to: str | None = None,
@@ -275,7 +276,7 @@ class CronService:
             enabled=True,
             schedule=schedule,
             payload=CronPayload(
-                kind="agent_turn",
+                kind=kind if kind in {"system_event", "agent_turn"} else "agent_turn",
                 message=message,
                 deliver=deliver,
                 channel=channel,

@@ -81,7 +81,7 @@ class BrowserSession:
                 else:
                     redacted_pairs.append((key, value))
             return urlunparse(parsed._replace(query=urlencode(redacted_pairs)))
-        except Exception:
+        except ValueError:
             return url
 
     async def open_url(
@@ -107,7 +107,7 @@ class BrowserSession:
                     response = await client.get(url, params=data or None)
                 else:
                     response = await client.post(url, data=data or None)
-        except Exception as e:
+        except httpx.HTTPError as e:
             return {"ok": False, "error": str(e), "url": self.redact_url(url)}
 
         final_url = str(response.url)
@@ -381,7 +381,7 @@ class BrowserExtractTool(Tool):
                 text = ""
                 try:
                     text = " ".join((node.text_content() or "").split())
-                except Exception:
+                except (AttributeError, TypeError):
                     text = str(node)
                 text = text[:maxChars].strip()
                 if text:
@@ -425,13 +425,13 @@ class BrowserScreenshotTool(Tool):
                 resolved = out.resolve()
                 if self.session.workspace.resolve() not in resolved.parents and resolved != self.session.workspace.resolve():
                     return "Error: absolute screenshot path must stay inside workspace."
-            except Exception:
+            except (OSError, RuntimeError, ValueError):
                 return "Error: invalid output path."
         out.parent.mkdir(parents=True, exist_ok=True)
 
         try:
             from playwright.async_api import async_playwright
-        except Exception:
+        except ImportError:
             return "Error: playwright not installed. Install with: pip install playwright && playwright install chromium"
 
         try:

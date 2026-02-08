@@ -66,7 +66,7 @@ class HeartbeatService:
         if self.heartbeat_file.exists():
             try:
                 return self.heartbeat_file.read_text()
-            except Exception:
+            except OSError:
                 return None
         return None
     

@@ -16,7 +16,7 @@ import { Boom } from '@hapi/boom';
 import qrcode from 'qrcode-terminal';
 import pino from 'pino';
 import { mkdirSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import { basename, join } from 'path';
 
 const VERSION = '0.1.0';
 
@@ -39,6 +39,13 @@ export interface WhatsAppClientOptions {
   onMessage: (msg: InboundMessage) => void;
   onQR: (qr: string) => void;
   onStatus: (status: string) => void;
+}
+
+interface SendOptions {
+  mediaPath?: string;
+  mediaType?: string;
+  mimeType?: string;
+  caption?: string;
 }
 
 export class WhatsAppClient {
@@ -213,12 +220,52 @@ export class WhatsAppClient {
     return { content: null };
   }
 
-  async sendMessage(to: string, text: string): Promise<void> {
+  async sendMessage(to: string, text: string, options: SendOptions = {}): Promise<void> {
     if (!this.sock) {
       throw new Error('Not connected');
     }
 
-    const sent = await this.sock.sendMessage(to, { text });
+    const mediaPath = (options.mediaPath || '').trim();
+    const mediaType = this.resolveOutboundMediaType(mediaPath, options.mediaType);
+    const caption = (options.caption || text || '').trim();
+    let payload: Record<string, unknown>;
+
+    if (mediaPath) {
+      if (mediaType === 'image') {
+        payload = {
+          image: { url: mediaPath },
+          caption,
+          mimetype: options.mimeType || undefined,
+        };
+      } else if (mediaType === 'voice') {
+        payload = {
+          audio: { url: mediaPath },
+          ptt: true,
+          mimetype: options.mimeType || 'audio/ogg; codecs=opus',
+        };
+      } else if (mediaType === 'audio') {
+        payload = {
+          audio: { url: mediaPath },
+          ptt: false,
+          mimetype: options.mimeType || undefined,
+        };
+      } else if (mediaType === 'sticker') {
+        payload = {
+          sticker: { url: mediaPath },
+        };
+      } else {
+        payload = {
+          document: { url: mediaPath },
+          fileName: basename(mediaPath),
+          caption,
+          mimetype: options.mimeType || undefined,
+        };
+      }
+    } else {
+      payload = { text };
+    }
+
+    const sent = await this.sock.sendMessage(to, payload);
     const sentId = sent?.key?.id as string | undefined;
     this.trackOutgoing(to, text, sentId);
   }
@@ -267,6 +314,19 @@ export class WhatsAppClient {
     if (mediaType === 'document') return 'bin';
     if (mediaType === 'sticker') return 'webp';
     return 'dat';
+  }
+
+  private resolveOutboundMediaType(mediaPath: string, explicitType?: string): string {
+    const normalized = (explicitType || '').trim().toLowerCase();
+    if (['image', 'voice', 'audio', 'document', 'sticker'].includes(normalized)) {
+      return normalized;
+    }
+    const suffix = mediaPath.toLowerCase();
+    if (suffix.endsWith('.webp') || suffix.endsWith('.tgs')) return 'sticker';
+    if (suffix.endsWith('.jpg') || suffix.endsWith('.jpeg') || suffix.endsWith('.png') || suffix.endsWith('.gif')) return 'image';
+    if (suffix.endsWith('.ogg') || suffix.endsWith('.opus')) return 'voice';
+    if (suffix.endsWith('.mp3') || suffix.endsWith('.wav') || suffix.endsWith('.m4a') || suffix.endsWith('.flac')) return 'audio';
+    return 'document';
   }
 
   private async downloadMediaToFile(msg: any, mediaType: string, mimeType?: string): Promise<string | undefined> {

@@ -120,6 +120,23 @@ class IntegrationsConfig(BaseModel):
     google: GoogleWorkspaceConfig = Field(default_factory=GoogleWorkspaceConfig)
 
 
+class QuietHoursConfig(BaseModel):
+    """Quiet hours policy for proactive delivery."""
+    enabled: bool = False
+    start: str = "22:00"
+    end: str = "06:00"
+    timezone: str = "local"
+
+
+class ProactiveConfig(BaseModel):
+    """Proactive runtime behavior."""
+    quiet_hours: QuietHoursConfig = Field(default_factory=QuietHoursConfig)
+    calendar_watch_enabled: bool = True
+    calendar_watch_every_minutes: int = 15
+    calendar_watch_horizon_minutes: int = 120
+    calendar_watch_lead_minutes: list[int] = Field(default_factory=lambda: [30, 10])
+
+
 class GatewayConfig(BaseModel):
     """Gateway/server configuration."""
     host: str = "0.0.0.0"
@@ -178,6 +195,7 @@ class Config(BaseSettings):
     channels: ChannelsConfig = Field(default_factory=ChannelsConfig)
     providers: ProvidersConfig = Field(default_factory=ProvidersConfig)
     integrations: IntegrationsConfig = Field(default_factory=IntegrationsConfig)
+    proactive: ProactiveConfig = Field(default_factory=ProactiveConfig)
     gateway: GatewayConfig = Field(default_factory=GatewayConfig)
     tools: ToolsConfig = Field(default_factory=ToolsConfig)
     

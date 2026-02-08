@@ -91,7 +91,7 @@ class GoogleWorkspaceClient:
             self._cached_token = token
             self._token_expiry = now + timedelta(seconds=max(60, expires_in - 30))
             return True, token
-        except Exception as e:
+        except (httpx.HTTPError, json.JSONDecodeError, ValueError) as e:
             return False, str(e)
 
     async def request(
@@ -121,7 +121,7 @@ class GoogleWorkspaceClient:
                     payload = {}
                     try:
                         payload = response.json()
-                    except Exception:
+                    except json.JSONDecodeError:
                         payload = {"raw": response.text}
 
                     if response.status_code == 401 and attempt == 0 and self._can_refresh():
@@ -138,7 +138,7 @@ class GoogleWorkspaceClient:
                     return True, payload
 
             return False, {"error": "Google API request failed without response."}
-        except Exception as e:
+        except httpx.HTTPError as e:
             return False, {"error": str(e)}
 
 
@@ -622,7 +622,7 @@ class DriveReadTextTool(Tool):
             if len(text) > maxChars:
                 compact += "\n...[truncated]..."
             return f"File: {file_name}\nMime: {mime}\n\n{compact}"
-        except Exception as e:
+        except httpx.HTTPError as e:
             return f"Error: {e}"
 
 

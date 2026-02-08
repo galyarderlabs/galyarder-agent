@@ -258,7 +258,7 @@ When writing durable user/context facts, use `remember` and `update_profile` too
                             note += f", caption: {caption}"
                         attachment_notes.append(note)
                     continue
-                except Exception:
+                except OSError:
                     attachment_notes.append(f"type={attachment_type}, path={path}, note=image embed failed")
                     continue
 

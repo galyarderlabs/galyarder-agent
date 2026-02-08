@@ -2,6 +2,7 @@
 
 import asyncio
 import re
+from pathlib import Path
 
 from loguru import logger
 from telegram import Update
@@ -203,6 +204,43 @@ class TelegramChannel(BaseChannel):
         try:
             # chat_id should be the Telegram chat ID (integer)
             chat_id = int(msg.chat_id)
+            media = self._resolve_outbound_media(msg)
+            if media:
+                path, media_type, caption = media
+                with open(path, "rb") as media_file:
+                    if media_type == "image":
+                        await self._app.bot.send_photo(
+                            chat_id=chat_id,
+                            photo=media_file,
+                            caption=caption or None,
+                        )
+                    elif media_type == "voice":
+                        await self._app.bot.send_voice(
+                            chat_id=chat_id,
+                            voice=media_file,
+                            caption=caption or None,
+                        )
+                    elif media_type == "audio":
+                        await self._app.bot.send_audio(
+                            chat_id=chat_id,
+                            audio=media_file,
+                            caption=caption or None,
+                        )
+                    elif media_type == "sticker":
+                        await self._app.bot.send_sticker(
+                            chat_id=chat_id,
+                            sticker=media_file,
+                        )
+                        if caption:
+                            await self._app.bot.send_message(chat_id=chat_id, text=caption)
+                    else:
+                        await self._app.bot.send_document(
+                            chat_id=chat_id,
+                            document=media_file,
+                            caption=caption or None,
+                        )
+                return
+
             # Convert markdown to Telegram HTML
             html_content = _markdown_to_telegram_html(msg.content)
             await self._app.bot.send_message(
@@ -222,6 +260,42 @@ class TelegramChannel(BaseChannel):
                 )
             except Exception as e2:
                 logger.error(f"Error sending Telegram message: {e2}")
+
+    def _resolve_outbound_media(self, msg: OutboundMessage) -> tuple[Path, str, str] | None:
+        """Resolve outbound media tuple (path, type, caption)."""
+        metadata = msg.metadata if isinstance(msg.metadata, dict) else {}
+        media_items = msg.media if isinstance(msg.media, list) else []
+        if not media_items:
+            return None
+        raw_path = str(media_items[0]).strip()
+        if not raw_path:
+            return None
+
+        path = Path(raw_path).expanduser()
+        if not path.exists() or not path.is_file():
+            logger.warning(f"Telegram outbound media not found: {raw_path}")
+            return None
+
+        media_type = str(metadata.get("media_type", "")).strip().lower()
+        if media_type not in {"image", "voice", "audio", "sticker", "document"}:
+            suffix = path.suffix.lower()
+            if suffix in {".jpg", ".jpeg", ".png", ".gif"}:
+                media_type = "image"
+            elif suffix in {".ogg", ".opus"}:
+                media_type = "voice"
+            elif suffix in {".mp3", ".m4a", ".wav", ".flac"}:
+                media_type = "audio"
+            elif suffix in {".webp", ".tgs"}:
+                media_type = "sticker"
+            else:
+                media_type = "document"
+
+        caption = str(metadata.get("caption", "")).strip() or (msg.content or "").strip()
+        if media_type == "sticker":
+            caption = caption[:4000]
+        else:
+            caption = caption[:1024]
+        return path, media_type, caption
     
     async def _on_start(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle /start command."""

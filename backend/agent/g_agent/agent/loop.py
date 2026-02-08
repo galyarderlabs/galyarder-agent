@@ -6,6 +6,7 @@ import json
 import re
 from datetime import datetime
 from pathlib import Path
+from time import perf_counter
 from typing import TYPE_CHECKING, Any
 
 from loguru import logger
@@ -58,6 +59,13 @@ from g_agent.agent.tools.google_workspace import (
     ContactsGetTool,
 )
 from g_agent.agent.subagent import SubagentManager
+from g_agent.agent.runtime import TaskCheckpointStore
+from g_agent.agent.workflow_packs import (
+    build_workflow_pack_prompt,
+    extract_workflow_pack_flags,
+    resolve_workflow_pack_request,
+)
+from g_agent.observability.metrics import MetricsStore
 from g_agent.session.manager import SessionManager
 
 if TYPE_CHECKING:
@@ -146,6 +154,8 @@ class AgentLoop:
         
         self.context = ContextBuilder(workspace)
         self.sessions = SessionManager(workspace)
+        self.runtime = TaskCheckpointStore(workspace)
+        self.metrics = MetricsStore(workspace / "state" / "metrics" / "events.jsonl")
         self.tools = ToolRegistry()
         self.subagents = SubagentManager(
             provider=provider,
@@ -229,7 +239,10 @@ class AgentLoop:
         self.tools.register(ContactsGetTool(google))
         
         # Message tool
-        message_tool = MessageTool(send_callback=self.bus.publish_outbound)
+        message_tool = MessageTool(
+            send_callback=self.bus.publish_outbound,
+            workspace=self.workspace,
+        )
         self.tools.register(message_tool)
         
         # Spawn tool (for subagents)
@@ -261,10 +274,15 @@ class AgentLoop:
                 except Exception as e:
                     logger.error(f"Error processing message: {e}")
                     # Send error response
+                    error_metadata: dict[str, Any] = {}
+                    key = self._message_idempotency_key(msg)
+                    if key:
+                        error_metadata["idempotency_key"] = key
                     await self.bus.publish_outbound(OutboundMessage(
                         channel=msg.channel,
                         chat_id=msg.chat_id,
-                        content=f"Sorry, I encountered an error: {str(e)}"
+                        content=f"Sorry, I encountered an error: {str(e)}",
+                        metadata=error_metadata,
                     ))
             except asyncio.TimeoutError:
                 continue
@@ -288,118 +306,197 @@ class AgentLoop:
         # The chat_id contains the original "channel:chat_id" to route back to
         if msg.channel == "system":
             return await self._process_system_message(msg)
-        
-        logger.info(f"Processing message from {msg.channel}:{msg.sender_id}")
-        self._log_user_message_to_daily_memory(msg)
-        
-        # Get or create session
-        session = self.sessions.get_or_create(msg.session_key)
-        
-        # Update tool contexts
-        message_tool = self.tools.get("message")
-        if isinstance(message_tool, MessageTool):
-            message_tool.set_context(msg.channel, msg.chat_id)
-        
-        spawn_tool = self.tools.get("spawn")
-        if isinstance(spawn_tool, SpawnTool):
-            spawn_tool.set_context(msg.channel, msg.chat_id)
-        
-        cron_tool = self.tools.get("cron")
-        if isinstance(cron_tool, CronTool):
-            cron_tool.set_context(msg.channel, msg.chat_id)
-        
-        # Build initial messages (use get_history for LLM-formatted messages)
-        messages = self.context.build_messages(
-            history=session.get_history(),
-            current_message=msg.content,
-            media=msg.media if msg.media else None,
-            metadata=msg.metadata if msg.metadata else None,
+
+        previous_running = self.runtime.latest_running_for_session(msg.session_key)
+        task_id = self.runtime.start(
+            kind="inbound_message",
+            session_key=msg.session_key,
             channel=msg.channel,
             chat_id=msg.chat_id,
+            sender_id=msg.sender_id,
+            input_text=msg.content,
+            metadata={
+                "media_count": len(msg.media),
+                "has_metadata": bool(msg.metadata),
+            },
         )
+        if previous_running and previous_running.get("task_id") != task_id:
+            previous_task_id = str(previous_running.get("task_id", ""))
+            if previous_task_id:
+                self.runtime.mark_resumed(previous_task_id)
+                self.runtime.append_event(task_id, "resume_hint", previous_task_id)
         
-        # Agent loop
-        iteration = 0
-        final_content = None
-        used_tools = False
-        executed_tools: list[str] = []
-        executed_tool_results: list[tuple[str, str]] = []
-        approved_tools, approve_all = self._extract_approval_intent(msg.content)
-        
-        while iteration < self.max_iterations:
-            iteration += 1
+        try:
+            logger.info(f"Processing message from {msg.channel}:{msg.sender_id}")
+            self._log_user_message_to_daily_memory(msg)
+            effective_content = msg.content
+            workflow_silent_mode = False
+            resolved_pack = resolve_workflow_pack_request(msg.content)
+            if resolved_pack:
+                pack_name, pack_context = resolved_pack
+                generated_prompt = build_workflow_pack_prompt(pack_name, pack_context)
+                if generated_prompt:
+                    effective_content = generated_prompt
+                    flags = extract_workflow_pack_flags(pack_context)
+                    workflow_silent_mode = bool(
+                        "silent" in flags and flags.intersection({"voice", "image", "sticker"})
+                    )
+                    self.runtime.append_event(task_id, "workflow_pack", pack_name)
+                    logger.info(f"Workflow pack '{pack_name}' requested by {msg.channel}:{msg.sender_id}")
             
-            # Call LLM
-            response = await self.provider.chat(
-                messages=messages,
-                tools=self.tools.get_definitions(),
-                model=self.model
+            # Get or create session
+            session = self.sessions.get_or_create(msg.session_key)
+            self.runtime.append_event(task_id, "session_loaded", msg.session_key)
+            
+            # Update tool contexts
+            message_tool = self.tools.get("message")
+            if isinstance(message_tool, MessageTool):
+                message_tool.set_context(msg.channel, msg.chat_id)
+            
+            spawn_tool = self.tools.get("spawn")
+            if isinstance(spawn_tool, SpawnTool):
+                spawn_tool.set_context(msg.channel, msg.chat_id)
+            
+            cron_tool = self.tools.get("cron")
+            if isinstance(cron_tool, CronTool):
+                cron_tool.set_context(msg.channel, msg.chat_id)
+            
+            # Build initial messages (use get_history for LLM-formatted messages)
+            messages = self.context.build_messages(
+                history=session.get_history(),
+                current_message=effective_content,
+                media=msg.media if msg.media else None,
+                metadata=msg.metadata if msg.metadata else None,
+                channel=msg.channel,
+                chat_id=msg.chat_id,
             )
             
-            # Handle tool calls
-            if response.has_tool_calls:
-                used_tools = True
-                # Add assistant message with tool calls
-                tool_call_dicts = [
-                    {
-                        "id": tc.id,
-                        "type": "function",
-                        "function": {
-                            "name": tc.name,
-                            "arguments": json.dumps(tc.arguments)  # Must be JSON string
-                        }
-                    }
-                    for tc in response.tool_calls
-                ]
-                messages = self.context.add_assistant_message(
-                    messages, response.content, tool_call_dicts
-                )
+            # Agent loop
+            iteration = 0
+            final_content = None
+            used_tools = False
+            executed_tools: list[str] = []
+            executed_tool_results: list[tuple[str, str]] = []
+            approved_tools, approve_all = self._extract_approval_intent(msg.content)
+            
+            while iteration < self.max_iterations:
+                iteration += 1
+                self.runtime.append_event(task_id, "llm_call", f"iteration={iteration}")
                 
-                # Execute tools
-                for tool_call in response.tool_calls:
-                    args_str = json.dumps(tool_call.arguments)
-                    logger.debug(f"Executing tool: {tool_call.name} with arguments: {args_str}")
-                    result = await self._execute_tool_with_policy(
-                        tool_name=tool_call.name,
-                        tool_args=tool_call.arguments,
-                        channel=msg.channel,
-                        sender_id=msg.sender_id,
-                        approved_tools=approved_tools,
-                        approve_all=approve_all,
+                # Call LLM
+                llm_started = perf_counter()
+                try:
+                    response = await self.provider.chat(
+                        messages=messages,
+                        tools=self.tools.get_definitions(),
+                        model=self.model
                     )
-                    executed_tools.append(tool_call.name)
-                    executed_tool_results.append((tool_call.name, str(result)))
-                    messages = self.context.add_tool_result(
-                        messages, tool_call.id, tool_call.name, result
+                    usage = response.usage if isinstance(response.usage, dict) else {}
+                    self.metrics.record_llm_call(
+                        model=self.model,
+                        success=True,
+                        latency_ms=(perf_counter() - llm_started) * 1000.0,
+                        prompt_tokens=int(usage.get("prompt_tokens", 0) or 0),
+                        completion_tokens=int(usage.get("completion_tokens", 0) or 0),
                     )
-            else:
-                # No tool calls, we're done
-                final_content = response.content
-                break
-        
-        if final_content is None:
-            final_content = "I've completed processing but have no response to give."
+                except Exception as e:
+                    self.metrics.record_llm_call(
+                        model=self.model,
+                        success=False,
+                        latency_ms=(perf_counter() - llm_started) * 1000.0,
+                        error=str(e),
+                    )
+                    raise
+                
+                # Handle tool calls
+                if response.has_tool_calls:
+                    used_tools = True
+                    # Add assistant message with tool calls
+                    tool_call_dicts = [
+                        {
+                            "id": tc.id,
+                            "type": "function",
+                            "function": {
+                                "name": tc.name,
+                                "arguments": json.dumps(tc.arguments)  # Must be JSON string
+                            }
+                        }
+                        for tc in response.tool_calls
+                    ]
+                    messages = self.context.add_assistant_message(
+                        messages, response.content, tool_call_dicts
+                    )
+                    
+                    # Execute tools
+                    for tool_call in response.tool_calls:
+                        args_str = json.dumps(tool_call.arguments)
+                        logger.debug(f"Executing tool: {tool_call.name} with arguments: {args_str}")
+                        self.runtime.append_event(task_id, "tool_call", tool_call.name)
+                        result = await self._execute_tool_with_policy(
+                            tool_name=tool_call.name,
+                            tool_args=tool_call.arguments,
+                            channel=msg.channel,
+                            sender_id=msg.sender_id,
+                            approved_tools=approved_tools,
+                            approve_all=approve_all,
+                        )
+                        executed_tools.append(tool_call.name)
+                        executed_tool_results.append((tool_call.name, str(result)))
+                        messages = self.context.add_tool_result(
+                            messages, tool_call.id, tool_call.name, result
+                        )
+                else:
+                    # No tool calls, we're done
+                    final_content = response.content
+                    break
+            
+            if final_content is None:
+                final_content = "I've completed processing but have no response to give."
 
-        if self._should_reflect(msg.content, used_tools, final_content):
-            final_content = await self._reflect_response(msg.content, final_content)
-        final_content = self._enforce_memory_truth(final_content)
-        auto_memory_result = await self._auto_remember_if_requested(msg.content, executed_tools)
-        if auto_memory_result:
-            final_content = f"{final_content.rstrip()}\n\n{auto_memory_result}"
-        final_content = self._align_memory_claims(final_content, executed_tool_results)
-        self._log_assistant_message_to_daily_memory(msg.channel, msg.chat_id, final_content)
-        
-        # Save to session
-        session.add_message("user", msg.content)
-        session.add_message("assistant", final_content)
-        self.sessions.save(session)
-        self._maybe_write_session_summary(session)
-        
-        return OutboundMessage(
-            channel=msg.channel,
-            chat_id=msg.chat_id,
-            content=final_content
-        )
+            if self._should_reflect(msg.content, used_tools, final_content):
+                final_content = await self._reflect_response(msg.content, final_content)
+            final_content = self._enforce_memory_truth(final_content)
+            auto_memory_result = await self._auto_remember_if_requested(msg.content, executed_tools)
+            if auto_memory_result:
+                final_content = f"{final_content.rstrip()}\n\n{auto_memory_result}"
+            final_content = self._align_memory_claims(final_content, executed_tool_results)
+            suppress_outbound = self._should_suppress_workflow_text(
+                workflow_silent_mode=workflow_silent_mode,
+                tool_results=executed_tool_results,
+            )
+            log_content = final_content
+            if suppress_outbound:
+                log_content = "[silent delivery via message tool]"
+            self._log_assistant_message_to_daily_memory(msg.channel, msg.chat_id, log_content)
+            
+            # Save to session
+            session.add_message("user", msg.content)
+            session.add_message("assistant", log_content)
+            self.sessions.save(session)
+            self._maybe_write_session_summary(session)
+            
+            self.runtime.complete(
+                task_id,
+                log_content,
+                metadata={
+                    "iterations": iteration,
+                    "used_tools": used_tools,
+                    "tool_calls": len(executed_tools),
+                    "workflow_silent_mode": workflow_silent_mode,
+                    "suppressed_outbound": suppress_outbound,
+                },
+            )
+            if suppress_outbound:
+                return None
+            return OutboundMessage(
+                channel=msg.channel,
+                chat_id=msg.chat_id,
+                content=final_content,
+                metadata=self._build_outbound_metadata(msg, task_id),
+            )
+        except Exception as e:
+            self.runtime.fail(task_id, str(e))
+            raise
 
     def _log_user_message_to_daily_memory(self, msg: InboundMessage) -> None:
         """Append inbound user message to today's memory notes."""
@@ -482,11 +579,29 @@ class AgentLoop:
         while iteration < self.max_iterations:
             iteration += 1
             
-            response = await self.provider.chat(
-                messages=messages,
-                tools=self.tools.get_definitions(),
-                model=self.model
-            )
+            llm_started = perf_counter()
+            try:
+                response = await self.provider.chat(
+                    messages=messages,
+                    tools=self.tools.get_definitions(),
+                    model=self.model
+                )
+                usage = response.usage if isinstance(response.usage, dict) else {}
+                self.metrics.record_llm_call(
+                    model=self.model,
+                    success=True,
+                    latency_ms=(perf_counter() - llm_started) * 1000.0,
+                    prompt_tokens=int(usage.get("prompt_tokens", 0) or 0),
+                    completion_tokens=int(usage.get("completion_tokens", 0) or 0),
+                )
+            except Exception as e:
+                self.metrics.record_llm_call(
+                    model=self.model,
+                    success=False,
+                    latency_ms=(perf_counter() - llm_started) * 1000.0,
+                    error=str(e),
+                )
+                raise
             
             if response.has_tool_calls:
                 used_tools = True
@@ -549,6 +664,8 @@ class AgentLoop:
         session_key: str = "cli:direct",
         channel: str = "cli",
         chat_id: str = "direct",
+        sender_id: str = "user",
+        metadata: dict[str, Any] | None = None,
     ) -> str:
         """
         Process a message directly (for CLI or cron usage).
@@ -558,15 +675,18 @@ class AgentLoop:
             session_key: Session identifier.
             channel: Source channel (for context).
             chat_id: Source chat ID (for context).
+            sender_id: Sender identifier used for policy checks.
+            metadata: Optional channel metadata/attachments envelope.
         
         Returns:
             The agent's response.
         """
         msg = InboundMessage(
             channel=channel,
-            sender_id="user",
+            sender_id=sender_id,
             chat_id=chat_id,
-            content=content
+            content=content,
+            metadata=metadata or {},
         )
         
         response = await self._process_message(msg)
@@ -597,6 +717,7 @@ class AgentLoop:
             "Saya punya memori persisten lintas sesi.\n"
             "Penyimpanan memori ada di:\n"
             f"- {workspace_path}/memory/MEMORY.md\n"
+            f"- {workspace_path}/memory/FACTS.md\n"
             f"- {workspace_path}/memory/PROFILE.md\n"
             f"- {workspace_path}/memory/RELATIONSHIPS.md\n"
             f"- {workspace_path}/memory/PROJECTS.md\n"
@@ -720,6 +841,22 @@ class AgentLoop:
             "gunakan perintah eksplisit update profile (mis. nama/timezone/preference)."
         )
 
+    def _should_suppress_workflow_text(
+        self,
+        workflow_silent_mode: bool,
+        tool_results: list[tuple[str, str]],
+    ) -> bool:
+        """True when silent workflow mode should skip normal text outbound."""
+        if not workflow_silent_mode:
+            return False
+        message_results = [result for name, result in tool_results if name == "message"]
+        if not message_results:
+            return False
+        return any(
+            not str(result).strip().lower().startswith("error")
+            for result in message_results
+        )
+
     def _extract_approval_intent(self, text: str) -> tuple[set[str], bool]:
         """Parse explicit approval flags from user text."""
         content = (text or "").strip().lower()
@@ -738,6 +875,92 @@ class AgentLoop:
         names = {item.strip() for item in chunks if item.strip() and item.strip() not in skip}
         return names, False
 
+    def _message_idempotency_key(self, msg: InboundMessage, fallback: str | None = None) -> str | None:
+        """Build stable idempotency key from inbound metadata if available."""
+        metadata = msg.metadata if isinstance(msg.metadata, dict) else {}
+        message_id = metadata.get("message_id")
+        if message_id not in (None, ""):
+            return f"inbound:{msg.channel}:{msg.chat_id}:{message_id}"
+        return fallback
+
+    def _build_outbound_metadata(self, msg: InboundMessage, task_id: str) -> dict[str, Any]:
+        """Build outbound metadata including idempotency key."""
+        metadata: dict[str, Any] = {"task_id": task_id}
+        key = self._message_idempotency_key(msg, fallback=f"task:{task_id}")
+        if key:
+            metadata["idempotency_key"] = key
+        return metadata
+
+    def _classify_retryable_tool_error(self, result: str) -> str | None:
+        """Classify retryable tool errors: network, auth, or rate_limit."""
+        text = (result or "").strip().lower()
+        if not text.startswith("error"):
+            return None
+
+        non_retryable_markers = (
+            "approval required",
+            "blocked by policy",
+            "invalid parameters",
+            "not found",
+            "is required",
+            "missing required",
+            "must be",
+        )
+        if any(marker in text for marker in non_retryable_markers):
+            return None
+
+        rate_limit_markers = (
+            "429",
+            "rate limit",
+            "too many requests",
+            "retry-after",
+            "retry after",
+        )
+        if any(marker in text for marker in rate_limit_markers):
+            return "rate_limit"
+
+        auth_markers = (
+            "401",
+            "403",
+            "unauthorized",
+            "forbidden",
+            "authentication",
+            "invalid api key",
+            "api key not valid",
+            "token expired",
+            "invalid_scope",
+        )
+        if any(marker in text for marker in auth_markers):
+            return "auth"
+
+        network_markers = (
+            "timeout",
+            "timed out",
+            "connect",
+            "connection",
+            "network",
+            "dns",
+            "temporarily unavailable",
+            "502",
+            "503",
+            "504",
+            "econn",
+        )
+        if any(marker in text for marker in network_markers):
+            return "network"
+
+        return None
+
+    def _retry_policy_for(self, kind: str) -> tuple[int, list[float]]:
+        """Return retry attempts and sleep schedule for a retry class."""
+        if kind == "rate_limit":
+            return 3, [1.0, 2.0]
+        if kind == "network":
+            return 3, [0.5, 1.0]
+        if kind == "auth":
+            return 2, [0.5]
+        return 1, []
+
     def _resolve_tool_policy(
         self,
         tool_name: str,
@@ -751,7 +974,9 @@ class AgentLoop:
 
         keys = [
             f"{channel}:{sender_id}:{tool_name}",
+            f"{channel}:{sender_id}:*",
             f"{channel}:*:{tool_name}",
+            f"{channel}:*:*",
             f"{channel}:{tool_name}",
             tool_name,
             "*",
@@ -774,15 +999,60 @@ class AgentLoop:
         """Execute a tool call after policy/approval checks."""
         if not isinstance(tool_args, dict):
             tool_args = {}
+        started = perf_counter()
+        attempts_used = 0
+        retry_kind_used = ""
+        final_error = ""
+
+        def _record(result_text: str) -> str:
+            nonlocal final_error
+            success = not str(result_text).strip().lower().startswith("error")
+            if not success:
+                final_error = str(result_text)
+            self.metrics.record_tool_call(
+                tool=tool_name,
+                success=success,
+                latency_ms=(perf_counter() - started) * 1000.0,
+                attempts=max(1, attempts_used),
+                retry_kind=retry_kind_used,
+                error=final_error,
+            )
+            return result_text
+
         decision = self._resolve_tool_policy(tool_name, channel, sender_id)
         if decision == "deny":
-            return f"Error: tool '{tool_name}' blocked by policy."
+            return _record(f"Error: tool '{tool_name}' blocked by policy.")
         if decision == "ask" and not (approve_all or tool_name in approved_tools):
-            return (
+            return _record(
                 f"Approval required for tool '{tool_name}'. "
                 f"Resend your request with `approve {tool_name}` (or `approve all`)."
             )
-        return await self.tools.execute(tool_name, tool_args)
+        attempts_used = 1
+        result = await self.tools.execute(tool_name, tool_args)
+        retry_kind = self._classify_retryable_tool_error(str(result))
+        retry_kind_used = retry_kind or ""
+        if not retry_kind:
+            return _record(str(result))
+
+        attempts, delays = self._retry_policy_for(retry_kind)
+        if attempts <= 1:
+            return _record(str(result))
+
+        last_result = str(result)
+        for attempt in range(2, attempts + 1):
+            attempts_used = attempt
+            delay = delays[min(attempt - 2, len(delays) - 1)] if delays else 0.0
+            if delay > 0:
+                await asyncio.sleep(delay)
+            logger.warning(
+                f"Retrying tool '{tool_name}' after {retry_kind} error "
+                f"(attempt {attempt}/{attempts})"
+            )
+            next_result = await self.tools.execute(tool_name, tool_args)
+            if not self._classify_retryable_tool_error(str(next_result)):
+                return _record(str(next_result))
+            last_result = str(next_result)
+        return _record(last_result)
 
     def _should_reflect(self, user_content: str, used_tools: bool, draft: str | None) -> bool:
         """Decide whether to run a reflection pass."""
@@ -825,7 +1095,8 @@ class AgentLoop:
             if not reviewed or reviewed.upper() == "KEEP":
                 return draft
             return reviewed
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Reflection pass skipped: {e}")
             return draft
 
     def _maybe_write_session_summary(self, session: Session) -> None:

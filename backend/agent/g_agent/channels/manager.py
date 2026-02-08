@@ -1,10 +1,12 @@
 """Channel manager for coordinating chat channels."""
 
 import asyncio
+import time
 from typing import Any
 
 from loguru import logger
 
+from g_agent.bus.events import OutboundMessage
 from g_agent.bus.queue import MessageBus
 from g_agent.channels.base import BaseChannel
 from g_agent.config.schema import Config
@@ -25,6 +27,8 @@ class ChannelManager:
         self.bus = bus
         self.channels: dict[str, BaseChannel] = {}
         self._dispatch_task: asyncio.Task | None = None
+        self._outbound_idempotency_ttl_s = 120.0
+        self._outbound_seen: dict[str, float] = {}
         
         self._init_channels()
     
@@ -132,6 +136,8 @@ class ChannelManager:
                     self.bus.consume_outbound(),
                     timeout=1.0
                 )
+                if self._is_duplicate_outbound(msg):
+                    continue
                 
                 channel = self.channels.get(msg.channel)
                 if channel:
@@ -146,6 +152,32 @@ class ChannelManager:
                 continue
             except asyncio.CancelledError:
                 break
+
+    def _extract_idempotency_key(self, msg: OutboundMessage) -> str:
+        """Extract optional idempotency key from outbound metadata."""
+        metadata = msg.metadata if isinstance(msg.metadata, dict) else {}
+        key = str(metadata.get("idempotency_key", "")).strip()
+        return key
+
+    def _is_duplicate_outbound(self, msg: OutboundMessage) -> bool:
+        """Return True when outbound message has been seen recently."""
+        key = self._extract_idempotency_key(msg)
+        if not key:
+            return False
+
+        now = time.time()
+        threshold = now - self._outbound_idempotency_ttl_s
+        stale = [item_key for item_key, seen_at in self._outbound_seen.items() if seen_at < threshold]
+        for item_key in stale:
+            self._outbound_seen.pop(item_key, None)
+
+        previous = self._outbound_seen.get(key)
+        if previous is not None:
+            logger.warning(f"Skipping duplicate outbound message (key={key})")
+            return True
+
+        self._outbound_seen[key] = now
+        return False
     
     def get_channel(self, name: str) -> BaseChannel | None:
         """Get a channel by name."""

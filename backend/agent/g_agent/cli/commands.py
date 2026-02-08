@@ -1,7 +1,11 @@
 """CLI commands for g-agent."""
 
 import asyncio
+import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from time import perf_counter
+from urllib.parse import quote
 
 import typer
 from rich.console import Console
@@ -147,6 +151,14 @@ This file stores important information that should persist across sessions.
 """)
         console.print("  [dim]Created memory/MEMORY.md[/dim]")
 
+    facts_file = memory_dir / "FACTS.md"
+    if not facts_file.exists():
+        facts_file.write_text("""# Fact Index (Machine-readable)
+
+JSON lines with fields: id, type, confidence, source, last_seen, supersedes.
+""")
+        console.print("  [dim]Created memory/FACTS.md[/dim]")
+
     lessons_file = memory_dir / "LESSONS.md"
     if not lessons_file.exists():
         lessons_file.write_text("""# Lessons Learned
@@ -203,12 +215,21 @@ def gateway(
     """Start the g-agent gateway."""
     from g_agent.config.loader import load_config, get_config_path, get_data_dir
     from g_agent.bus.queue import MessageBus
+    from g_agent.bus.events import OutboundMessage
     from g_agent.providers.litellm_provider import LiteLLMProvider
     from g_agent.agent.loop import AgentLoop
+    from g_agent.agent.tools.google_workspace import GoogleWorkspaceClient
     from g_agent.channels.manager import ChannelManager
     from g_agent.cron.service import CronService
     from g_agent.cron.types import CronJob
     from g_agent.heartbeat.service import HeartbeatService
+    from g_agent.observability.metrics import MetricsStore
+    from g_agent.proactive.engine import (
+        ProactiveStateStore,
+        compute_due_calendar_reminders,
+        is_quiet_hours_now,
+        resolve_timezone,
+    )
     
     if verbose:
         import logging
@@ -264,23 +285,143 @@ def gateway(
         summary_interval=config.agents.defaults.summary_interval,
     )
     
+    data_dir = get_data_dir()
+    proactive_state = ProactiveStateStore(data_dir / "proactive" / "state.json")
+    metrics = MetricsStore(config.workspace_path / "state" / "metrics" / "events.jsonl")
+    proactive_job_names = {"daily-digest", "weekly-lessons-distill", "calendar-watch"}
+
+    def _is_proactive_job(job: CronJob) -> bool:
+        return job.name in proactive_job_names or job.name.startswith("pd-")
+
+    def _is_quiet_hours_blocked(job: CronJob) -> bool:
+        quiet = config.proactive.quiet_hours
+        if not quiet.enabled:
+            return False
+        if not job.payload.deliver:
+            return False
+        if not _is_proactive_job(job):
+            return False
+        tzinfo = resolve_timezone(quiet.timezone)
+        now_local = datetime.now(timezone.utc).astimezone(tzinfo)
+        return is_quiet_hours_now(
+            now_local=now_local,
+            start_hhmm=quiet.start,
+            end_hhmm=quiet.end,
+            enabled=quiet.enabled,
+        )
+
+    async def _run_calendar_watch(job: CronJob) -> str:
+        if not (job.payload.deliver and job.payload.channel and job.payload.to):
+            return "calendar_watch skipped: missing delivery target."
+
+        google_cfg = config.integrations.google
+        google = GoogleWorkspaceClient(
+            client_id=google_cfg.client_id,
+            client_secret=google_cfg.client_secret,
+            refresh_token=google_cfg.refresh_token,
+            access_token=google_cfg.access_token,
+            calendar_id=google_cfg.calendar_id,
+        )
+        if not google.is_configured():
+            return "calendar_watch skipped: Google Workspace not configured."
+
+        now_utc = datetime.now(timezone.utc)
+        horizon = max(10, int(config.proactive.calendar_watch_horizon_minutes))
+        ok, data = await google.request(
+            "GET",
+            f"https://www.googleapis.com/calendar/v3/calendars/{quote(google.calendar_id or 'primary', safe='')}/events",
+            params={
+                "singleEvents": "true",
+                "orderBy": "startTime",
+                "timeMin": now_utc.isoformat(),
+                "timeMax": (now_utc + timedelta(minutes=horizon)).isoformat(),
+                "maxResults": 25,
+            },
+        )
+        if not ok:
+            return f"calendar_watch error: {data.get('error', data)}"
+
+        due = compute_due_calendar_reminders(
+            data.get("items", []) or [],
+            now_utc=now_utc,
+            lead_minutes=config.proactive.calendar_watch_lead_minutes,
+            scan_minutes=max(1, int(config.proactive.calendar_watch_every_minutes)),
+            horizon_minutes=horizon,
+            state_store=proactive_state,
+        )
+        if not due:
+            return "calendar_watch: no due reminders."
+
+        local_tz = resolve_timezone(config.proactive.quiet_hours.timezone)
+        lines = ["⏰ Upcoming meetings:"]
+        for item in due[:5]:
+            start_local = item["start_utc"].astimezone(local_tz)
+            lines.append(
+                f"- {item['summary']} in {item['minutes_to_start']}m "
+                f"({start_local.strftime('%H:%M')})"
+            )
+
+        await bus.publish_outbound(
+            OutboundMessage(
+                channel=job.payload.channel,
+                chat_id=job.payload.to,
+                content="\n".join(lines),
+                metadata={
+                    "idempotency_key": (
+                        f"cron:{job.id}:{now_utc.strftime('%Y%m%d%H%M')}:{len(due)}"
+                    )
+                },
+            )
+        )
+        return f"calendar_watch: sent {len(due)} reminder(s)."
+
     # Set cron callback (needs agent)
     async def on_cron_job(job: CronJob) -> str | None:
         """Execute a cron job through the agent."""
-        response = await agent.process_direct(
-            job.payload.message,
-            session_key=f"cron:{job.id}",
-            channel=job.payload.channel or "cli",
-            chat_id=job.payload.to or "direct",
-        )
-        if job.payload.deliver and job.payload.to:
-            from g_agent.bus.events import OutboundMessage
-            await bus.publish_outbound(OutboundMessage(
+        started = perf_counter()
+        error_message = ""
+        success = True
+        try:
+            if _is_quiet_hours_blocked(job):
+                return f"Skipped '{job.name}' due quiet hours."
+
+            if job.payload.kind == "system_event":
+                if (job.payload.message or "").strip().lower() == "calendar_watch":
+                    return await _run_calendar_watch(job)
+                return f"Skipped unknown system_event payload: {job.payload.message}"
+
+            response = await agent.process_direct(
+                job.payload.message,
+                session_key=f"cron:{job.id}",
                 channel=job.payload.channel or "cli",
-                chat_id=job.payload.to,
-                content=response or ""
-            ))
-        return response
+                chat_id=job.payload.to or "direct",
+            )
+            if job.payload.deliver and job.payload.to:
+                await bus.publish_outbound(OutboundMessage(
+                    channel=job.payload.channel or "cli",
+                    chat_id=job.payload.to,
+                    content=response or "",
+                    metadata={
+                        "idempotency_key": (
+                            f"cron:{job.id}:{datetime.now(timezone.utc).strftime('%Y%m%d%H%M')}"
+                        )
+                    },
+                ))
+            return response
+        except Exception as e:
+            success = False
+            error_message = str(e)
+            raise
+        finally:
+            metrics.record_cron_run(
+                name=job.name,
+                payload_kind=job.payload.kind,
+                success=success,
+                latency_ms=(perf_counter() - started) * 1000.0,
+                delivered=bool(job.payload.deliver and job.payload.to),
+                proactive=_is_proactive_job(job),
+                error=error_message,
+            )
     cron.on_job = on_cron_job
     
     # Create heartbeat service
@@ -1032,18 +1173,44 @@ def digest(
 def proactive_enable(
     daily_cron: str = typer.Option("0 8 * * *", "--daily-cron", help="Cron for daily digest"),
     weekly_cron: str = typer.Option("0 9 * * 1", "--weekly-cron", help="Cron for weekly lessons distillation"),
+    include_calendar_watch: bool = typer.Option(True, "--calendar-watch/--no-calendar-watch", help="Enable calendar lookahead reminders"),
+    calendar_every: int | None = typer.Option(None, "--calendar-every", help="Calendar watch interval in minutes"),
+    calendar_horizon: int | None = typer.Option(None, "--calendar-horizon", help="Calendar lookahead window in minutes"),
+    calendar_leads: str | None = typer.Option(None, "--calendar-leads", help="Lead reminders in minutes, comma-separated (e.g. 30,10)"),
     deliver: bool = typer.Option(False, "--deliver", help="Deliver output to a channel target"),
     channel: str = typer.Option(None, "--channel", help="Target channel for delivery (telegram/whatsapp)"),
     to: str = typer.Option(None, "--to", help="Target chat ID / number for delivery"),
 ):
     """Install proactive cron jobs (daily digest + weekly lessons)."""
-    from g_agent.config.loader import get_data_dir
+    from g_agent.config.loader import get_data_dir, load_config, save_config
     from g_agent.cron.service import CronService
     from g_agent.cron.types import CronSchedule
 
     if deliver and (not channel or not to):
         console.print("[red]When --deliver is set, both --channel and --to are required.[/red]")
         raise typer.Exit(1)
+
+    config = load_config()
+    proactive_cfg = config.proactive
+    if calendar_every is not None:
+        proactive_cfg.calendar_watch_every_minutes = max(1, int(calendar_every))
+    if calendar_horizon is not None:
+        proactive_cfg.calendar_watch_horizon_minutes = max(10, int(calendar_horizon))
+    if calendar_leads is not None:
+        parsed_leads = []
+        for token in calendar_leads.split(","):
+            raw = token.strip()
+            if not raw:
+                continue
+            try:
+                value = int(raw)
+            except ValueError:
+                continue
+            if value > 0:
+                parsed_leads.append(value)
+        if parsed_leads:
+            proactive_cfg.calendar_watch_lead_minutes = sorted(set(parsed_leads), reverse=True)
+    save_config(config)
 
     store_path = get_data_dir() / "cron" / "jobs.json"
     service = CronService(store_path)
@@ -1072,6 +1239,26 @@ def proactive_enable(
         )
         created.append(f"weekly-lessons-distill ({job.id})")
 
+    if include_calendar_watch and "calendar-watch" not in existing:
+        if deliver and channel and to:
+            job = service.add_job(
+                name="calendar-watch",
+                schedule=CronSchedule(
+                    kind="every",
+                    every_ms=max(1, int(proactive_cfg.calendar_watch_every_minutes)) * 60 * 1000,
+                ),
+                message="calendar_watch",
+                kind="system_event",
+                deliver=True,
+                channel=channel,
+                to=to,
+            )
+            created.append(f"calendar-watch ({job.id})")
+        else:
+            console.print(
+                "[yellow]Calendar watch skipped: requires --deliver --channel --to target.[/yellow]"
+            )
+
     if created:
         console.print("[green]✓[/green] Proactive jobs created:")
         for item in created:
@@ -1088,7 +1275,7 @@ def proactive_disable():
 
     store_path = get_data_dir() / "cron" / "jobs.json"
     service = CronService(store_path)
-    targets = {"daily-digest", "weekly-lessons-distill"}
+    targets = {"daily-digest", "weekly-lessons-distill", "calendar-watch"}
     removed = 0
     for job in service.list_jobs(include_disabled=True):
         if job.name in targets and service.remove_job(job.id):
@@ -1098,6 +1285,126 @@ def proactive_disable():
         console.print(f"[green]✓[/green] Removed {removed} proactive job(s).")
     else:
         console.print("[yellow]No proactive jobs found.[/yellow]")
+
+
+# ============================================================================
+# Policy Preset Commands
+# ============================================================================
+
+
+policy_app = typer.Typer(help="Manage tool policy presets")
+app.add_typer(policy_app, name="policy")
+
+
+@policy_app.command("list")
+def policy_list():
+    """List available policy presets."""
+    from g_agent.config.presets import list_presets
+
+    table = Table(title="Policy Presets")
+    table.add_column("Preset", style="cyan")
+    table.add_column("Description")
+    table.add_column("Rules", justify="right")
+
+    for preset in list_presets():
+        table.add_row(preset.name, preset.description, str(len(preset.rules)))
+
+    console.print(table)
+
+
+@policy_app.command("apply")
+def policy_apply(
+    preset: str = typer.Argument(..., help="Preset name: personal_full|guest_limited|guest_readonly"),
+    channel: str = typer.Option("", "--channel", help="Optional channel scope (telegram/whatsapp/...)"),
+    sender: str = typer.Option("", "--sender", help="Optional sender scope (user ID/phone)"),
+    replace_scope: bool = typer.Option(
+        False,
+        "--replace-scope",
+        help="Replace existing rules in the same scope before applying",
+    ),
+):
+    """Apply a policy preset globally or to a channel/sender scope."""
+    from g_agent.config.loader import load_config, save_config
+    from g_agent.config.presets import apply_preset, get_preset
+
+    channel = channel.strip()
+    sender = sender.strip()
+    if sender and not channel:
+        console.print("[red]--sender requires --channel[/red]")
+        raise typer.Exit(1)
+
+    config = load_config()
+    try:
+        get_preset(preset)
+        result = apply_preset(
+            config,
+            preset_name=preset,
+            channel=channel or None,
+            sender=sender or None,
+            replace_scope=replace_scope,
+            set_defaults=True,
+        )
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1)
+
+    save_config(config)
+
+    scope_text = "global"
+    if result.get("channel") and result.get("sender"):
+        scope_text = f"{result['channel']}:{result['sender']}"
+    elif result.get("channel"):
+        scope_text = f"{result['channel']}:*"
+
+    console.print(f"[green]✓[/green] Applied preset: [bold]{result['preset']}[/bold]")
+    console.print(f"Scope: {scope_text}")
+    console.print(
+        f"Rules: {result['applied_rules']} applied ({result['changed_rules']} changed)"
+    )
+    console.print(f"Approval mode: {config.tools.approval_mode}")
+    console.print(
+        "Security (restrictToWorkspace): "
+        + ("[green]enabled[/green]" if config.tools.restrict_to_workspace else "[yellow]disabled[/yellow]")
+    )
+
+
+@policy_app.command("status")
+def policy_status():
+    """Show current policy map grouped by scope."""
+    from g_agent.config.loader import load_config
+
+    config = load_config()
+    policy = dict(config.tools.policy)
+    if not policy:
+        console.print("No policy rules configured.")
+        return
+
+    global_rules = {k: v for k, v in policy.items() if ":" not in k}
+    scoped_rules = {k: v for k, v in policy.items() if ":" in k}
+
+    console.print(f"Approval mode: {config.tools.approval_mode}")
+    console.print(
+        "Security (restrictToWorkspace): "
+        + ("enabled" if config.tools.restrict_to_workspace else "disabled")
+    )
+    console.print(f"Risky tools: {len(config.tools.risky_tools)}")
+
+    if global_rules:
+        table = Table(title="Global Policy Rules")
+        table.add_column("Key", style="cyan")
+        table.add_column("Decision")
+        for key in sorted(global_rules):
+            table.add_row(key, global_rules[key])
+        console.print(table)
+
+    if scoped_rules:
+        table = Table(title="Scoped Policy Rules")
+        table.add_column("Key", style="cyan")
+        table.add_column("Decision")
+        for key in sorted(scoped_rules):
+            table.add_row(key, scoped_rules[key])
+        console.print(table)
+
 
 # ============================================================================
 # Status Commands
@@ -1130,6 +1437,51 @@ def feedback(
         console.print("[green]✓[/green] Feedback saved to memory/LESSONS.md")
     else:
         console.print("[yellow]Feedback was empty or file not writable.[/yellow]")
+
+
+@app.command("metrics")
+def metrics_cmd(
+    hours: int = typer.Option(24, "--hours", "-w", help="Metrics window in hours"),
+    as_json: bool = typer.Option(False, "--json", help="Output JSON snapshot"),
+):
+    """Show runtime observability metrics snapshot."""
+    from g_agent.config.loader import load_config
+    from g_agent.observability.metrics import MetricsStore
+
+    config = load_config()
+    store = MetricsStore(config.workspace_path / "state" / "metrics" / "events.jsonl")
+    snapshot = store.snapshot(hours=hours)
+
+    if as_json:
+        console.print(json.dumps(snapshot, indent=2, ensure_ascii=False))
+        return
+
+    llm = snapshot["llm"]
+    tools = snapshot["tools"]
+    recall = snapshot["recall"]
+    cron = snapshot["cron"]
+    totals = snapshot["totals"]
+
+    console.print(f"{__logo__} Metrics ({snapshot['window_hours']}h)\n")
+    console.print(f"Events file: {snapshot['events_file']}")
+    console.print(f"Total events: {totals['events']}")
+    console.print(
+        f"LLM calls: {llm['calls']} | success: {llm['success_rate']}% | p95: {llm['latency_ms_p95']}ms"
+    )
+    console.print(
+        f"Tool calls: {tools['calls']} | success: {tools['success_rate']}% | p95: {tools['latency_ms_p95']}ms"
+    )
+    console.print(
+        f"Recall hit-rate: {recall['hit_rate']}% ({recall['hit_queries']}/{recall['queries']}) | avg hits: {recall['avg_hits']}"
+    )
+    console.print(
+        f"Cron runs: {cron['runs']} | success: {cron['success_rate']}% | proactive: {cron['proactive_runs']}"
+    )
+    top_tools = tools.get("top_tools", [])
+    if top_tools:
+        console.print("Top tools:")
+        for item in top_tools[:8]:
+            console.print(f"  - {item['tool']}: {item['calls']} call(s), {item['errors']} error(s)")
 
 
 @app.command()
@@ -1197,14 +1549,23 @@ def status():
         )
         browser_allow = len(config.tools.browser.allow_domains)
         browser_deny = len(config.tools.browser.deny_domains)
+        policy_global = sum(1 for key in config.tools.policy if ":" not in key)
+        policy_scoped = len(config.tools.policy) - policy_global
         console.print(
             f"Browser policy: allow={browser_allow}, deny={browser_deny}, timeout={config.tools.browser.timeout_seconds}s"
         )
         console.print(f"Tool policy rules: {len(config.tools.policy)}")
+        console.print(f"Tool policy scope: global={policy_global}, scoped={policy_scoped}")
         console.print(f"Approval mode: {config.tools.approval_mode}")
+        quiet_cfg = config.proactive.quiet_hours
+        quiet_desc = (
+            f"{quiet_cfg.start}-{quiet_cfg.end} ({quiet_cfg.timezone})"
+            if quiet_cfg.enabled else "disabled"
+        )
+        console.print(f"Quiet hours: {quiet_desc}")
         try:
             from g_agent.cron.service import CronService
-            proactive_names = {"daily-digest", "weekly-lessons-distill"}
+            proactive_names = {"daily-digest", "weekly-lessons-distill", "calendar-watch"}
             cron_service = CronService(get_data_dir() / "cron" / "jobs.json")
             proactive_count = sum(
                 1 for job in cron_service.list_jobs(include_disabled=True) if job.name in proactive_names
@@ -1212,14 +1573,30 @@ def status():
             console.print(f"Proactive jobs: {proactive_count}")
         except Exception:
             console.print("Proactive jobs: [dim]unknown[/dim]")
+        try:
+            from g_agent.observability.metrics import MetricsStore
+
+            metrics_store = MetricsStore(workspace / "state" / "metrics" / "events.jsonl")
+            metrics_snapshot = metrics_store.snapshot(hours=24)
+            console.print(
+                "Metrics (24h): "
+                f"events={metrics_snapshot['totals']['events']}, "
+                f"llm={metrics_snapshot['llm']['calls']}, "
+                f"tools={metrics_snapshot['tools']['calls']}, "
+                f"recall-hit={metrics_snapshot['recall']['hit_rate']}%"
+            )
+        except Exception:
+            console.print("Metrics (24h): [dim]unknown[/dim]")
 
         memory_file = workspace / "memory" / "MEMORY.md"
+        facts_file = workspace / "memory" / "FACTS.md"
         lessons_file = workspace / "memory" / "LESSONS.md"
         profile_file = workspace / "memory" / "PROFILE.md"
         relationships_file = workspace / "memory" / "RELATIONSHIPS.md"
         projects_file = workspace / "memory" / "PROJECTS.md"
         today_file = workspace / "memory" / f"{datetime.now().strftime('%Y-%m-%d')}.md"
         console.print(f"Long-term memory: {'[green]✓[/green]' if memory_file.exists() else '[yellow]missing[/yellow]'} ({memory_file})")
+        console.print(f"Fact index memory: {'[green]✓[/green]' if facts_file.exists() else '[dim]not created yet[/dim]'} ({facts_file})")
         console.print(f"Lessons memory: {'[green]✓[/green]' if lessons_file.exists() else '[dim]not created yet[/dim]'} ({lessons_file})")
         console.print(f"Profile memory: {'[green]✓[/green]' if profile_file.exists() else '[dim]not created yet[/dim]'} ({profile_file})")
         console.print(f"Relationships memory: {'[green]✓[/green]' if relationships_file.exists() else '[dim]not created yet[/dim]'} ({relationships_file})")
@@ -1375,10 +1752,17 @@ def doctor(
         f"{len(config.tools.policy)} rule(s)",
         "" if config.tools.policy else "Set tools.policy (e.g. {\"exec\":\"ask\",\"send_email\":\"deny\"})",
     )
+    scoped_policy_count = sum(1 for key in config.tools.policy if ":" in key)
+    add(
+        "Scoped policy rules",
+        "pass" if scoped_policy_count > 0 else "warn",
+        f"{scoped_policy_count} scoped rule(s)",
+        "" if scoped_policy_count > 0 else "Use `g-agent policy apply ... --channel ... --sender ...` for guest boundaries",
+    )
 
     try:
         from g_agent.cron.service import CronService
-        proactive_names = {"daily-digest", "weekly-lessons-distill"}
+        proactive_names = {"daily-digest", "weekly-lessons-distill", "calendar-watch"}
         cron_store_path = get_data_dir() / "cron" / "jobs.json"
         cron_service = CronService(cron_store_path)
         jobs = cron_service.list_jobs(include_disabled=True)
@@ -1397,6 +1781,18 @@ def doctor(
             "Run: g-agent proactive-enable",
         )
 
+    quiet_cfg = config.proactive.quiet_hours
+    quiet_ok = bool(quiet_cfg.start and quiet_cfg.end)
+    add(
+        "Quiet hours config",
+        "pass" if quiet_ok else "warn",
+        (
+            f"enabled={str(quiet_cfg.enabled).lower()}, "
+            f"{quiet_cfg.start}-{quiet_cfg.end}, tz={quiet_cfg.timezone}"
+        ),
+        "" if quiet_ok else "Set proactive.quietHours.start/end (HH:MM)",
+    )
+
     calendar_dir = workspace / "calendar"
     add(
         "Calendar integration",
@@ -1406,6 +1802,7 @@ def doctor(
     )
 
     memory_file = workspace / "memory" / "MEMORY.md"
+    facts_file = workspace / "memory" / "FACTS.md"
     lessons_file = workspace / "memory" / "LESSONS.md"
     profile_file = workspace / "memory" / "PROFILE.md"
     relationships_file = workspace / "memory" / "RELATIONSHIPS.md"
@@ -1416,6 +1813,12 @@ def doctor(
         "pass" if memory_file.exists() else "warn",
         str(memory_file),
         "" if memory_file.exists() else f"Run: mkdir -p {workspace / 'memory'} && printf '# Long-term Memory\\n' > {memory_file}",
+    )
+    add(
+        "Fact index",
+        "pass" if facts_file.exists() else "warn",
+        str(facts_file),
+        "" if facts_file.exists() else "Create by using remember tool once (or run g-agent onboard)",
     )
     add(
         "Profile memory",
@@ -1447,6 +1850,32 @@ def doctor(
         str(lessons_file),
         "" if lessons_file.exists() else "Create with: g-agent feedback \"<lesson>\"",
     )
+
+    metrics_file = workspace / "state" / "metrics" / "events.jsonl"
+    if metrics_file.exists():
+        try:
+            from g_agent.observability.metrics import MetricsStore
+
+            metrics_snapshot = MetricsStore(metrics_file).snapshot(hours=24)
+            add(
+                "Observability metrics",
+                "pass",
+                f"{metrics_file} ({metrics_snapshot['totals']['events']} events /24h)",
+            )
+        except Exception as e:
+            add(
+                "Observability metrics",
+                "warn",
+                f"{metrics_file} (read failed: {type(e).__name__})",
+                "Run: g-agent metrics --json",
+            )
+    else:
+        add(
+            "Observability metrics",
+            "warn",
+            str(metrics_file),
+            "Metrics file appears after first tool/LLM activity",
+        )
 
     if config.providers.vllm.api_base:
         url = f"{config.providers.vllm.api_base.rstrip('/')}/models"

@@ -196,7 +196,7 @@ class SessionManager:
                                 "updated_at": data.get("updated_at"),
                                 "path": str(path)
                             })
-            except Exception:
+            except (OSError, json.JSONDecodeError):
                 continue
         
         return sorted(sessions, key=lambda x: x.get("updated_at", ""), reverse=True)

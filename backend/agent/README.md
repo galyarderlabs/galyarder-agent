@@ -58,9 +58,15 @@ If your assistant cannot run reliably on your own Linux machine, it is not your 
 - Chat via CLI, Telegram, and WhatsApp (Discord/Feishu available, experimental).
 - Run local-proxy models (including Gemini-compatible routes) through OpenAI-compatible APIs.
 - Save and recall durable memory automatically.
+- Trigger workflow packs from chat (`/pack daily_brief`, `/pack meeting_prep`, `/pack inbox_zero_batch`).
+  - Optional multimodal delivery: `--voice`, `--image`, or `--sticker` (example: `/pack daily_brief focus revenue --sticker`).
+  - Multi delivery: combine flags (example: `--sticker --image --voice`) to send all requested formats.
+  - Add `--silent` with media flags to suppress extra text reply after successful media send.
 - Use web/browser tools (`browser_open`, `browser_snapshot`, `browser_click`, etc.).
 - Access Google Workspace (email/calendar/files/docs/sheets/contacts) via OAuth.
 - Schedule proactive reminders and daily/weekly assistant jobs.
+- Send multimodal outbound replies (text + image/voice/sticker/document) through `message` tool.
+  - For auto-generated voice, install `espeak-ng` (optional) on host.
 
 ---
 
@@ -191,11 +197,15 @@ g-agent doctor --network
 | `g-agent agent` | Interactive chat |
 | `g-agent gateway` | Start channel gateway |
 | `g-agent status` | Full runtime status |
+| `g-agent metrics` | Runtime metrics snapshot (LLM/tools/recall/cron) |
 | `g-agent doctor` | Diagnostics + fix hints |
 | `g-agent feedback "..."` | Save lessons memory |
+| `g-agent agent -m "/pack daily_brief"` | Run a workflow pack intent (`--voice` supported) |
 | `g-agent digest` | Generate daily digest |
-| `g-agent proactive-enable` | Install default proactive jobs |
+| `g-agent proactive-enable` | Install proactive jobs (daily/weekly + optional calendar watch) |
 | `g-agent proactive-disable` | Remove default proactive jobs |
+| `g-agent policy list/status` | Inspect available presets and active policy map |
+| `g-agent policy apply ...` | Apply global or scoped policy preset (personal/guest) |
 | `g-agent channels status` | Show channel config status |
 | `g-agent channels login` | WhatsApp QR linking |
 | `g-agent google configure/auth-url/exchange/verify` | Google OAuth flow |
@@ -340,6 +350,7 @@ Default scopes include:
 Memory lives inside `workspace/memory`:
 
 - `MEMORY.md`: durable long-term notes
+- `FACTS.md`: machine-readable memory schema (`type`, `confidence`, `source`, `last_seen`, `supersedes`)
 - `PROFILE.md`: user identity/preferences
 - `RELATIONSHIPS.md`: people context
 - `PROJECTS.md`: active and backlog project context
@@ -358,6 +369,7 @@ Primary controls:
 - `channels.*.allowFrom`: whitelist chat users/numbers.
 - `tools.policy`: per-tool `allow` / `ask` / `deny`.
 - `tools.approvalMode`: `confirm` for risky tool calls.
+- `proactive.quietHours`: optional quiet-hours gate for proactive delivery.
 - Browser denylist for localhost/metadata endpoints.
 
 Recommended baseline for personal usage:
@@ -369,6 +381,19 @@ Recommended baseline for personal usage:
     "approvalMode": "confirm"
   }
 }
+```
+
+Preset shortcuts:
+
+```bash
+# Personal owner mode (global)
+g-agent policy apply personal_full --replace-scope
+
+# Guest scope on Telegram user 123456 (deny writes/sends by default)
+g-agent policy apply guest_limited --channel telegram --sender 123456 --replace-scope
+
+# Strict read-only guest scope on WhatsApp number
+g-agent policy apply guest_readonly --channel whatsapp --sender 6281234567890 --replace-scope
 ```
 
 ---
@@ -516,6 +541,16 @@ g-agent status
 ~/galyarder-agent/deploy/ops/healthcheck.sh
 ~/galyarder-agent/deploy/ops/backup.sh
 ```
+
+---
+
+## OpenClaw Delta Roadmap
+
+Roadmap and implementation status live in:
+
+- `../../docs/roadmap/openclaw-delta.md`
+
+This is the focused delta we adopt from OpenClaw direction while keeping `g-agent` lean and cross-platform.
 
 ---
 

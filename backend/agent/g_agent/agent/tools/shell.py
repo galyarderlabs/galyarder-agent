@@ -136,7 +136,7 @@ class ExecTool(Tool):
             for raw in win_paths + posix_paths:
                 try:
                     p = Path(raw).resolve()
-                except Exception:
+                except (OSError, RuntimeError, ValueError):
                     continue
                 if cwd_path not in p.parents and p != cwd_path:
                     return "Error: Command blocked by safety guard (path outside working dir)"

@@ -10,6 +10,8 @@ class Tool(ABC):
     
     Tools are capabilities that the agent can use to interact with
     the environment, such as reading files, executing commands, etc.
+
+    Concrete tools must provide an async `execute(...)` method.
     """
     
     _TYPE_MAP = {
@@ -37,19 +39,6 @@ class Tool(ABC):
     @abstractmethod
     def parameters(self) -> dict[str, Any]:
         """JSON Schema for tool parameters."""
-        pass
-    
-    @abstractmethod
-    async def execute(self, **kwargs: Any) -> str:
-        """
-        Execute the tool with given parameters.
-        
-        Args:
-            **kwargs: Tool-specific parameters.
-        
-        Returns:
-            String result of the tool execution.
-        """
         pass
 
     def validate_params(self, params: dict[str, Any]) -> list[str]:

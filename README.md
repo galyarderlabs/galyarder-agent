@@ -58,9 +58,15 @@ If your assistant cannot run reliably on your own Linux machine, it is not your 
 - Chat via CLI, Telegram, and WhatsApp (Discord/Feishu available, experimental).
 - Run local-proxy models (including Gemini-compatible routes) through OpenAI-compatible APIs.
 - Save and recall durable memory automatically.
+- Trigger workflow packs from chat (`/pack daily_brief`, `/pack meeting_prep`, `/pack inbox_zero_batch`).
+  - Optional multimodal delivery: `--voice`, `--image`, or `--sticker` (example: `/pack daily_brief focus revenue --sticker`).
+  - Multi delivery: combine flags (example: `--sticker --image --voice`) to send all requested formats.
+  - Add `--silent` with media flags to suppress extra text reply after successful media send.
 - Use web/browser tools (`browser_open`, `browser_snapshot`, `browser_click`, etc.).
 - Access Google Workspace (email/calendar/files/docs/sheets/contacts) via OAuth.
 - Schedule proactive reminders and daily/weekly assistant jobs.
+- Send multimodal outbound replies (text + image/voice/sticker/document) through `message` tool.
+  - For auto-generated voice, install `espeak-ng` (optional) on host.
 
 ---
 
@@ -516,6 +522,16 @@ g-agent status
 ~/galyarder-agent/deploy/ops/healthcheck.sh
 ~/galyarder-agent/deploy/ops/backup.sh
 ```
+
+---
+
+## OpenClaw Delta Roadmap
+
+Roadmap and implementation status live in:
+
+- `docs/roadmap/openclaw-delta.md`
+
+This is the focused delta we adopt from OpenClaw direction while keeping `g-agent` lean and cross-platform.
 
 ---
 

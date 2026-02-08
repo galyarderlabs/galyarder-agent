@@ -56,7 +56,7 @@ class ReadFileTool(Tool):
             return content
         except PermissionError as e:
             return f"Error: {e}"
-        except Exception as e:
+        except (OSError, UnicodeError) as e:
             return f"Error reading file: {str(e)}"
 
 
@@ -104,7 +104,7 @@ class WriteFileTool(Tool):
             return f"Successfully wrote {len(content)} bytes to {target_path}"
         except PermissionError as e:
             return f"Error: {e}"
-        except Exception as e:
+        except OSError as e:
             return f"Error writing file: {str(e)}"
 
 
@@ -178,7 +178,7 @@ class EditFileTool(Tool):
             return f"Successfully edited {target_path}"
         except PermissionError as e:
             return f"Error: {e}"
-        except Exception as e:
+        except (OSError, UnicodeError) as e:
             return f"Error editing file: {str(e)}"
 
 
@@ -231,5 +231,5 @@ class ListDirTool(Tool):
             return "\n".join(items)
         except PermissionError as e:
             return f"Error: {e}"
-        except Exception as e:
+        except OSError as e:
             return f"Error listing directory: {str(e)}"

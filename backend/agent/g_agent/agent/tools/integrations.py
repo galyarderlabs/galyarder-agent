@@ -11,6 +11,7 @@ from typing import Any
 import httpx
 
 from g_agent.agent.memory import MemoryStore
+from g_agent.observability.metrics import MetricsStore
 from g_agent.agent.tools.base import Tool
 from g_agent.utils.helpers import ensure_dir
 
@@ -31,21 +32,49 @@ class RememberTool(Tool):
         "properties": {
             "fact": {"type": "string", "description": "Durable fact to remember"},
             "category": {"type": "string", "description": "Fact category", "default": "general"},
+            "source": {"type": "string", "description": "Memory source label", "default": "remember_tool"},
+            "confidence": {
+                "type": "number",
+                "description": "Fact confidence (0.0-1.0)",
+                "minimum": 0,
+                "maximum": 1,
+            },
         },
         "required": ["fact"],
     }
 
     def __init__(self, workspace: Path):
         self.memory = MemoryStore(workspace)
+        self.metrics = MetricsStore(workspace / "state" / "metrics" / "events.jsonl")
 
-    async def execute(self, fact: str | None = None, category: str = "general", **kwargs: Any) -> str:
+    async def execute(
+        self,
+        fact: str | None = None,
+        category: str = "general",
+        source: str = "remember_tool",
+        confidence: float | None = None,
+        **kwargs: Any,
+    ) -> str:
         fact_text = (fact or "").strip()
         if not fact_text:
             return "Error: fact is required."
-        ok = self.memory.append_long_term_fact(fact_text, category=category)
-        if ok:
-            return f"Saved to long-term memory ({category})."
-        return "Fact already exists or was empty; no change."
+        result = self.memory.remember_fact(
+            fact=fact_text,
+            category=category,
+            source=source,
+            confidence=confidence,
+        )
+        if not result.get("ok"):
+            return "Failed to save fact to memory."
+        if result.get("status") == "duplicate":
+            return f"Fact already exists; refreshed last_seen (id={result.get('fact_id', 'n/a')})."
+        superseded = result.get("superseded_ids") or []
+        if superseded:
+            return (
+                f"Saved to long-term memory ({category}) and superseded "
+                f"{len(superseded)} older fact(s)."
+            )
+        return f"Saved to long-term memory ({category})."
 
 
 class RecallTool(Tool):
@@ -64,12 +93,14 @@ class RecallTool(Tool):
                 "description": "Optional memory scopes",
                 "items": {"type": "string"},
             },
+            "explain": {"type": "boolean", "description": "Include score breakdown", "default": False},
         },
         "required": ["query"],
     }
 
     def __init__(self, workspace: Path):
         self.memory = MemoryStore(workspace)
+        self.metrics = MetricsStore(workspace / "state" / "metrics" / "events.jsonl")
 
     async def execute(
         self,
@@ -77,6 +108,7 @@ class RecallTool(Tool):
         maxItems: int = 12,
         lookbackDays: int = 30,
         scopes: list[str] | None = None,
+        explain: bool = False,
         **kwargs: Any,
     ) -> str:
         query_text = (query or "").strip()
@@ -87,13 +119,31 @@ class RecallTool(Tool):
             max_items=maxItems,
             lookback_days=lookbackDays,
             scopes=scopes,
+            explain=explain,
         )
         if not items:
+            self.metrics.record_recall(query=query_text, hits=0, scopes=scopes)
             return f"No memory matches found for: {query_text}"
+        self.metrics.record_recall(query=query_text, hits=len(items), scopes=scopes)
 
         lines = [f"Memory recall for: {query_text}"]
         for idx, item in enumerate(items, 1):
-            lines.append(f"{idx}. [{item['source']}] {item['text']}")
+            base = (
+                f"{idx}. [{item['source']}] {item['text']} "
+                f"(score={item['score']}, confidence={item.get('confidence', 0.0):.2f}, age={item.get('age_days', 0)}d)"
+            )
+            lines.append(base)
+            if explain:
+                why = item.get("why") or {}
+                terms = ", ".join(why.get("overlap_terms", [])[:6]) or "-"
+                lines.append(
+                    "   why: "
+                    f"overlap={why.get('overlap_count', 0)}, "
+                    f"lexical={why.get('lexical_ratio', 0)}, "
+                    f"semantic={why.get('semantic_similarity', 0)}, "
+                    f"source_bonus={why.get('source_bonus', 0)}, "
+                    f"terms={terms}"
+                )
         return "\n".join(lines)
 
 
@@ -203,7 +253,7 @@ class SlackWebhookTool(Tool):
             if 200 <= response.status_code < 300:
                 return "Slack message sent."
             return f"Error: Slack webhook returned HTTP {response.status_code}"
-        except Exception as e:
+        except httpx.HTTPError as e:
             return f"Error: {e}"
 
 
@@ -276,7 +326,7 @@ class SendEmailTool(Tool):
                     smtp.login(self.username, self.password)
                 smtp.send_message(msg)
             return f"Email sent to {to_addr}."
-        except Exception as e:
+        except (smtplib.SMTPException, OSError) as e:
             return f"Error: {e}"
 
 
@@ -368,5 +418,5 @@ class CreateCalendarEventTool(Tool):
             out.parent.mkdir(parents=True, exist_ok=True)
             out.write_text(ics, encoding="utf-8")
             return json.dumps({"ok": True, "path": str(out), "title": title_text})
-        except Exception as e:
+        except (ValueError, OSError) as e:
             return json.dumps({"ok": False, "error": str(e)})

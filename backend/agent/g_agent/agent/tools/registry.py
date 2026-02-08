@@ -17,6 +17,9 @@ class ToolRegistry:
     
     def register(self, tool: Tool) -> None:
         """Register a tool."""
+        executor = getattr(tool, "execute", None)
+        if not callable(executor):
+            raise TypeError(f"Tool '{tool.__class__.__name__}' must define execute(...)")
         self._tools[tool.name] = tool
     
     def unregister(self, name: str) -> None:

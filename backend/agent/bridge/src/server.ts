@@ -9,6 +9,10 @@ interface SendCommand {
   type: 'send';
   to: string;
   text: string;
+  mediaPath?: string;
+  mediaType?: string;
+  mimeType?: string;
+  caption?: string;
 }
 
 interface BridgeMessage {
@@ -69,7 +73,12 @@ export class BridgeServer {
 
   private async handleCommand(cmd: SendCommand): Promise<void> {
     if (cmd.type === 'send' && this.wa) {
-      await this.wa.sendMessage(cmd.to, cmd.text);
+      await this.wa.sendMessage(cmd.to, cmd.text, {
+        mediaPath: cmd.mediaPath,
+        mediaType: cmd.mediaType,
+        mimeType: cmd.mimeType,
+        caption: cmd.caption,
+      });
     }
   }
 
