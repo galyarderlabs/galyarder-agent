@@ -1,7 +1,7 @@
 <div align="center">
   <img src="g_agent_logo.png" alt="Galyarder Agent" width="520">
   <h1>Galyarder Agent (g-agent)</h1>
-  <p><b>Private, practical, always-on personal AI assistant for Linux + Android workflows.</b></p>
+  <p><b>Private, practical, always-on personal AI assistant for cross-platform workflows (Linux, macOS, Windows, and mobile via Telegram/WhatsApp).</b></p>
   <p>
     <img src="https://img.shields.io/badge/PyPI-not%20published%20yet-6b7280" alt="PyPI not published">
     <img src="https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white" alt="Python 3.11+">
@@ -533,3 +533,7 @@ Huge respect to both communities and contributors.
 ## License
 
 MIT — see `LICENSE`.
+
+---
+
+> “Digital sovereignty is not isolation — it is ascendancy with ownership: your memory, your tools, your systems, your future.”
