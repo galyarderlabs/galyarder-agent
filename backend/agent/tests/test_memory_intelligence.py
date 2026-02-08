@@ -11,9 +11,12 @@ def _load_fact_records(memory_dir: Path) -> list[dict]:
     content = (memory_dir / "FACTS.md").read_text(encoding="utf-8")
     for raw_line in content.splitlines():
         line = raw_line.strip()
-        if not line or line.startswith("#"):
+        if not line or line.startswith("#") or not line.startswith("{"):
             continue
-        records.append(json.loads(line))
+        try:
+            records.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
     return records
 
 
