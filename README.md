@@ -209,6 +209,23 @@ g-agent doctor --network
 
 ---
 
+## Release Flow
+
+`g-agent` now supports automated GitHub release publishing from tags.
+
+1. Update `CHANGELOG.md` for target version (for example `## [0.1.3.post5]`).
+2. Commit and push changes to `main`.
+3. Create and push a version tag:
+
+```bash
+git tag -a v0.1.3.post5 -m "g-agent 0.1.3.post5"
+git push origin v0.1.3.post5
+```
+
+4. GitHub Actions workflow `.github/workflows/release.yml` runs checks and publishes release notes from `CHANGELOG.md`.
+
+---
+
 ## Channel Setup
 
 Supported channels and typical setup effort:

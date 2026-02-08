@@ -213,6 +213,18 @@ g-agent doctor --network
 
 ---
 
+## Release Flow
+
+Automated release publishing is handled by `.github/workflows/release.yml` from repository root.
+
+1. Update `../../CHANGELOG.md` for the version section.
+2. Push changes to `main`.
+3. Push a tag like `v0.1.3.post5`.
+
+The workflow runs landingpages + backend checks, then publishes a GitHub Release using the matching changelog section.
+
+---
+
 ## Channel Setup
 
 Supported channels and typical setup effort:
