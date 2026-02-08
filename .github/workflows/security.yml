@@ -1,0 +1,72 @@
+name: Security
+
+on:
+  pull_request:
+  schedule:
+    - cron: "0 2 * * 1"
+  workflow_dispatch:
+
+jobs:
+  dependency-review:
+    name: Dependency Review (PR)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Dependency review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+
+  npm-audit:
+    name: NPM Audit (landingpages)
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: landingpages
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: landingpages/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Audit high/critical vulnerabilities
+        run: npm audit --audit-level=high
+
+  pip-audit:
+    name: Pip Audit (backend/agent)
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/agent
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/agent/pyproject.toml
+
+      - name: Install package and audit tool
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install pip-audit
+
+      - name: Audit Python dependencies
+        run: pip-audit
