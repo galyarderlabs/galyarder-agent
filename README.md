@@ -89,11 +89,13 @@ cd galyarder-agent/backend/agent
 pip install -e .
 ```
 
-### From PyPI
+### From PyPI (when published)
 
 ```bash
 pip install galyarder-agent
 ```
+
+> Note: package publication is pending; use source install for now.
 
 ---
 
