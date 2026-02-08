@@ -19,7 +19,7 @@
     "@radix-ui/react-slot": "^1.2.3",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@upstash/ratelimit": "^2.0.6",
-    "@upstash/redis": "^1.35.6",
+    "@upstash/redis": "^1.36.2",
     "@vercel/analytics": "^1.5.0",
     "@vercel/kv": "^3.0.0",
     "@vercel/speed-insights": "^1.2.0",
