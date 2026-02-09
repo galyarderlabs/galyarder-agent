@@ -235,7 +235,9 @@ Use:
 - Backend docs: `backend/agent/README.md`
 - Roadmap: `docs/roadmap/openclaw-delta.md`
 - Changelog: `CHANGELOG.md`
-- Security notes: `backend/agent/SECURITY.md`
+- Security notes: `SECURITY.md` and `backend/agent/SECURITY.md`
+- Contributing guide: `CONTRIBUTING.md`
+- Code of Conduct: `CODE_OF_CONDUCT.md`
 
 ---
 

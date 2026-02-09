@@ -206,8 +206,8 @@ export const copy = {
   footer: {
     note: 'GalyarderAgent turns objectives into auditable execution—on your terms.',
     links: {
-      docs: '#',
-      blog: '#',
+      docs: 'https://github.com/galyarderlabs/galyarder-agent',
+      blog: 'https://github.com/galyarderlabs/galyarder-agent/releases',
       contact: 'mailto:founders@galyarderlabs.app',
     },
     copyright: '© 2025 GalyarderLabs. Systems for sovereign execution.',

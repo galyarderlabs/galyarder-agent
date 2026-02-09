@@ -3,6 +3,7 @@ import { waitlistSchema } from '@/lib/schema';
 import { z } from 'zod';
 import { kv } from '@vercel/kv';
 import { Ratelimit } from '@upstash/ratelimit';
+import { createHash, timingSafeEqual } from 'crypto';
 
 // Create a rate limiter: 10 requests per 1 minute per IP
 const ratelimit = new Ratelimit({
@@ -18,14 +19,45 @@ interface WaitlistEntry {
   consent: boolean;
   timestamp: string;
   userAgent: string;
-  ip?: string;
+  ipHash?: string;
 }
+
+const _missingStatsToken = '__missing_stats_token__';
+
+const normalizeIp = (rawValue: string | null): string => {
+  if (!rawValue) {
+    return 'unknown';
+  }
+  const first = rawValue.split(',')[0]?.trim();
+  return first || 'unknown';
+};
+
+const hashIp = (ip: string): string | undefined => {
+  if (ip === 'unknown') {
+    return undefined;
+  }
+  const salt = process.env.WAITLIST_IP_SALT?.trim();
+  if (!salt) {
+    return undefined;
+  }
+  return createHash('sha256').update(`${salt}:${ip}`).digest('hex');
+};
+
+const getStatsToken = (): string => process.env.WAITLIST_STATS_TOKEN?.trim() || _missingStatsToken;
+
+const tokenMatches = (expected: string, provided: string): boolean => {
+  const expectedBuffer = Buffer.from(expected);
+  const providedBuffer = Buffer.from(provided);
+  if (expectedBuffer.length !== providedBuffer.length) {
+    return false;
+  }
+  return timingSafeEqual(expectedBuffer, providedBuffer);
+};
 
 export async function POST(request: NextRequest) {
   try {
     // Get IP for rate limiting
-    const ip =
-      request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
+    const ip = normalizeIp(request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'));
 
     // Check rate limit
     const { success, limit, remaining, reset } = await ratelimit.limit(ip);
@@ -68,7 +100,7 @@ export async function POST(request: NextRequest) {
       consent: validatedData.consent,
       timestamp: new Date().toISOString(),
       userAgent: request.headers.get('user-agent') || 'unknown',
-      ip: ip !== 'unknown' ? ip : undefined,
+      ipHash: hashIp(ip),
     };
 
     // Store in KV with email as key
@@ -119,8 +151,20 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function GET() {
-  // Simple stats endpoint (could be protected with auth in production)
+export async function GET(request: NextRequest) {
+  const statsToken = getStatsToken();
+  if (statsToken === _missingStatsToken) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+
+  const providedToken =
+    request.headers.get('x-waitlist-stats-token')?.trim() ||
+    request.nextUrl.searchParams.get('token')?.trim() ||
+    '';
+  if (!tokenMatches(statsToken, providedToken)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   try {
     const total = (await kv.get<number>('waitlist:total')) || 0;
     const roles = (await kv.hgetall<Record<string, number>>('waitlist:roles')) || {};
