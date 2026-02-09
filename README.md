@@ -2,6 +2,7 @@
   <img src="backend/agent/g-agent_logo.png" alt="Galyarder Agent" width="520">
   <h1>Galyarder Agent (g-agent)</h1>
   <p><b>Sovereignty-first AI assistant runtime for real daily workflows.</b></p>
+  <p><b>Python 3.11+ · g-agent CLI · CI · MIT</b></p>
   <p>
     <img src="https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white" alt="Python 3.11+">
     <img src="https://img.shields.io/badge/CLI-g--agent-6f42c1" alt="g-agent CLI">
@@ -58,6 +59,15 @@ If your assistant cannot run reliably on your own machine, it is not your assist
 
 ---
 
+## Requirements
+
+- Linux, macOS, or Windows
+- Python `3.11+`
+- Node.js `20+` (for WhatsApp bridge)
+- Optional: `ffmpeg` + `espeak-ng` (voice output quality)
+
+---
+
 ## Quick Start
 
 ### Option A: Installer script (recommended)
@@ -89,6 +99,17 @@ Then set provider/model in `~/.g-agent/config.json`.
 
 ---
 
+## Uninstall
+
+| OS | Command |
+|---|---|
+| Arch / Arch-based | `curl -fsSL https://raw.githubusercontent.com/galyarderlabs/galyarder-agent/main/deploy/arch/uninstall.sh \| bash` |
+| Debian / Ubuntu | `curl -fsSL https://raw.githubusercontent.com/galyarderlabs/galyarder-agent/main/deploy/debian/uninstall.sh \| bash` |
+| macOS | `curl -fsSL https://raw.githubusercontent.com/galyarderlabs/galyarder-agent/main/deploy/macos/uninstall.sh \| bash` |
+| Windows (PowerShell) | `irm https://raw.githubusercontent.com/galyarderlabs/galyarder-agent/main/deploy/windows/uninstall.ps1 \| iex` |
+
+---
+
 ## Usage Examples
 
 From CLI:
@@ -105,6 +126,21 @@ From Telegram/WhatsApp:
 - Request reminders.
 - Trigger workflow packs.
 - Send images/voice and get multimodal responses.
+
+---
+
+## Core Commands
+
+| Command | Purpose |
+|---|---|
+| `g-agent onboard` | Initialize config and workspace |
+| `g-agent status` | Runtime and integration status |
+| `g-agent gateway` | Run Telegram/WhatsApp gateway |
+| `g-agent agent -m "..."` | One-shot chat from CLI |
+| `g-agent channels login` | Pair WhatsApp via QR |
+| `g-agent doctor --network` | Connectivity diagnostics |
+| `g-agent proactive-enable` | Enable default proactive jobs |
+| `g-agent cron list` | List scheduled jobs |
 
 ---
 
@@ -135,6 +171,33 @@ Runtime model:
 - separate profiles via `G_AGENT_DATA_DIR` isolate personal and guest environments.
 
 For details, read `SECURITY.md` and `backend/agent/SECURITY.md`.
+
+---
+
+## FAQ
+
+### Why not just use OpenClaw?
+
+Use OpenClaw if you want a broader platform surface and larger built-in ecosystem.  
+Use `g-agent` if you want a leaner runtime with faster auditability and simpler day-to-day ops.
+
+### How is this different from Nanobot?
+
+Nanobot provides a lightweight and practical base.  
+`g-agent` builds on similar principles but adds stronger opinionated flow for sovereignty, policy presets, workflow packs, cross-platform installers, and richer operational docs.
+
+### Is this trying to replace OpenClaw or Nanobot?
+
+No. This project is a focused fork-direction for operators who prefer tight control, simple operations, and practical personal-assistant behavior.
+
+### Can I use this as my always-on personal assistant?
+
+Yes. The typical production flow is user services + allowlists + restricted workspace + approval mode.
+
+### Is it safe enough for personal data?
+
+It is built with practical controls (`allowFrom`, `restrictToWorkspace`, approvals, profile isolation).  
+You still need to review your configuration and keep tokens scoped/rotated.
 
 ---
 
