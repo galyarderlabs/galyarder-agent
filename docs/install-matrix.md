@@ -36,6 +36,30 @@ g-agent onboard
 g-agent status
 ```
 
+## Script-based install/uninstall
+
+If you prefer bootstrap scripts instead of manual setup, use `deploy/*`:
+
+### Arch Linux
+
+- Install: `bash deploy/arch/install.sh`
+- Uninstall: `bash deploy/arch/uninstall.sh`
+
+### Debian/Ubuntu
+
+- Install: `bash deploy/debian/install.sh`
+- Uninstall: `bash deploy/debian/uninstall.sh`
+
+### macOS
+
+- Install: `bash deploy/macos/install.sh`
+- Uninstall: `bash deploy/macos/uninstall.sh`
+
+### Windows (PowerShell)
+
+- Install: `powershell -ExecutionPolicy Bypass -File deploy/windows/install.ps1`
+- Uninstall: `powershell -ExecutionPolicy Bypass -File deploy/windows/uninstall.ps1`
+
 ## Post-install checklist
 
 1. Confirm provider/model in `~/.g-agent/config.json`
