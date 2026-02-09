@@ -190,10 +190,13 @@ Code:
   - `backend/agent/g_agent/observability/metrics.py`
   - `backend/agent/g_agent/cli/commands.py`
   - `backend/agent/tests/test_metrics_retention_alerts.py`
+- Integration-level reconnect harness (manager + dispatcher + multi-channel recovery):
+  - `backend/agent/tests/test_channel_reconnect.py`
+  - `backend/agent/g_agent/channels/manager.py`
 
 ### P0 — Reliability Gaps (next)
 
-1. expand integration-level reconnect harness (beyond unit-level channel tests)
+1. none (closed)
 
 ### P1 — Memory Quality
 
