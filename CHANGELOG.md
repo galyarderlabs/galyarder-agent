@@ -7,6 +7,16 @@ All notable changes to this project are documented in this file.
 ### Added
 - Placeholder section for upcoming changes.
 
+## [0.1.3.post5] - 2026-02-09
+
+### Fixed
+- CodeQL `py/bad-tag-filter` alert by replacing regex HTML stripping with parser-based extraction in web tools.
+- Code scanning `actions/missing-workflow-permissions` alerts by declaring read-only workflow permissions.
+- Required checks now run for Dependabot PRs (no longer skipped), unblocking protected-branch merges.
+
+### Changed
+- Merged dependency update PRs for GitHub Actions and backend bridge npm packages.
+
 ## [0.1.3.post4] - 2026-02-08
 
 ### Added
