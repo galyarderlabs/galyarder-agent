@@ -45,6 +45,8 @@ Then:
 
 Detailed setup, channel config, OAuth, and ops docs are in `backend/agent/README.md`.
 
+Live docs (GitHub Pages): https://galyarderlabs.github.io/galyarder-agent/
+
 ---
 
 ## Philosophy
@@ -184,7 +186,7 @@ For this public repo, use **GitHub branch protection** as the primary guard for 
 
 Recommended required checks:
 
-- `Landingpages Checks`
+- `Docs Checks`
 - `Backend Agent Checks`
 - `Analyze (python)`
 - `Analyze (javascript-typescript)`
@@ -232,6 +234,8 @@ Use:
 
 ## Docs
 
+- Docs site: https://galyarderlabs.github.io/galyarder-agent/
+- Docs source: `docs/`
 - Backend docs: `backend/agent/README.md`
 - Roadmap: `docs/roadmap/openclaw-delta.md`
 - Changelog: `CHANGELOG.md`

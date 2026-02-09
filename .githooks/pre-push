@@ -48,17 +48,17 @@ run_python_tool() {
     return
   fi
 
-  echo "g-agent pre-push: missing '$tool'. Install backend dev deps: pip install -e \"backend/agent[dev]\""
+  echo "g-agent pre-push: missing '$tool'. Install backend/docs deps first."
   return 1
 }
 
 target_main=false
 need_backend=false
-need_landing=false
+need_docs=false
 backend_force_quick=false
 backend_changed_py=()
 backend_changed_tests=()
-landing_changed=false
+docs_changed=false
 
 while read -r local_ref local_sha remote_ref remote_sha; do
   [[ "$local_ref" == "refs/heads/main" ]] || continue
@@ -78,13 +78,13 @@ while read -r local_ref local_sha remote_ref remote_sha; do
   while IFS= read -r path; do
     [[ -n "$path" ]] || continue
     case "$path" in
-      backend/*|.github/workflows/*|docs/*|README.md|CHANGELOG.md)
+      backend/*|.github/workflows/*|docs/*|README.md|CHANGELOG.md|mkdocs.yml)
         need_backend=true
         ;;
     esac
     case "$path" in
-      landingpages/*|.github/workflows/*|README.md|CHANGELOG.md)
-        need_landing=true
+      docs/*|.github/workflows/*|README.md|CHANGELOG.md|mkdocs.yml)
+        need_docs=true
         ;;
     esac
     if [[ "$path" == backend/agent/* ]]; then
@@ -101,8 +101,8 @@ while read -r local_ref local_sha remote_ref remote_sha; do
           ;;
       esac
     fi
-    if [[ "$path" == landingpages/* ]]; then
-      landing_changed=true
+    if [[ "$path" == docs/* || "$path" == "mkdocs.yml" ]]; then
+      docs_changed=true
     fi
   done <<< "$changed_files"
 done
@@ -112,13 +112,13 @@ if [[ "$target_main" != true ]]; then
   exit 0
 fi
 
-if [[ "$need_backend" != true && "$need_landing" != true ]]; then
+if [[ "$need_backend" != true && "$need_docs" != true ]]; then
   need_backend=true
-  need_landing=true
+  need_docs=true
 fi
 
 if [[ "${G_AGENT_HOOK_TEST_MODE:-0}" == "1" ]]; then
-  echo "g-agent pre-push test-mode: mode=$HOOK_MODE main=$target_main backend=$need_backend landing=$need_landing backend_py=${#backend_changed_py[@]} backend_tests=${#backend_changed_tests[@]} landing_changed=$landing_changed"
+  echo "g-agent pre-push test-mode: mode=$HOOK_MODE main=$target_main backend=$need_backend docs=$need_docs backend_py=${#backend_changed_py[@]} backend_tests=${#backend_changed_tests[@]} docs_changed=$docs_changed"
   exit 0
 fi
 
@@ -154,27 +154,14 @@ if [[ "$need_backend" == true ]]; then
   )
 fi
 
-if [[ "$need_landing" == true ]]; then
-  echo "g-agent pre-push: running landingpages checks"
+if [[ "$need_docs" == true ]]; then
+  echo "g-agent pre-push: running docs checks"
   (
-    if [[ "$HOOK_MODE" == "changed" && "$landing_changed" != "true" ]]; then
-      echo "g-agent pre-push: no landingpages changes detected, skipping landing checks"
+    if [[ "$HOOK_MODE" == "changed" && "$docs_changed" != "true" ]]; then
+      echo "g-agent pre-push: no docs changes detected, skipping docs checks"
       exit 0
     fi
-    cd landingpages
-    if ! command -v npm >/dev/null 2>&1; then
-      echo "g-agent pre-push: missing 'npm' in PATH"
-      exit 1
-    fi
-    if [[ ! -d node_modules ]]; then
-      echo "g-agent pre-push: landingpages/node_modules not found. Run: cd landingpages && npm ci"
-      exit 1
-    fi
-    run_cmd npm run lint
-    run_cmd npm run typecheck
-    if [[ "$HOOK_MODE" == "full" ]]; then
-      run_cmd npm run build
-    fi
+    run_python_tool mkdocs build --strict
   )
 fi
 
