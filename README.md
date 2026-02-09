@@ -1,7 +1,7 @@
 <div align="center">
   <img src="backend/agent/g-agent_logo.png" alt="Galyarder Agent" width="520">
   <h1>Galyarder Agent (g-agent)</h1>
-  <p><b>My personal AI assistant I can actually understand, control, and evolve for my own workflow.</b></p>
+  <p><b>Open-source, sovereignty-first AI agent runtime for private operations across CLI, Telegram, and WhatsApp.</b></p>
   <p>
     <img src="https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white" alt="Python 3.11+">
     <img src="https://img.shields.io/badge/CLI-g--agent-6f42c1" alt="g-agent CLI">
@@ -12,139 +12,44 @@
 
 ---
 
-## Why I Built This
+## Mission
 
-OpenClaw and Nanobot are both strong projects with big vision.  
-But for my personal life stack, I need an assistant I can audit, tune, and trust quickly.
+`g-agent` is built for one goal: **digital sovereignty in daily AI operations**.
 
-`g-agent` is the answer to that tradeoff:
+That means:
 
-- I keep the powerful parts (agent loop, tools, channels, memory, scheduling).
-- I remove unclear complexity where possible.
-- I keep control in my own machine, own profile, own policy.
+- you control where the agent runs,
+- you control which models and tools it can use,
+- you control who can reach it,
+- and you can audit every operational decision in code and logs.
 
-This repo is intentionally practical: built for real day-to-day execution, not feature theater.
-
----
-
-## Quick Start
-
-```bash
-git clone https://github.com/galyarderlabs/galyarder-agent.git
-cd galyarder-agent/backend/agent
-pip install -e .
-g-agent onboard
-g-agent status
-```
-
-Then:
-
-- configure model/provider in `~/.g-agent/config.json`
-- pair channels (`g-agent channels login` for WhatsApp)
-- run gateway (`g-agent gateway`)
-
-Detailed setup, channel config, OAuth, and ops docs are in `backend/agent/README.md`.
-
-Live docs (GitHub Pages): https://galyarderlabs.github.io/galyarder-agent/
+This repository is a public, production-oriented foundation that favors clarity, safety boundaries, and predictable behavior over feature sprawl.
 
 ---
 
-## Philosophy
+## Why This Project Exists
 
-- **Useful over flashy**: real outcomes first.
-- **Understandable over abstract**: a codebase you can reason about.
-- **Private over cloud-lock**: local workspace, local memory, local control.
-- **Controlled over chaotic**: allowlists, policy gates, approval mode, scoped profiles.
-- **Fork-first ownership**: your assistant should match your life, not generic defaults.
+Many agent projects optimize for breadth. `g-agent` optimizes for **operational ownership**:
 
-If your assistant is not under your operational control, it is not really your assistant.
+- **Local-first control**: data, memory, and runtime state live in your environment.
+- **Inspectable architecture**: practical code paths that can be reviewed and customized quickly.
+- **Policy-driven safety**: allowlists, workspace boundaries, approval gates, and profile presets.
+- **Reliable automation**: scheduling, proactive reminders, workflow packs, and service-mode operation.
+
+`g-agent` takes inspiration from strong open-source predecessors and focuses on shipping a hardening-friendly runtime you can trust in real workflows.
 
 ---
 
-## What It Supports
+## Core Capabilities
 
-- **Channels**: CLI, Telegram, WhatsApp (Discord/Feishu available as experimental paths).
-- **Model routing**: LiteLLM + OpenAI-compatible endpoints (local proxy/vLLM/OpenRouter style).
-- **Memory**: durable markdown memory (`MEMORY.md`, `PROFILE.md`, `PROJECTS.md`, `LESSONS.md`).
-- **Proactive behavior**: cron jobs, perfect-day reminders, calendar lead-time nudges.
+- **Channels**: CLI, Telegram, WhatsApp (Discord/Feishu paths available as experimental).
+- **Model routing**: LiteLLM + OpenAI-compatible endpoints (local proxy/vLLM/OpenRouter-style).
+- **Memory system**: persistent markdown memory (`MEMORY.md`, `PROFILE.md`, `PROJECTS.md`, `LESSONS.md`).
+- **Proactive behavior**: cron scheduling, recurring reminders, perfect-day routines, calendar nudges.
 - **Workflow packs**: `daily_brief`, `meeting_prep`, `inbox_zero_batch`.
-- **Multimodal output**: text + image + voice + sticker + document.
-- **Google Workspace**: Gmail, Calendar, Drive, Docs, Sheets, Contacts (OAuth).
-- **Safety boundaries**: `restrictToWorkspace`, `allowFrom`, tool policy presets, guest scopes.
-
----
-
-## Usage
-
-From CLI:
-
-```bash
-g-agent agent -m "Summarize my priorities for today."
-g-agent agent -m "/pack daily_brief focus revenue --sticker --silent"
-g-agent proactive-enable
-```
-
-From Telegram/WhatsApp:
-
-- ask normal questions
-- request scheduled reminders
-- run workflow packs
-- send image/voice context and get multimodal replies
-
-Admin-style intents (examples):
-
-- “List all scheduled jobs and their next run time.”
-- “Prepare meeting context from calendar and inbox for 14:00.”
-- “Send me a morning brief every weekday at 08:30.”
-
----
-
-## Customizing
-
-`g-agent` is designed for direct customization.
-
-- tune behavior in code (`backend/agent/g_agent`)
-- tune policy/runtime via `~/.g-agent/config.json`
-- isolate profiles with `G_AGENT_DATA_DIR` (personal vs guest)
-- extend capabilities through skills and targeted tool additions
-
-No need to maintain config sprawl for every preference.  
-If your behavior needs are unique, modify the code intentionally.
-
----
-
-## Contributing
-
-Keep the core sharp:
-
-- accept: security fixes, reliability fixes, clarity improvements, meaningful performance wins
-- avoid: bloating core with every optional channel/integration by default
-
-Preferred pattern for optional expansion: add skills/workflows/docs that let users transform their own fork cleanly.
-
----
-
-## Request for Skills (RFS)
-
-High-value additions we want contributors to package cleanly:
-
-- `/add-telegram-hardening` (advanced Telegram control + moderation boundaries)
-- `/add-slack` (Slack channel path with scoped policy profile)
-- `/add-discord` (Discord production-ready flow, not just experimental)
-- `/setup-windows` (WSL2-focused deployment path)
-- `/add-clear` (context compaction command with safe memory carry-over)
-- `/add-google-admin-pack` (meeting + follow-up + weekly review orchestration)
-
----
-
-## Requirements
-
-- Linux, macOS, or Windows
-- Python `3.11+`
-- Node.js `20+` (required for WhatsApp bridge)
-- Optional:
-  - Docker (containerized run mode)
-  - `ffmpeg` + `espeak-ng` (enhanced voice output)
+- **Multimodal output**: text, image, voice, sticker, and document responses.
+- **Google Workspace**: Gmail, Calendar, Drive, Docs, Sheets, Contacts via OAuth.
+- **Safety controls**: `restrictToWorkspace`, `allowFrom`, approval mode, and policy presets (`personal_full`, `guest_limited`, `guest_readonly`).
 
 ---
 
@@ -154,115 +59,134 @@ High-value additions we want contributors to package cleanly:
   <img src="backend/agent/g-agent_arch.png" alt="g-agent architecture" width="900">
 </p>
 
-Execution model (high level):
+High-level execution flow:
 
-`Channel Input (CLI/Telegram/WhatsApp) -> Message Bus -> Agent Loop -> Tools + Memory + Cron/Proactive -> Outbound Dispatcher`
+`Channel Input -> Message Bus -> Agent Loop -> Tools + Memory + Scheduler/Proactive -> Outbound Dispatcher`
 
-Runtime notes:
+Runtime components:
 
-- Python process for agent runtime
-- Node bridge process for WhatsApp transport
-- local filesystem as operational state
+- Python process for the core agent loop and tool execution.
+- Node.js bridge process for WhatsApp transport.
+- Local filesystem for state, memory, and operational artifacts.
+
+---
+
+## Quick Start
+
+### 1) Clone
+
+```bash
+git clone https://github.com/galyarderlabs/galyarder-agent.git
+cd galyarder-agent
+```
+
+### 2) Install (by platform)
+
+- **Arch Linux**
+  ```bash
+  bash deploy/arch/install.sh
+  ```
+- **Debian/Ubuntu**
+  ```bash
+  bash deploy/debian/install.sh
+  ```
+- **macOS**
+  ```bash
+  bash deploy/macos/install.sh
+  ```
+- **Windows (PowerShell)**
+  ```powershell
+  powershell -ExecutionPolicy Bypass -File deploy/windows/install.ps1
+  ```
+
+### 3) Onboard and verify
+
+```bash
+g-agent onboard
+g-agent status
+```
+
+Then configure your provider/model in `~/.g-agent/config.json`, pair channels (`g-agent channels login` for WhatsApp), and run:
+
+```bash
+g-agent gateway
+```
+
+---
+
+## Service Mode (Always On)
+
+For persistent runtime on Linux/macOS with user services:
+
+```bash
+systemctl --user status g-agent-gateway.service
+systemctl --user status g-agent-wa-bridge.service
+journalctl --user -u g-agent-gateway.service -u g-agent-wa-bridge.service -n 120 --no-pager
+```
+
+Ops helpers:
+
+- `deploy/ops/healthcheck.sh`
+- `deploy/ops/backup.sh`
 
 ---
 
 ## Security Model
 
-Security is policy + scope driven:
+`g-agent` is designed around constrained execution, not blind trust:
 
-- `tools.restrictToWorkspace` limits file/shell operations to allowed workspace
-- `channels.*.allowFrom` gates who can talk to the agent
-- tool policy presets (`personal_full`, `guest_limited`, `guest_readonly`)
-- approval mode for risky actions
-- separate data profiles for personal and guest assistants
+- **Workspace boundaries**: `tools.restrictToWorkspace` limits filesystem and shell scope.
+- **Identity gates**: per-channel `allowFrom` controls who can interact with the runtime.
+- **Policy presets**: enforce different risk profiles for personal vs guest assistants.
+- **Approval mode**: explicit confirmation for risky actions.
+- **Profile isolation**: separate data directories for personal and guest contexts.
 
-For a stricter setup, run the stack under isolated runtime boundaries (for example dedicated user profile or containerized deployment) with minimal mounted paths.
-
----
-
-## Main Branch Safety
-
-For this public repo, use **GitHub branch protection** as the primary guard for `main`.
-
-Recommended required checks:
-
-- `Docs Checks`
-- `Backend Agent Checks`
-- `Analyze (python)`
-- `Analyze (javascript-typescript)`
-
-Optional local guard for maintainers:
-
-```bash
-bash deploy/install-local-guard.sh
-G_AGENT_PRE_PUSH_MODE=changed git push origin main
-```
+See `SECURITY.md` and `backend/agent/SECURITY.md` for implementation details.
 
 ---
 
-## FAQ
-
-### Why not just use OpenClaw directly?
-
-Use OpenClaw if you want its full platform surface.  
-Use `g-agent` if you want a leaner personal stack you can customize quickly with less cognitive overhead.
-
-### Is this only for Telegram/WhatsApp?
-
-Those are primary channels today. CLI is first-class.  
-Discord/Feishu paths exist and can be hardened further.
-
-### Is this secure enough for personal use?
-
-It is designed with operational controls (`allowFrom`, tool policy, workspace restriction, profile separation).  
-Still, you should review your own config and keep secrets/token scope tight.
-
-### Can I run this 24/7?
-
-Yes. Typical setup uses user services and health checks.  
-See `backend/agent/README.md` for systemd flow and operational commands.
-
-### How do I debug issues fast?
-
-Use:
-
-- `g-agent status`
-- `g-agent doctor --network`
-- `journalctl --user -u g-agent-gateway.service -u g-agent-wa-bridge.service -n 120 --no-pager`
-
----
-
-## Docs
+## Documentation
 
 - Docs site: https://galyarderlabs.github.io/galyarder-agent/
-- Docs source: `docs/`
-- Install matrix: `docs/install-matrix.md`
-- Troubleshooting matrix: `docs/troubleshooting.md`
+- Getting started: `docs/getting-started.md`
+- Installation matrix: `docs/install-matrix.md`
+- Configuration: `docs/configuration.md`
+- Channels: `docs/channels.md`
+- Operations: `docs/operations.md`
+- Troubleshooting: `docs/troubleshooting.md`
+- Security: `docs/security.md`
 - FAQ: `docs/faq.md`
-- Backend docs: `backend/agent/README.md`
+- Backend developer docs: `backend/agent/README.md`
 - Roadmap: `docs/roadmap/openclaw-delta.md`
 - Changelog: `CHANGELOG.md`
-- Security notes: `SECURITY.md` and `backend/agent/SECURITY.md`
-- Contributing guide: `CONTRIBUTING.md`
-- Code of Conduct: `CODE_OF_CONDUCT.md`
+
+---
+
+## Contributing
+
+We welcome focused, high-signal contributions:
+
+- security hardening,
+- reliability and observability improvements,
+- performance wins with measurable impact,
+- documentation clarity and operator UX.
+
+Please read:
+
+- `CONTRIBUTING.md`
+- `CODE_OF_CONDUCT.md`
 
 ---
 
 ## Acknowledgements
 
-Respect to projects that inspired this direction:
+This project is inspired by open-source agent work from:
 
 - [`HKUDS/nanobot`](https://github.com/HKUDS/nanobot)
 - [`openclaw/openclaw`](https://github.com/openclaw/openclaw)
 
-This project keeps that spirit while prioritizing personal ownership, practical reliability, and operational clarity.
+`g-agent` extends those ideas with a sovereignty-first operational focus for modern personal and small-team deployments.
 
 ---
 
-## License
-
-MIT — see `LICENSE`.
-
----
-
-> “Digital sovereignty is not isolation — it is ascendancy with ownership: your memory, your tools, your systems, your future.”
+> “Digital sovereignty is not a feature toggle. It is an architecture decision.”
