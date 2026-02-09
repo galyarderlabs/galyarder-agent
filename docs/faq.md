@@ -1,29 +1,58 @@
 # FAQ
 
-## Why docs-first instead of a landing site?
+## What is `g-agent` for?
 
-This repo is now optimized for open-source operators and contributors.  
-Docs-first keeps maintenance lower and onboarding clearer.
+`g-agent` is a self-hosted personal assistant runtime for execution workflows:
 
-## Is Vercel required?
+- chat ops (CLI, Telegram, WhatsApp)
+- memory and context persistence
+- scheduled reminders/jobs
+- controlled tool execution under local policies
 
-No. Documentation is served through GitHub Pages.
+## Which channels are supported?
+
+- CLI
+- Telegram
+- WhatsApp
+
+Discord/Feishu paths may exist in code, but primary supported channels are the three above.
+
+## Can I use local model endpoints (OpenAI-compatible / vLLM proxy)?
+
+Yes. Configure your provider `apiBase` + `apiKey` in `~/.g-agent/config.json`.
+
+## Does memory persist across sessions?
+
+Yes. Memory is persisted under your profile workspace (for example `~/.g-agent/workspace/memory/`).
+
+## Can `g-agent` send proactive reminders/tasks?
+
+Yes. It supports cron/scheduled workflows and proactive message jobs.
 
 ## Can I still run this privately for personal use?
 
 Yes. The runtime remains local-first with profile and policy controls.
 
-## Does this support Telegram and WhatsApp together?
+## How do I keep it secure by default?
 
-Yes. Configure both channels and strict per-channel `allowFrom` lists.
+Minimum baseline:
+
+- keep `tools.restrictToWorkspace: true`
+- keep strict `allowFrom` lists per channel
+- use separate data profiles for personal vs guest workloads
+- scope integration credentials to least privilege
 
 ## Can I isolate guest users from personal data?
 
 Yes. Use separate profiles (`G_AGENT_DATA_DIR`) and limited policy presets.
 
-## Why keep local pre-push guard if branch protection exists?
+## How do I debug runtime issues quickly?
 
-It catches failures before remote push and shortens debug loops.
+Use:
+
+- `g-agent status`
+- `g-agent doctor --network`
+- `journalctl --user -u g-agent-gateway.service -u g-agent-wa-bridge.service -n 120 --no-pager`
 
 ## Where should I start contributing?
 
