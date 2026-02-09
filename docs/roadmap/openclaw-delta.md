@@ -1,101 +1,194 @@
-# OpenClaw Delta Roadmap (Post-Nanobot Parity)
+# OpenClaw Delta Roadmap — Lean `g-agent` Runtime
 
-Last update: 2026-02-08
+Last updated: 2026-02-09
 
-This roadmap tracks the focused features adopted from the OpenClaw direction, without pulling in a heavy/macOS-centric stack.
+This roadmap tracks what we deliberately adopted from OpenClaw direction, while keeping `g-agent` lightweight, cross-platform, and operator-controlled.
 
-## Goal
+---
+
+## North Star
 
 Build a personal assistant that is:
-- proactive (can initiate useful actions),
-- memory-strong (accurate recall across sessions),
-- workflow-capable (Google + browser + channel orchestration),
-- safe for personal and guest profiles.
 
-## Delta Tracks
+- proactive (can initiate useful work),
+- memory-strong (recalls user context reliably across sessions),
+- workflow-capable (Google + browser + channel orchestration),
+- safe by default (strict boundaries for personal and guest modes).
+
+---
+
+## Scope Boundaries
+
+This roadmap is **delta-only**.  
+We are not trying to reproduce OpenClaw’s full platform surface.
+
+In scope:
+
+- high-value runtime behavior
+- memory quality
+- proactive orchestration
+- security posture for mixed personal/guest usage
+- observability for daily operations
+
+Out of scope:
+
+- heavy framework expansion
+- channel sprawl without clear reliability/ops value
+- large control-plane abstractions that reduce local clarity
+
+---
+
+## Delta Tracks and Status
 
 ### 1) Execution Runtime with Checkpoints
-- Status: **implemented (v1)**
-- Scope:
-  - task lifecycle checkpoints (`plan -> execute -> verify -> reflect -> done`)
-  - persisted task state in workspace (`state/tasks/*.json`)
-  - restart-safe task completion tracking
-- Code:
-  - `backend/agent/g_agent/agent/runtime.py`
-  - `backend/agent/g_agent/agent/loop.py`
+
+**Status:** implemented (`v1`)
+
+Implemented:
+
+- task lifecycle checkpoints (`plan -> execute -> verify -> reflect -> done`)
+- persisted task state in workspace (`state/tasks/*.json`)
+- restart-safe completion tracking
+
+Code:
+
+- `backend/agent/g_agent/agent/runtime.py`
+- `backend/agent/g_agent/agent/loop.py`
 
 ### 2) Memory Retrieval Intelligence
-- Status: **implemented (v1)**
-- Scope:
-  - memory schema metadata (`type`, `confidence`, `source`, `last_seen`, `supersedes`)
-  - dedup + supersede logic
-  - ranked recall using confidence + recency + relevance
-- Code:
-  - `backend/agent/g_agent/agent/memory.py`
+
+**Status:** implemented (`v1`)
+
+Implemented:
+
+- memory metadata schema (`type`, `confidence`, `source`, `last_seen`, `supersedes`)
+- dedup/supersede behavior
+- ranked recall via confidence + recency + relevance
+
+Code:
+
+- `backend/agent/g_agent/agent/memory.py`
 
 ### 3) Proactive Agent Engine
-- Status: **implemented (v1)**
-- Scope:
-  - perfect-day style scheduled prompts
-  - calendar watch reminders (lead-time windows)
-  - quiet-hours gating + state dedupe
-- Code:
-  - `backend/agent/g_agent/proactive/engine.py`
-  - `backend/agent/g_agent/cli/commands.py`
-  - `backend/agent/g_agent/cron/service.py`
+
+**Status:** implemented (`v1`)
+
+Implemented:
+
+- perfect-day schedule prompts
+- calendar watch lead-time reminders
+- quiet-hours gating + dedupe state
+
+Code:
+
+- `backend/agent/g_agent/proactive/engine.py`
+- `backend/agent/g_agent/cli/commands.py`
+- `backend/agent/g_agent/cron/service.py`
 
 ### 4) Multimodal Output
-- Status: **implemented (v1)**
-- Scope:
-  - outbound `message` tool supports text/image/voice/sticker/document
-  - generated voice and sticker media from plain text fallback
-  - workflow-pack media mode flags (`--voice`, `--image`, `--sticker`)
-- Code:
-  - `backend/agent/g_agent/agent/tools/message.py`
-  - `backend/agent/g_agent/agent/workflow_packs.py`
+
+**Status:** implemented (`v1`)
+
+Implemented:
+
+- outbound `message` tool supports text/image/voice/sticker/document
+- generated voice + sticker fallback from plain text
+- workflow-pack media flags (`--voice`, `--image`, `--sticker`)
+
+Code:
+
+- `backend/agent/g_agent/agent/tools/message.py`
+- `backend/agent/g_agent/agent/workflow_packs.py`
 
 ### 5) Workflow Packs (Google-first)
-- Status: **implemented (v1)**
-- Packs:
-  - `daily_brief`
-  - `meeting_prep`
-  - `inbox_zero_batch`
-- Scope:
-  - intent-level orchestration prompting
-  - multi-mode output support
-  - `--silent` media-first response mode
-- Code:
-  - `backend/agent/g_agent/agent/workflow_packs.py`
-  - `backend/agent/g_agent/agent/loop.py`
+
+**Status:** implemented (`v1`)
+
+Implemented packs:
+
+- `daily_brief`
+- `meeting_prep`
+- `inbox_zero_batch`
+
+Implemented scope:
+
+- intent-level orchestration prompting
+- multimodal output options
+- media-first `--silent` mode
+
+Code:
+
+- `backend/agent/g_agent/agent/workflow_packs.py`
+- `backend/agent/g_agent/agent/loop.py`
 
 ### 6) Guest Safety Boundary
-- Status: **implemented (v1)**
-- Presets:
-  - `personal_full`
-  - `guest_limited`
-  - `guest_readonly`
-- Scope:
-  - policy matrix enforcement by channel/sender scope
-  - deny-by-default tool restrictions for guest profiles
-- Code:
-  - `backend/agent/g_agent/config/presets.py`
-  - `backend/agent/g_agent/agent/loop.py`
-  - `backend/agent/g_agent/cli/commands.py`
 
-### 7) Observability + Evaluation Harness
-- Status: **implemented (v1)**
-- Scope:
-  - local metrics event sink
-  - tool/cron reliability snapshots
-  - latency and success-rate summary surface in CLI status/doctor paths
-- Code:
-  - `backend/agent/g_agent/observability/metrics.py`
-  - `backend/agent/g_agent/cli/commands.py`
+**Status:** implemented (`v1`)
 
-## Remaining Hardening Work
+Implemented:
 
-1. Expand E2E harness for Telegram/WhatsApp reconnect and OAuth edge cases.
-2. Add regression fixture set for memory conflict resolution quality.
-3. Add optional metrics export endpoint/file shipper for dashboarding.
-4. Add broader failure taxonomy for tool retries (provider-specific mapping).
+- policy presets: `personal_full`, `guest_limited`, `guest_readonly`
+- channel/sender scoped policy map
+- deny-by-default behavior for guest restrictions
 
+Code:
+
+- `backend/agent/g_agent/config/presets.py`
+- `backend/agent/g_agent/agent/loop.py`
+- `backend/agent/g_agent/cli/commands.py`
+
+### 7) Observability and Evaluation Harness
+
+**Status:** implemented (`v1`)
+
+Implemented:
+
+- local metrics event sink
+- tool/cron reliability snapshots
+- latency + success-rate surfaces in status/doctor paths
+
+Code:
+
+- `backend/agent/g_agent/observability/metrics.py`
+- `backend/agent/g_agent/cli/commands.py`
+
+---
+
+## What Remains (Hardening Backlog)
+
+### P0 — Reliability Gaps (next)
+
+1. expand E2E harness for Telegram/WhatsApp reconnect behavior
+2. add OAuth edge-case regression checks (expired refresh token, bad scope drift)
+3. improve provider-specific retry taxonomy for transient tool failures
+
+### P1 — Memory Quality
+
+1. add regression fixture set for memory conflict/supersede resolution
+2. define quality assertions for recall ranking consistency
+
+### P2 — Observability Ops
+
+1. add optional metrics export path (file shipper or endpoint)
+2. add baseline dashboard-friendly summary format for external scraping
+
+---
+
+## Exit Criteria for Delta Phase
+
+Delta phase is considered complete when:
+
+- all P0 items are implemented and covered by automated tests
+- memory regression fixtures are in CI and stable
+- one optional metrics export path is available and documented
+- production checklist in `backend/agent/SECURITY.md` remains valid without exceptions
+
+---
+
+## Relationship to Main Docs
+
+- product-level narrative: `README.md`
+- backend setup and operations: `backend/agent/README.md`
+- security posture and hardening: `backend/agent/SECURITY.md`
+
+This roadmap only tracks the remaining OpenClaw-derived delta work.
