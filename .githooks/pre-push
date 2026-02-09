@@ -142,11 +142,11 @@ if [[ "$need_backend" == true ]]; then
       if [[ "$HOOK_MODE" == "changed" && ${#backend_changed_tests[@]} -gt 0 ]]; then
         PYTHONPATH="$PWD" run_python_tool pytest -q "${backend_changed_tests[@]}"
       else
-      PYTHONPATH="$PWD" run_python_tool pytest -q \
-        tests/test_security_audit.py \
-        tests/test_security_fix.py \
-        tests/test_metrics_retention_alerts.py \
-        tests/test_metrics_http_server.py
+        PYTHONPATH="$PWD" run_python_tool pytest -q \
+          tests/test_security_audit.py \
+          tests/test_security_fix.py \
+          tests/test_metrics_retention_alerts.py \
+          tests/test_metrics_http_server.py
       fi
     else
       PYTHONPATH="$PWD" run_python_tool pytest -q
