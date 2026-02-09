@@ -4,6 +4,7 @@ import html
 import json
 import os
 import re
+from html.parser import HTMLParser
 from typing import Any
 from urllib.parse import urlparse
 
@@ -16,12 +17,36 @@ USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_7_2) AppleWebKit/537.36"
 MAX_REDIRECTS = 5  # Limit redirects to prevent DoS attacks
 
 
+class _HTMLTextExtractor(HTMLParser):
+    """Extract text while skipping script/style content."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self._parts: list[str] = []
+        self._skip_depth = 0
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag.lower() in {"script", "style"}:
+            self._skip_depth += 1
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.lower() in {"script", "style"} and self._skip_depth > 0:
+            self._skip_depth -= 1
+
+    def handle_data(self, data: str) -> None:
+        if self._skip_depth == 0:
+            self._parts.append(data)
+
+    def get_text(self) -> str:
+        return "".join(self._parts)
+
+
 def _strip_tags(text: str) -> str:
     """Remove HTML tags and decode entities."""
-    text = re.sub(r'<script[\s\S]*?</script>', '', text, flags=re.I)
-    text = re.sub(r'<style[\s\S]*?</style>', '', text, flags=re.I)
-    text = re.sub(r'<[^>]+>', '', text)
-    return html.unescape(text).strip()
+    extractor = _HTMLTextExtractor()
+    extractor.feed(text)
+    extractor.close()
+    return html.unescape(extractor.get_text()).strip()
 
 
 def _normalize(text: str) -> str:

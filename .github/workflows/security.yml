@@ -6,10 +6,13 @@ on:
     - cron: "0 2 * * 1"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   dependency-review:
     name: Dependency Review (PR)
-    if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read

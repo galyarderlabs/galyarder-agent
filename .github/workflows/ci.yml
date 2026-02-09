@@ -7,10 +7,12 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   docs:
     name: Docs Checks
-    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -33,7 +35,6 @@ jobs:
 
   backend-agent:
     name: Backend Agent Checks
-    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     defaults:
       run:
