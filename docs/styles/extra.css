@@ -1,0 +1,30 @@
+:root {
+  --gagent-bg: #0b1220;
+  --gagent-panel: #0f172a;
+  --gagent-text: #e5e7eb;
+  --gagent-accent: #38bdf8;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-default-bg-color: var(--gagent-bg);
+  --md-typeset-color: var(--gagent-text);
+  --md-primary-fg-color: #020617;
+  --md-accent-fg-color: var(--gagent-accent);
+}
+
+.gagent-hero {
+  border: 1px solid #1e293b;
+  border-radius: 16px;
+  background: linear-gradient(140deg, #111827, #0f172a);
+  padding: 1rem 1.25rem;
+  margin: 0.5rem 0 1rem;
+}
+
+.gagent-hero p {
+  margin: 0.3rem 0;
+}
+
+.gagent-note {
+  border-left: 3px solid var(--gagent-accent);
+  padding-left: 0.8rem;
+}

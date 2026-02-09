@@ -2,6 +2,13 @@
 
 Galyarder Agent (`g-agent`) is a practical, self-hosted personal assistant runtime.
 
+![Galyarder Agent](assets/logo-wordmark.svg)
+
+<div class="gagent-hero">
+  <p><b>Private by default.</b> Operate from your own machine, with your own policies.</p>
+  <p><b>Practical by design.</b> Focus on channels, memory, automation, and auditability.</p>
+</div>
+
 ## What you get
 
 - Multi-channel assistant: CLI, Telegram, WhatsApp
@@ -38,3 +45,9 @@ This project is for builders who want:
 - Migration notes for this repo model: [Migration Guide](migration-from-landingpages.md)
 - Common operator questions: [FAQ](faq.md)
 - Contribution expectations: [Contributing](contributing.md)
+
+## Architecture
+
+![g-agent architecture](https://raw.githubusercontent.com/galyarderlabs/galyarder-agent/main/backend/agent/g-agent_arch.png)
+
+<p class="gagent-note"><i>Execution path: channel input → agent loop → tools/memory/scheduler → outbound dispatch.</i></p>
