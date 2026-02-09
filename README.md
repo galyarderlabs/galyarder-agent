@@ -198,9 +198,11 @@ Hook modes:
 
 - default `quick` mode: backend smoke tests + landing lint/typecheck
 - `full` mode: full backend test suite + landing build
+- `changed` mode: target only changed backend/landing files (fastest)
 
 ```bash
 G_AGENT_PRE_PUSH_MODE=full git push origin main
+G_AGENT_PRE_PUSH_MODE=changed git push origin main
 ```
 
 Emergency bypass (single push):

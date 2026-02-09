@@ -10,9 +10,9 @@ if [[ "${G_AGENT_SKIP_PRE_PUSH:-0}" == "1" ]]; then
 fi
 
 case "$HOOK_MODE" in
-  quick|full) ;;
+  quick|full|changed) ;;
   *)
-    echo "g-agent pre-push: invalid mode '$HOOK_MODE' (use quick|full)"
+    echo "g-agent pre-push: invalid mode '$HOOK_MODE' (use quick|full|changed)"
     exit 1
     ;;
 esac
@@ -55,6 +55,10 @@ run_python_tool() {
 target_main=false
 need_backend=false
 need_landing=false
+backend_force_quick=false
+backend_changed_py=()
+backend_changed_tests=()
+landing_changed=false
 
 while read -r local_ref local_sha remote_ref remote_sha; do
   [[ "$local_ref" == "refs/heads/main" ]] || continue
@@ -83,6 +87,23 @@ while read -r local_ref local_sha remote_ref remote_sha; do
         need_landing=true
         ;;
     esac
+    if [[ "$path" == backend/agent/* ]]; then
+      if [[ "$path" == *.py ]]; then
+        rel_path="${path#backend/agent/}"
+        backend_changed_py+=("$rel_path")
+        if [[ "$rel_path" == tests/test_*.py ]]; then
+          backend_changed_tests+=("$rel_path")
+        fi
+      fi
+      case "$path" in
+        backend/agent/pyproject.toml|backend/agent/requirements*.txt)
+          backend_force_quick=true
+          ;;
+      esac
+    fi
+    if [[ "$path" == landingpages/* ]]; then
+      landing_changed=true
+    fi
   done <<< "$changed_files"
 done
 
@@ -97,7 +118,7 @@ if [[ "$need_backend" != true && "$need_landing" != true ]]; then
 fi
 
 if [[ "${G_AGENT_HOOK_TEST_MODE:-0}" == "1" ]]; then
-  echo "g-agent pre-push test-mode: mode=$HOOK_MODE main=$target_main backend=$need_backend landing=$need_landing"
+  echo "g-agent pre-push test-mode: mode=$HOOK_MODE main=$target_main backend=$need_backend landing=$need_landing backend_py=${#backend_changed_py[@]} backend_tests=${#backend_changed_tests[@]} landing_changed=$landing_changed"
   exit 0
 fi
 
@@ -107,14 +128,26 @@ if [[ "$need_backend" == true ]]; then
   echo "g-agent pre-push: running backend checks"
   (
     cd backend/agent
+    if [[ "$HOOK_MODE" == "changed" && ${#backend_changed_py[@]} -eq 0 && "$backend_force_quick" != "true" ]]; then
+      echo "g-agent pre-push: no backend python/runtime changes detected, skipping backend checks"
+      exit 0
+    fi
     run_cmd python -m compileall -q g_agent
-    run_python_tool ruff check g_agent tests --select F
-    if [[ "$HOOK_MODE" == "quick" ]]; then
+    if [[ "$HOOK_MODE" == "changed" && ${#backend_changed_py[@]} -gt 0 ]]; then
+      run_python_tool ruff check --select F "${backend_changed_py[@]}"
+    else
+      run_python_tool ruff check g_agent tests --select F
+    fi
+    if [[ "$HOOK_MODE" == "quick" || "$HOOK_MODE" == "changed" ]]; then
+      if [[ "$HOOK_MODE" == "changed" && ${#backend_changed_tests[@]} -gt 0 ]]; then
+        PYTHONPATH="$PWD" run_python_tool pytest -q "${backend_changed_tests[@]}"
+      else
       PYTHONPATH="$PWD" run_python_tool pytest -q \
         tests/test_security_audit.py \
         tests/test_security_fix.py \
         tests/test_metrics_retention_alerts.py \
         tests/test_metrics_http_server.py
+      fi
     else
       PYTHONPATH="$PWD" run_python_tool pytest -q
     fi
@@ -124,6 +157,10 @@ fi
 if [[ "$need_landing" == true ]]; then
   echo "g-agent pre-push: running landingpages checks"
   (
+    if [[ "$HOOK_MODE" == "changed" && "$landing_changed" != "true" ]]; then
+      echo "g-agent pre-push: no landingpages changes detected, skipping landing checks"
+      exit 0
+    fi
     cd landingpages
     if ! command -v npm >/dev/null 2>&1; then
       echo "g-agent pre-push: missing 'npm' in PATH"
