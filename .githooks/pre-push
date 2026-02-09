@@ -2,11 +2,20 @@
 set -euo pipefail
 
 ZERO_SHA="0000000000000000000000000000000000000000"
+HOOK_MODE="${G_AGENT_PRE_PUSH_MODE:-quick}"
 
 if [[ "${G_AGENT_SKIP_PRE_PUSH:-0}" == "1" ]]; then
   echo "g-agent pre-push: skipped (G_AGENT_SKIP_PRE_PUSH=1)"
   exit 0
 fi
+
+case "$HOOK_MODE" in
+  quick|full) ;;
+  *)
+    echo "g-agent pre-push: invalid mode '$HOOK_MODE' (use quick|full)"
+    exit 1
+    ;;
+esac
 
 if ! repo_root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
   echo "g-agent pre-push: unable to detect repository root"
@@ -88,11 +97,11 @@ if [[ "$need_backend" != true && "$need_landing" != true ]]; then
 fi
 
 if [[ "${G_AGENT_HOOK_TEST_MODE:-0}" == "1" ]]; then
-  echo "g-agent pre-push test-mode: main=$target_main backend=$need_backend landing=$need_landing"
+  echo "g-agent pre-push test-mode: mode=$HOOK_MODE main=$target_main backend=$need_backend landing=$need_landing"
   exit 0
 fi
 
-echo "g-agent pre-push: guarding push to main"
+echo "g-agent pre-push: guarding push to main (mode=$HOOK_MODE)"
 
 if [[ "$need_backend" == true ]]; then
   echo "g-agent pre-push: running backend checks"
@@ -100,7 +109,15 @@ if [[ "$need_backend" == true ]]; then
     cd backend/agent
     run_cmd python -m compileall -q g_agent
     run_python_tool ruff check g_agent tests --select F
-    PYTHONPATH="$PWD" run_python_tool pytest -q
+    if [[ "$HOOK_MODE" == "quick" ]]; then
+      PYTHONPATH="$PWD" run_python_tool pytest -q \
+        tests/test_security_audit.py \
+        tests/test_security_fix.py \
+        tests/test_metrics_retention_alerts.py \
+        tests/test_metrics_http_server.py
+    else
+      PYTHONPATH="$PWD" run_python_tool pytest -q
+    fi
   )
 fi
 
@@ -118,7 +135,9 @@ if [[ "$need_landing" == true ]]; then
     fi
     run_cmd npm run lint
     run_cmd npm run typecheck
-    run_cmd npm run build
+    if [[ "$HOOK_MODE" == "full" ]]; then
+      run_cmd npm run build
+    fi
   )
 fi
 

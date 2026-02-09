@@ -194,6 +194,15 @@ This guard blocks pushes to `main` when required checks fail:
 
 If `ruff` / `pytest` is not installed globally, the hook automatically tries `python -m ...` then `pipx run` as fallback.
 
+Hook modes:
+
+- default `quick` mode: backend smoke tests + landing lint/typecheck
+- `full` mode: full backend test suite + landing build
+
+```bash
+G_AGENT_PRE_PUSH_MODE=full git push origin main
+```
+
 Emergency bypass (single push):
 
 ```bash
