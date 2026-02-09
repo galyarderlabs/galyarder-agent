@@ -111,6 +111,7 @@ class AgentLoop:
         approval_mode: str = "off",
         enable_reflection: bool = True,
         summary_interval: int = 6,
+        fallback_models: list[str] | None = None,
     ):
         from g_agent.config.schema import (
             ExecToolConfig,
@@ -144,6 +145,12 @@ class AgentLoop:
             self.approval_mode = "off"
         self.enable_reflection = enable_reflection
         self.summary_interval = max(2, summary_interval)
+        models = [self.model]
+        for raw in fallback_models or []:
+            candidate = (raw or "").strip()
+            if candidate and candidate not in models:
+                models.append(candidate)
+        self.model_chain = models
         self.browser = BrowserSession(
             workspace=workspace,
             allow_domains=list(self.browser_config.allow_domains),
@@ -384,29 +391,13 @@ class AgentLoop:
                 self.runtime.append_event(task_id, "llm_call", f"iteration={iteration}")
                 
                 # Call LLM
-                llm_started = perf_counter()
-                try:
-                    response = await self.provider.chat(
-                        messages=messages,
-                        tools=self.tools.get_definitions(),
-                        model=self.model
-                    )
-                    usage = response.usage if isinstance(response.usage, dict) else {}
-                    self.metrics.record_llm_call(
-                        model=self.model,
-                        success=True,
-                        latency_ms=(perf_counter() - llm_started) * 1000.0,
-                        prompt_tokens=int(usage.get("prompt_tokens", 0) or 0),
-                        completion_tokens=int(usage.get("completion_tokens", 0) or 0),
-                    )
-                except Exception as e:
-                    self.metrics.record_llm_call(
-                        model=self.model,
-                        success=False,
-                        latency_ms=(perf_counter() - llm_started) * 1000.0,
-                        error=str(e),
-                    )
-                    raise
+                response, active_model = await self._chat_with_model_failover(
+                    messages=messages,
+                    tools=self.tools.get_definitions(),
+                    task_id=task_id,
+                )
+                if active_model != self.model:
+                    self.runtime.append_event(task_id, "llm_fallback_active_model", active_model)
                 
                 # Handle tool calls
                 if response.has_tool_calls:
@@ -579,29 +570,10 @@ class AgentLoop:
         while iteration < self.max_iterations:
             iteration += 1
             
-            llm_started = perf_counter()
-            try:
-                response = await self.provider.chat(
-                    messages=messages,
-                    tools=self.tools.get_definitions(),
-                    model=self.model
-                )
-                usage = response.usage if isinstance(response.usage, dict) else {}
-                self.metrics.record_llm_call(
-                    model=self.model,
-                    success=True,
-                    latency_ms=(perf_counter() - llm_started) * 1000.0,
-                    prompt_tokens=int(usage.get("prompt_tokens", 0) or 0),
-                    completion_tokens=int(usage.get("completion_tokens", 0) or 0),
-                )
-            except Exception as e:
-                self.metrics.record_llm_call(
-                    model=self.model,
-                    success=False,
-                    latency_ms=(perf_counter() - llm_started) * 1000.0,
-                    error=str(e),
-                )
-                raise
+            response, _ = await self._chat_with_model_failover(
+                messages=messages,
+                tools=self.tools.get_definitions(),
+            )
             
             if response.has_tool_calls:
                 used_tools = True
@@ -1019,6 +991,100 @@ class AgentLoop:
 
         return None
 
+    def _should_failover_model(self, response_error: str) -> bool:
+        """Classify whether LLM error should trigger model fallback."""
+        text = (response_error or "").lower()
+        if not text:
+            return False
+        retry_markers = (
+            "authenticationerror",
+            "api key",
+            "notfounderror",
+            "model not found",
+            "unknown provider",
+            "badgatewayerror",
+            "timeout",
+            "timed out",
+            "rate limit",
+            "429",
+            "503",
+            "service unavailable",
+            "connection",
+            "internal_server_error",
+        )
+        return any(marker in text for marker in retry_markers)
+
+    async def _chat_with_model_failover(
+        self,
+        *,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None,
+        max_tokens: int = 4096,
+        temperature: float = 0.7,
+        task_id: str | None = None,
+    ) -> tuple[Any, str]:
+        """Call provider chat with deterministic model fallback chain."""
+        last_exception: Exception | None = None
+        last_error_response: Any | None = None
+        for index, model_name in enumerate(self.model_chain):
+            llm_started = perf_counter()
+            try:
+                response = await self.provider.chat(
+                    messages=messages,
+                    tools=tools,
+                    model=model_name,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                )
+            except Exception as exc:
+                self.metrics.record_llm_call(
+                    model=model_name,
+                    success=False,
+                    latency_ms=(perf_counter() - llm_started) * 1000.0,
+                    error=str(exc),
+                )
+                last_exception = exc
+                if index < len(self.model_chain) - 1 and self._should_failover_model(str(exc)):
+                    next_model = self.model_chain[index + 1]
+                    logger.warning(f"LLM call failed on {model_name}; retrying with fallback {next_model}")
+                    if task_id:
+                        self.runtime.append_event(task_id, "llm_model_fallback", f"{model_name}->{next_model}")
+                    continue
+                raise
+
+            usage = response.usage if isinstance(response.usage, dict) else {}
+            if response.finish_reason == "error":
+                error_text = response.content or ""
+                self.metrics.record_llm_call(
+                    model=model_name,
+                    success=False,
+                    latency_ms=(perf_counter() - llm_started) * 1000.0,
+                    error=error_text,
+                )
+                last_error_response = response
+                if index < len(self.model_chain) - 1 and self._should_failover_model(error_text):
+                    next_model = self.model_chain[index + 1]
+                    logger.warning(f"LLM response error on {model_name}; retrying with fallback {next_model}")
+                    if task_id:
+                        self.runtime.append_event(task_id, "llm_model_fallback", f"{model_name}->{next_model}")
+                    continue
+                return response, model_name
+
+            self.metrics.record_llm_call(
+                model=model_name,
+                success=True,
+                latency_ms=(perf_counter() - llm_started) * 1000.0,
+                prompt_tokens=int(usage.get("prompt_tokens", 0) or 0),
+                completion_tokens=int(usage.get("completion_tokens", 0) or 0),
+            )
+            return response, model_name
+
+        if last_exception:
+            raise last_exception
+        if last_error_response is not None:
+            return last_error_response, self.model_chain[-1]
+        raise RuntimeError("LLM call failed without response")
+
     def _retry_policy_for(self, kind: str) -> tuple[int, list[float]]:
         """Return retry attempts and sleep schedule for a retry class."""
         if kind == "rate_limit":
@@ -1149,13 +1215,12 @@ class AgentLoop:
             "Output either KEEP or a revised final answer."
         )
         try:
-            review = await self.provider.chat(
+            review, _ = await self._chat_with_model_failover(
                 messages=[
                     {"role": "system", "content": review_prompt},
                     {"role": "user", "content": review_input},
                 ],
                 tools=None,
-                model=self.model,
                 max_tokens=min(1200, max(256, len(draft) // 2 + 200)),
                 temperature=0.2,
             )

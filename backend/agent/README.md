@@ -86,7 +86,11 @@ Edit `~/.g-agent/config.json`:
   },
   "agents": {
     "defaults": {
-      "model": "gemini-3-pro-preview"
+      "model": "gemini-3-pro-preview",
+      "routing": {
+        "mode": "proxy",
+        "fallbackModels": ["gemini-3-flash-preview"]
+      }
     }
   },
   "tools": {
@@ -99,6 +103,12 @@ Edit `~/.g-agent/config.json`:
   }
 }
 ```
+
+Routing modes:
+
+- `proxy`: always use `providers.vllm` (recommended for OpenAI-compatible multi-provider proxy).
+- `direct`: resolve by provider keys (OpenAI/Anthropic/Gemini/etc) without proxy fallback.
+- `auto`: explicit provider prefixes win (`gemini/...`, `openai/...`); otherwise prefer proxy when `providers.vllm.apiBase` is set.
 
 ### 2) Configure channels with allowlists
 
