@@ -100,7 +100,7 @@ if [[ "$need_backend" == true ]]; then
     cd backend/agent
     run_cmd python -m compileall -q g_agent
     run_python_tool ruff check g_agent tests --select F
-    run_python_tool pytest -q
+    PYTHONPATH="$PWD" run_python_tool pytest -q
   )
 fi
 
