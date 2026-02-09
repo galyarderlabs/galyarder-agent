@@ -1606,6 +1606,68 @@ def security_audit(
         raise typer.Exit(1)
 
 
+@app.command("security-fix")
+def security_fix(
+    apply: bool = typer.Option(
+        False,
+        "--apply",
+        help="Apply safe automatic remediations (default: dry-run)",
+    ),
+    as_json: bool = typer.Option(False, "--json", help="Output JSON payload"),
+):
+    """Plan or apply automatic security baseline remediations."""
+    from g_agent.config.loader import get_config_path, get_data_dir, load_config
+    from g_agent.security.fix import run_security_fix
+
+    data_dir = get_data_dir()
+    config_path = get_config_path()
+    config = load_config()
+
+    report = run_security_fix(
+        config=config,
+        data_dir=data_dir,
+        config_path=config_path,
+        workspace_path=config.workspace_path,
+        apply=apply,
+    )
+
+    if as_json:
+        console.print(json.dumps(report, indent=2, ensure_ascii=False))
+        return
+
+    table = Table(title=f"{__logo__} Security Fix ({'apply' if apply else 'dry-run'})")
+    table.add_column("Action", style="cyan")
+    table.add_column("Status")
+    table.add_column("Details", style="yellow")
+
+    for item in report.get("actions", []):
+        status = str(item.get("status", "skipped"))
+        if status in {"applied", "unchanged"}:
+            mark = "[green]APPLIED[/green]" if status == "applied" else "[green]OK[/green]"
+        elif status == "planned":
+            mark = "[yellow]PLAN[/yellow]"
+        elif status == "failed":
+            mark = "[red]FAILED[/red]"
+        else:
+            mark = "[yellow]SKIP[/yellow]"
+        table.add_row(str(item.get("name", "")), mark, str(item.get("detail", "")))
+
+    console.print(table)
+    before = report.get("before", {}).get("summary", {})
+    after = report.get("after", {}).get("summary", {})
+    console.print(
+        "Before: "
+        f"pass={before.get('pass', 0)}, warn={before.get('warn', 0)}, fail={before.get('fail', 0)}"
+    )
+    console.print(
+        "After:  "
+        f"pass={after.get('pass', 0)}, warn={after.get('warn', 0)}, fail={after.get('fail', 0)}"
+    )
+    console.print(f"Changed items: {report.get('changed', 0)}")
+    if not apply:
+        console.print("[dim]Dry-run only. Re-run with --apply to apply planned remediations.[/dim]")
+
+
 @app.command("metrics")
 def metrics_cmd(
     hours: int = typer.Option(24, "--hours", "-w", help="Metrics window in hours"),
@@ -1922,7 +1984,7 @@ def doctor(
             "Security baseline audit",
             "pass" if security_fail == 0 and security_warn == 0 else ("fail" if security_fail > 0 else "warn"),
             f"pass={security_summary.get('pass', 0)}, warn={security_warn}, fail={security_fail}",
-            "" if security_fail == 0 and security_warn == 0 else "Run: g-agent security-audit --strict",
+            "" if security_fail == 0 and security_warn == 0 else "Run: g-agent security-fix --apply",
         )
     except Exception as e:
         add(

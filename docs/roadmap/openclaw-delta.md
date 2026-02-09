@@ -207,6 +207,10 @@ Code:
   - `backend/agent/g_agent/security/audit.py`
   - `backend/agent/g_agent/cli/commands.py`
   - `backend/agent/tests/test_security_audit.py`
+- Operator-facing security baseline auto-remediation helper (`security-fix` dry-run/apply):
+  - `backend/agent/g_agent/security/fix.py`
+  - `backend/agent/g_agent/cli/commands.py`
+  - `backend/agent/tests/test_security_fix.py`
 
 ### P0 — Reliability Gaps (next)
 

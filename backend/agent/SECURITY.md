@@ -80,6 +80,8 @@ Baseline example:
 Quick baseline verification:
 
 ```bash
+g-agent security-fix
+g-agent security-fix --apply
 g-agent security-audit --strict
 ```
 
