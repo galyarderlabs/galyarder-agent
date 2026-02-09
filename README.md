@@ -178,6 +178,28 @@ For a stricter setup, run the stack under isolated runtime boundaries (for examp
 
 ---
 
+## Local Main-Branch Guard (Fallback)
+
+If GitHub branch protection is unavailable (private repo plan limits), enable local `pre-push` guard:
+
+```bash
+cd galyarder-agent
+bash deploy/install-local-guard.sh
+```
+
+This guard blocks pushes to `main` when required checks fail:
+
+- backend: compile + `ruff --select F` + `pytest -q`
+- landingpages: lint + typecheck + build
+
+Emergency bypass (single push):
+
+```bash
+G_AGENT_SKIP_PRE_PUSH=1 git push origin main
+```
+
+---
+
 ## FAQ
 
 ### Why not just use OpenClaw directly?

@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ZERO_SHA="0000000000000000000000000000000000000000"
+
+if [[ "${G_AGENT_SKIP_PRE_PUSH:-0}" == "1" ]]; then
+  echo "g-agent pre-push: skipped (G_AGENT_SKIP_PRE_PUSH=1)"
+  exit 0
+fi
+
+if ! repo_root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+  echo "g-agent pre-push: unable to detect repository root"
+  exit 1
+fi
+cd "$repo_root"
+
+run_cmd() {
+  echo "g-agent pre-push: $*"
+  "$@"
+}
+
+target_main=false
+need_backend=false
+need_landing=false
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [[ "$local_ref" == "refs/heads/main" ]] || continue
+  target_main=true
+
+  changed_files=""
+  if [[ "$remote_sha" == "$ZERO_SHA" ]]; then
+    changed_files="$(git diff-tree --no-commit-id --name-only -r "$local_sha" || true)"
+  else
+    changed_files="$(git diff --name-only "$remote_sha" "$local_sha" || true)"
+  fi
+
+  if [[ -z "$changed_files" ]]; then
+    changed_files="$(git diff --name-only HEAD~1 HEAD || true)"
+  fi
+
+  while IFS= read -r path; do
+    [[ -n "$path" ]] || continue
+    case "$path" in
+      backend/*|.github/workflows/*|docs/*|README.md|CHANGELOG.md)
+        need_backend=true
+        ;;
+    esac
+    case "$path" in
+      landingpages/*|.github/workflows/*|README.md|CHANGELOG.md)
+        need_landing=true
+        ;;
+    esac
+  done <<< "$changed_files"
+done
+
+if [[ "$target_main" != true ]]; then
+  echo "g-agent pre-push: non-main branch, no guard checks required"
+  exit 0
+fi
+
+if [[ "$need_backend" != true && "$need_landing" != true ]]; then
+  need_backend=true
+  need_landing=true
+fi
+
+if [[ "${G_AGENT_HOOK_TEST_MODE:-0}" == "1" ]]; then
+  echo "g-agent pre-push test-mode: main=$target_main backend=$need_backend landing=$need_landing"
+  exit 0
+fi
+
+echo "g-agent pre-push: guarding push to main"
+
+if [[ "$need_backend" == true ]]; then
+  echo "g-agent pre-push: running backend checks"
+  (
+    cd backend/agent
+    run_cmd python -m compileall -q g_agent
+    if ! command -v ruff >/dev/null 2>&1; then
+      echo "g-agent pre-push: missing 'ruff'. Install backend dev deps first: pip install -e \"backend/agent[dev]\""
+      exit 1
+    fi
+    if ! command -v pytest >/dev/null 2>&1; then
+      echo "g-agent pre-push: missing 'pytest'. Install backend dev deps first: pip install -e \"backend/agent[dev]\""
+      exit 1
+    fi
+    run_cmd ruff check g_agent tests --select F
+    run_cmd pytest -q
+  )
+fi
+
+if [[ "$need_landing" == true ]]; then
+  echo "g-agent pre-push: running landingpages checks"
+  (
+    cd landingpages
+    if ! command -v npm >/dev/null 2>&1; then
+      echo "g-agent pre-push: missing 'npm' in PATH"
+      exit 1
+    fi
+    if [[ ! -d node_modules ]]; then
+      echo "g-agent pre-push: landingpages/node_modules not found. Run: cd landingpages && npm ci"
+      exit 1
+    fi
+    run_cmd npm run lint
+    run_cmd npm run typecheck
+    run_cmd npm run build
+  )
+fi
+
+echo "g-agent pre-push: all required checks passed"
