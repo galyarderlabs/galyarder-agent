@@ -182,6 +182,14 @@ Code:
   - `backend/agent/g_agent/observability/http_server.py`
   - `backend/agent/g_agent/cli/commands.py`
   - `backend/agent/tests/test_metrics_http_server.py`
+- Metrics retention/pruning controls for `events.jsonl` growth management:
+  - `backend/agent/g_agent/observability/metrics.py`
+  - `backend/agent/g_agent/cli/commands.py`
+  - `backend/agent/tests/test_metrics_retention_alerts.py`
+- Alert-threshold summary output for uptime/SLO monitoring:
+  - `backend/agent/g_agent/observability/metrics.py`
+  - `backend/agent/g_agent/cli/commands.py`
+  - `backend/agent/tests/test_metrics_retention_alerts.py`
 
 ### P0 — Reliability Gaps (next)
 
@@ -194,8 +202,7 @@ Code:
 
 ### P2 — Observability Ops
 
-1. add retention/pruning controls for `events.jsonl` growth management
-2. add alert-threshold summary output for uptime/SLO monitoring
+1. none (closed)
 
 ---
 

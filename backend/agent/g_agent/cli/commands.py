@@ -1499,6 +1499,26 @@ def metrics_cmd(
         "--export-format",
         help="auto|json|prometheus|dashboard_json",
     ),
+    prune: bool = typer.Option(
+        False,
+        "--prune",
+        help="Prune metrics events before printing snapshot",
+    ),
+    retention_hours: int = typer.Option(
+        168,
+        "--retention-hours",
+        help="Retention window used with --prune",
+    ),
+    max_events: int = typer.Option(
+        50000,
+        "--max-events",
+        help="Maximum events kept after pruning (0 disables cap)",
+    ),
+    prune_dry_run: bool = typer.Option(
+        False,
+        "--prune-dry-run",
+        help="Preview prune result without rewriting events file",
+    ),
 ):
     """Show runtime observability metrics snapshot."""
     from g_agent.config.loader import load_config
@@ -1506,7 +1526,19 @@ def metrics_cmd(
 
     config = load_config()
     store = MetricsStore(config.workspace_path / "state" / "metrics" / "events.jsonl")
+    prune_result: dict[str, Any] | None = None
+    if prune:
+        prune_result = store.prune_events(
+            keep_hours=retention_hours,
+            max_events=max_events,
+            dry_run=prune_dry_run,
+        )
+        if not prune_result.get("ok"):
+            console.print(f"[red]Metrics prune failed:[/red] {prune_result.get('error', 'unknown')}")
+            raise typer.Exit(1)
+
     snapshot = store.snapshot(hours=hours)
+    alerts = store.alert_summary(hours=hours, snapshot=snapshot)
 
     export_result: dict[str, Any] | None = None
     if export.strip():
@@ -1520,15 +1552,16 @@ def metrics_cmd(
             raise typer.Exit(1)
 
     if dashboard_json:
-        console.print(
-            json.dumps(
-                store.dashboard_summary(hours=hours),
-                indent=2,
-                ensure_ascii=False,
-            )
-        )
+        payload = store.dashboard_summary(hours=hours)
+        if prune_result:
+            payload["prune"] = prune_result
+        console.print(json.dumps(payload, indent=2, ensure_ascii=False))
     elif as_json:
-        console.print(json.dumps(snapshot, indent=2, ensure_ascii=False))
+        payload = dict(snapshot)
+        payload["alerts"] = alerts
+        if prune_result:
+            payload["prune"] = prune_result
+        console.print(json.dumps(payload, indent=2, ensure_ascii=False))
     else:
         llm = snapshot["llm"]
         tools = snapshot["tools"]
@@ -1551,11 +1584,29 @@ def metrics_cmd(
         console.print(
             f"Cron runs: {cron['runs']} | success: {cron['success_rate']}% | proactive: {cron['proactive_runs']}"
         )
+        console.print(
+            f"Alerts: {alerts['overall']} | warn: {alerts['warn_count']} | ok: {alerts['ok_count']} | na: {alerts['na_count']}"
+        )
+        if alerts["warn_count"] > 0:
+            console.print("Alert checks:")
+            for item in alerts["checks"]:
+                if item["status"] != "warn":
+                    continue
+                console.print(
+                    f"  - {item['key']}: {item['actual']} {item['operator']} {item['threshold']} "
+                    f"(samples: {item['samples']})"
+                )
         top_tools = tools.get("top_tools", [])
         if top_tools:
             console.print("Top tools:")
             for item in top_tools[:8]:
                 console.print(f"  - {item['tool']}: {item['calls']} call(s), {item['errors']} error(s)")
+        if prune_result:
+            console.print(
+                f"Prune: removed {prune_result['removed_total']} event(s), "
+                f"kept {prune_result['after']} (age={prune_result['removed_by_age']}, cap={prune_result['removed_by_cap']}, "
+                f"dry-run={prune_result['dry_run']})"
+            )
 
     if export_result:
         console.print(

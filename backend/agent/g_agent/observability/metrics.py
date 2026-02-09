@@ -50,6 +50,17 @@ def _escape_label(value: str) -> str:
     return text.replace("\\", "\\\\").replace("\n", "\\n").replace('"', '\\"')
 
 
+DEFAULT_ALERT_THRESHOLDS: dict[str, float] = {
+    "llm_success_rate_min": 95.0,
+    "tool_success_rate_min": 95.0,
+    "cron_success_rate_min": 95.0,
+    "recall_hit_rate_min": 20.0,
+    "llm_latency_p95_max": 15000.0,
+    "tool_latency_p95_max": 10000.0,
+    "cron_latency_p95_max": 10000.0,
+}
+
+
 class MetricsStore:
     """Append-only metrics event store with aggregated snapshots."""
 
@@ -285,6 +296,14 @@ class MetricsStore:
             summary[f"top_tool_{index}_name"] = item.get("tool", "")
             summary[f"top_tool_{index}_calls"] = int(item.get("calls", 0))
             summary[f"top_tool_{index}_errors"] = int(item.get("errors", 0))
+        alerts = self.alert_summary(hours=hours, snapshot=snapshot)
+        summary["alerts_overall"] = alerts["overall"]
+        summary["alerts_warn_count"] = alerts["warn_count"]
+        summary["alerts_ok_count"] = alerts["ok_count"]
+        summary["alerts_na_count"] = alerts["na_count"]
+        summary["alerts_triggered_checks"] = [
+            item.get("key", "") for item in alerts.get("checks", []) if item.get("status") == "warn"
+        ]
         return summary
 
     def prometheus_text(self, hours: int = 24) -> str:
@@ -332,6 +351,212 @@ class MetricsStore:
             lines.append(f'g_agent_top_tool_calls{{tool="{tool}"}} {calls}')
             lines.append(f'g_agent_top_tool_errors{{tool="{tool}"}} {errors}')
         return "\n".join(lines).rstrip() + "\n"
+
+    def alert_summary(
+        self,
+        *,
+        hours: int = 24,
+        snapshot: dict[str, Any] | None = None,
+        thresholds: dict[str, float] | None = None,
+    ) -> dict[str, Any]:
+        """Evaluate snapshot against uptime/SLO thresholds."""
+        base_snapshot = snapshot or self.snapshot(hours=hours)
+        merged_thresholds = dict(DEFAULT_ALERT_THRESHOLDS)
+        for key, value in (thresholds or {}).items():
+            try:
+                merged_thresholds[str(key)] = float(value)
+            except (TypeError, ValueError):
+                continue
+
+        llm = base_snapshot["llm"]
+        tools = base_snapshot["tools"]
+        recall = base_snapshot["recall"]
+        cron = base_snapshot["cron"]
+        checks_config = [
+            (
+                "llm_success_rate",
+                "min",
+                float(llm["success_rate"]),
+                float(merged_thresholds["llm_success_rate_min"]),
+                int(llm["calls"]),
+            ),
+            (
+                "tool_success_rate",
+                "min",
+                float(tools["success_rate"]),
+                float(merged_thresholds["tool_success_rate_min"]),
+                int(tools["calls"]),
+            ),
+            (
+                "cron_success_rate",
+                "min",
+                float(cron["success_rate"]),
+                float(merged_thresholds["cron_success_rate_min"]),
+                int(cron["runs"]),
+            ),
+            (
+                "recall_hit_rate",
+                "min",
+                float(recall["hit_rate"]),
+                float(merged_thresholds["recall_hit_rate_min"]),
+                int(recall["queries"]),
+            ),
+            (
+                "llm_latency_p95_ms",
+                "max",
+                float(llm["latency_ms_p95"]),
+                float(merged_thresholds["llm_latency_p95_max"]),
+                int(llm["calls"]),
+            ),
+            (
+                "tool_latency_p95_ms",
+                "max",
+                float(tools["latency_ms_p95"]),
+                float(merged_thresholds["tool_latency_p95_max"]),
+                int(tools["calls"]),
+            ),
+            (
+                "cron_latency_p95_ms",
+                "max",
+                float(cron["latency_ms_p95"]),
+                float(merged_thresholds["cron_latency_p95_max"]),
+                int(cron["runs"]),
+            ),
+        ]
+
+        checks: list[dict[str, Any]] = []
+        for key, comparator, actual, threshold_value, samples in checks_config:
+            if samples <= 0:
+                checks.append(
+                    {
+                        "key": key,
+                        "status": "na",
+                        "samples": samples,
+                        "actual": round(actual, 2),
+                        "threshold": round(threshold_value, 2),
+                        "operator": ">=" if comparator == "min" else "<=",
+                    }
+                )
+                continue
+            if comparator == "min":
+                passed = actual >= threshold_value
+                operator = ">="
+            else:
+                passed = actual <= threshold_value
+                operator = "<="
+            checks.append(
+                {
+                    "key": key,
+                    "status": "ok" if passed else "warn",
+                    "samples": samples,
+                    "actual": round(actual, 2),
+                    "threshold": round(threshold_value, 2),
+                    "operator": operator,
+                }
+            )
+
+        warn_count = sum(1 for item in checks if item["status"] == "warn")
+        ok_count = sum(1 for item in checks if item["status"] == "ok")
+        na_count = sum(1 for item in checks if item["status"] == "na")
+        if warn_count > 0:
+            overall = "warn"
+        elif ok_count > 0:
+            overall = "ok"
+        else:
+            overall = "na"
+
+        return {
+            "window_hours": base_snapshot["window_hours"],
+            "generated_at": base_snapshot["generated_at"],
+            "overall": overall,
+            "warn_count": warn_count,
+            "ok_count": ok_count,
+            "na_count": na_count,
+            "checks": checks,
+            "thresholds": merged_thresholds,
+        }
+
+    def prune_events(
+        self,
+        *,
+        keep_hours: int = 168,
+        max_events: int = 50000,
+        dry_run: bool = False,
+    ) -> dict[str, Any]:
+        """Prune stale metrics events to control file growth."""
+        retention_hours = max(1, int(keep_hours))
+        events_cap = max(0, int(max_events))
+        cutoff = _now_utc() - timedelta(hours=retention_hours)
+        result: dict[str, Any] = {
+            "ok": True,
+            "path": str(self.events_path),
+            "retention_hours": retention_hours,
+            "max_events": events_cap,
+            "cutoff_utc": _to_iso(cutoff),
+            "dry_run": bool(dry_run),
+            "raw_lines": 0,
+            "parse_errors": 0,
+            "retained_without_ts": 0,
+            "before": 0,
+            "after": 0,
+            "removed_by_age": 0,
+            "removed_by_cap": 0,
+            "removed_total": 0,
+        }
+        if not self.events_path.exists():
+            return result
+
+        parsed_events: list[dict[str, Any]] = []
+        try:
+            for raw_line in self.events_path.read_text(encoding="utf-8").splitlines():
+                line = raw_line.strip()
+                if not line:
+                    continue
+                result["raw_lines"] += 1
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    result["parse_errors"] += 1
+                    continue
+                if not isinstance(event, dict):
+                    result["parse_errors"] += 1
+                    continue
+                parsed_events.append(event)
+        except OSError as e:
+            result["ok"] = False
+            result["error"] = str(e)
+            return result
+
+        result["before"] = len(parsed_events)
+        retained_events: list[dict[str, Any]] = []
+        for event in parsed_events:
+            ts = _parse_iso(str(event.get("ts", "")))
+            if ts is not None and ts < cutoff:
+                result["removed_by_age"] += 1
+                continue
+            if ts is None:
+                result["retained_without_ts"] += 1
+            retained_events.append(event)
+
+        if events_cap > 0 and len(retained_events) > events_cap:
+            result["removed_by_cap"] = len(retained_events) - events_cap
+            retained_events = retained_events[-events_cap:]
+
+        result["after"] = len(retained_events)
+        result["removed_total"] = result["before"] - result["after"]
+        if dry_run:
+            return result
+
+        serialized = "".join(json.dumps(event, ensure_ascii=False) + "\n" for event in retained_events)
+        tmp_path = self.events_path.with_name(f"{self.events_path.name}.tmp")
+        try:
+            tmp_path.write_text(serialized, encoding="utf-8")
+            tmp_path.replace(self.events_path)
+        except OSError as e:
+            result["ok"] = False
+            result["error"] = str(e)
+            return result
+        return result
 
     def export_snapshot(
         self,

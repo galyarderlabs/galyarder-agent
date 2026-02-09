@@ -180,6 +180,7 @@ g-agent agent -m "/pack daily_brief focus revenue --sticker --silent"
 g-agent proactive-enable
 g-agent status
 g-agent metrics
+g-agent metrics --prune --retention-hours 168 --max-events 50000
 g-agent metrics --dashboard-json --export ~/.g-agent/metrics.dashboard.json
 g-agent gateway --metrics-endpoint --metrics-host 127.0.0.1 --metrics-port 18791
 ```
