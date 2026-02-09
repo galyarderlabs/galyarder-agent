@@ -10,7 +10,6 @@ body:
       label: Area
       options:
         - backend/agent
-        - landingpages
         - docs
         - tooling
     validations:

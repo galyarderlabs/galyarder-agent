@@ -1,5 +1,5 @@
 name: Bug Report
-description: Report a reproducible bug in backend or landingpages
+description: Report a reproducible bug in backend or docs/runtime workflows
 title: "[bug] "
 labels:
   - bug
@@ -10,7 +10,7 @@ body:
       label: Area
       options:
         - backend/agent
-        - landingpages
+        - docs
         - ci/cd
     validations:
       required: true

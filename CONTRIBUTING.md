@@ -7,7 +7,7 @@ Thanks for contributing.
 This repo is a monorepo:
 
 - `backend/agent`: Python runtime (`g-agent`)
-- `landingpages`: Next.js marketing + waitlist
+- `docs`: MkDocs documentation site source
 
 ## Local setup
 
@@ -20,14 +20,13 @@ ruff check g_agent tests --select F
 pytest -q
 ```
 
-### Landingpages
+### Docs
 
 ```bash
-cd landingpages
-npm ci
-npm run lint
-npm run typecheck
-npm run build
+cd docs
+python -m pip install -r requirements.txt
+cd ..
+mkdocs build --strict
 ```
 
 ## Pull request rules

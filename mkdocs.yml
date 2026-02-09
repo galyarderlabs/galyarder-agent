@@ -1,0 +1,24 @@
+site_name: Galyarder Agent
+site_description: Practical, secure, self-hosted personal AI assistant documentation.
+site_url: https://galyarderlabs.github.io/galyarder-agent/
+repo_url: https://github.com/galyarderlabs/galyarder-agent
+repo_name: galyarderlabs/galyarder-agent
+
+theme:
+  name: readthedocs
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Configuration: configuration.md
+  - Channels: channels.md
+  - Operations: operations.md
+  - Security: security.md
+  - Contributing: contributing.md
+  - Roadmap:
+      - OpenClaw Delta Plan: roadmap/openclaw-delta.md
+
+markdown_extensions:
+  - admonition
+  - toc:
+      permalink: true

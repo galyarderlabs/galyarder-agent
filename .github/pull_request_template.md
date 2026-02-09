@@ -6,7 +6,6 @@
 ## Scope
 
 - [ ] backend/agent
-- [ ] landingpages
 - [ ] docs
 - [ ] ci/cd
 
@@ -20,11 +19,9 @@ cd backend/agent
 ruff check g_agent tests --select F
 pytest -q
 
-# landingpages
-cd landingpages
-npm run lint
-npm run typecheck
-npm run build
+# docs
+python -m pip install -r docs/requirements.txt
+mkdocs build --strict
 ```
 
 ## Safety Checklist
