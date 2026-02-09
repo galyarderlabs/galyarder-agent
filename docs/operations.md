@@ -9,6 +9,8 @@ g-agent gateway
 g-agent agent -m "Daily brief"
 ```
 
+For incident handling patterns, see [Troubleshooting](troubleshooting.md).
+
 ## Logs
 
 ```bash

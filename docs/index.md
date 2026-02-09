@@ -21,12 +21,20 @@ This project is for builders who want:
 ## Start here
 
 1. [Getting Started](getting-started.md)
-2. [Configuration](configuration.md)
-3. [Operations](operations.md)
-4. [Security](security.md)
+2. [Install Matrix](install-matrix.md)
+3. [Configuration](configuration.md)
+4. [Operations](operations.md)
+5. [Troubleshooting](troubleshooting.md)
+6. [Security](security.md)
 
 ## Codebase map
 
 - Backend runtime: `backend/agent`
 - Docs source: `docs/`
 - Project roadmap: `docs/roadmap/openclaw-delta.md`
+
+## Open-source navigation
+
+- Migration notes for this repo model: [Migration Guide](migration-from-landingpages.md)
+- Common operator questions: [FAQ](faq.md)
+- Contribution expectations: [Contributing](contributing.md)

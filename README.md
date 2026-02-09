@@ -236,6 +236,9 @@ Use:
 
 - Docs site: https://galyarderlabs.github.io/galyarder-agent/
 - Docs source: `docs/`
+- Install matrix: `docs/install-matrix.md`
+- Troubleshooting matrix: `docs/troubleshooting.md`
+- FAQ: `docs/faq.md`
 - Backend docs: `backend/agent/README.md`
 - Roadmap: `docs/roadmap/openclaw-delta.md`
 - Changelog: `CHANGELOG.md`
