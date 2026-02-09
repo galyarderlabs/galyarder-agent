@@ -1,7 +1,7 @@
 <div align="center">
   <img src="backend/agent/g-agent_logo.png" alt="Galyarder Agent" width="520">
   <h1>Galyarder Agent (g-agent)</h1>
-  <p><b>Private, practical, always-on AI assistant for real daily workflows.</b></p>
+  <p><b>Sovereignty-first AI assistant runtime for real daily workflows.</b></p>
   <p>
     <img src="https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white" alt="Python 3.11+">
     <img src="https://img.shields.io/badge/CLI-g--agent-6f42c1" alt="g-agent CLI">
@@ -14,28 +14,35 @@
 
 ## What Is g-agent?
 
-`g-agent` is an open-source assistant runtime you can run on your own machine, control with your own policies, and connect to channels you already use (CLI, Telegram, WhatsApp).
+`g-agent` is an open-source assistant runtime you run on your own machine, with your own policies, through channels you already use (CLI, Telegram, WhatsApp).
 
-It is built to be:
-
-- easy to understand,
-- reliable for day-to-day tasks,
-- safe enough for personal operations.
+It is built for one outcome: practical automation without losing control.
 
 ---
 
 ## Why This Project Exists
 
-Many assistant projects fall into two extremes:
+Most assistant projects drift to one of two extremes:
 
-- huge platforms with too much abstraction,
-- tiny demos that are clean but not production-ready.
+- feature-heavy platforms with unclear internals,
+- minimal demos that look clean but break in real operations.
 
-`g-agent` is the middle path.
+`g-agent` is built in the middle.
 
-It keeps the powerful parts (agent loop, tools, memory, scheduling, integrations) while keeping code and operations understandable.
+It keeps the powerful parts (agent loop, tools, memory, scheduling, integrations) while keeping the runtime understandable and auditable.
 
 If your assistant can act but you cannot explain what it can access, who can talk to it, and where it runs, it is not really your assistant.
+
+---
+
+## Philosophy
+
+- **Useful over flashy**: solve real tasks first.
+- **Understandable over abstract**: keep code and behavior inspectable.
+- **Private over cloud-lock**: local memory, local control, explicit policy.
+- **Controlled over magical**: allowlists, approvals, scoped tools.
+
+If your assistant cannot run reliably on your own machine, it is not your assistant.
 
 ---
 
