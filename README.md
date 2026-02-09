@@ -44,7 +44,6 @@ This repository is a public, production-oriented foundation that favors clarity,
 [![Commit Activity](https://img.shields.io/github/commit-activity/m/galyarderlabs/galyarder-agent?style=flat)](https://github.com/galyarderlabs/galyarder-agent/graphs/commit-activity)
 [![Repo Size](https://img.shields.io/github/repo-size/galyarderlabs/galyarder-agent?style=flat)](https://github.com/galyarderlabs/galyarder-agent)
 
-- **Star history**: https://star-history.com/#galyarderlabs/galyarder-agent&Date
 - **Repository pulse**: https://github.com/galyarderlabs/galyarder-agent/pulse
 - **Traffic dashboard** (maintainers): https://github.com/galyarderlabs/galyarder-agent/graphs/traffic
 
@@ -209,6 +208,12 @@ This project is inspired by open-source agent work from:
 - [`openclaw/openclaw`](https://github.com/openclaw/openclaw)
 
 `g-agent` extends those ideas with a sovereignty-first operational focus for modern personal and small-team deployments.
+
+---
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=galyarderlabs/galyarder-agent&type=Date)](https://star-history.com/#galyarderlabs/galyarder-agent&Date)
 
 ---
 
