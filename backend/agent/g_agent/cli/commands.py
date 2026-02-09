@@ -1480,6 +1480,75 @@ def feedback(
         console.print("[yellow]Feedback was empty or file not writable.[/yellow]")
 
 
+@app.command("memory-audit")
+def memory_audit(
+    limit: int = typer.Option(40, "--limit", help="Maximum drift/conflict items to inspect"),
+    scope: list[str] = typer.Option(
+        None,
+        "--scope",
+        help="Optional repeated scope filter for cross-scope checks (profile|long-term|custom|projects|relationships)",
+    ),
+    as_json: bool = typer.Option(False, "--json", help="Output JSON payload"),
+    strict: bool = typer.Option(False, "--strict", help="Exit 1 when drift/conflicts exist"),
+):
+    """Audit memory drift and cross-scope fact conflicts."""
+    from g_agent.config.loader import load_config
+    from g_agent.agent.memory import MemoryStore
+
+    max_items = max(1, int(limit))
+    scopes = [item.strip().lower() for item in (scope or []) if item.strip()]
+    scoped = scopes or None
+
+    config = load_config()
+    store = MemoryStore(config.workspace_path)
+    summary_drifts = store.detect_summary_fact_drift(limit=max_items)
+    cross_scope_conflicts = store.detect_cross_scope_fact_conflicts(
+        scopes=scoped,
+        limit=max_items,
+    )
+
+    payload: dict[str, Any] = {
+        "workspace": str(config.workspace_path),
+        "generated_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+        "limit": max_items,
+        "scopes": scopes or ["profile", "long-term", "custom"],
+        "summary_drift_count": len(summary_drifts),
+        "cross_scope_conflict_count": len(cross_scope_conflicts),
+        "summary_drifts": summary_drifts,
+        "cross_scope_conflicts": cross_scope_conflicts,
+    }
+
+    if as_json:
+        console.print(json.dumps(payload, indent=2, ensure_ascii=False))
+    else:
+        console.print(f"{__logo__} Memory Audit\n")
+        console.print(f"Summary drift: {len(summary_drifts)}")
+        console.print(f"Cross-scope conflicts: {len(cross_scope_conflicts)}")
+
+        if summary_drifts:
+            console.print("Summary drift details:")
+            for item in summary_drifts[:12]:
+                console.print(
+                    f"  - {item.get('key', 'unknown')}: "
+                    f"summary='{item.get('summary_fact', '')}' vs durable='{item.get('active_fact', '')}'"
+                )
+
+        if cross_scope_conflicts:
+            console.print("Cross-scope conflict details:")
+            for item in cross_scope_conflicts[:12]:
+                preferred_scope = item.get("preferred_scope", "")
+                preferred_fact = item.get("preferred_fact", "")
+                console.print(f"  - {item.get('key', 'unknown')}: prefer [{preferred_scope}] {preferred_fact}")
+                for conflict in item.get("conflicting_facts", [])[:5]:
+                    console.print(
+                        f"      vs [{conflict.get('scope', '')}:{conflict.get('source', '')}] "
+                        f"{conflict.get('text', '')}"
+                    )
+
+    if strict and (summary_drifts or cross_scope_conflicts):
+        raise typer.Exit(1)
+
+
 @app.command("metrics")
 def metrics_cmd(
     hours: int = typer.Option(24, "--hours", "-w", help="Metrics window in hours"),
@@ -1981,6 +2050,31 @@ def doctor(
         str(lessons_file),
         "" if lessons_file.exists() else "Create with: g-agent feedback \"<lesson>\"",
     )
+    try:
+        from g_agent.agent.memory import MemoryStore
+
+        memory_store = MemoryStore(workspace)
+        summary_drifts = memory_store.detect_summary_fact_drift(limit=50)
+        add(
+            "Memory summary drift",
+            "pass" if not summary_drifts else "warn",
+            f"{len(summary_drifts)} issue(s)",
+            "" if not summary_drifts else "Review with: g-agent memory-audit",
+        )
+        cross_scope_conflicts = memory_store.detect_cross_scope_fact_conflicts(limit=50)
+        add(
+            "Memory cross-scope conflicts",
+            "pass" if not cross_scope_conflicts else "warn",
+            f"{len(cross_scope_conflicts)} key(s)",
+            "" if not cross_scope_conflicts else "Review with: g-agent memory-audit --json",
+        )
+    except Exception as e:
+        add(
+            "Memory drift/conflicts",
+            "warn",
+            f"Unable to inspect ({type(e).__name__}: {e})",
+            "Run: g-agent memory-audit --json",
+        )
 
     metrics_file = workspace / "state" / "metrics" / "events.jsonl"
     if metrics_file.exists():

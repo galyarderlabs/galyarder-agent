@@ -199,6 +199,10 @@ Code:
 - Cross-scope memory conflict regression checks (profile/long-term/custom):
   - `backend/agent/g_agent/agent/memory.py`
   - `backend/agent/tests/test_memory_intelligence.py`
+- Operator-facing memory audit diagnostics (`memory-audit` + doctor checks):
+  - `backend/agent/g_agent/cli/commands.py`
+  - `backend/agent/g_agent/agent/memory.py`
+  - `backend/agent/tests/test_memory_intelligence.py`
 
 ### P0 — Reliability Gaps (next)
 

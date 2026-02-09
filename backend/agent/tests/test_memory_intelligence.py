@@ -227,3 +227,12 @@ def test_detect_summary_fact_drift_flags_conflict_only(tmp_path: Path):
     assert drifts[0]["key"] == "timezone"
     assert drifts[0]["active_fact"] == "timezone: UTC"
     assert "Asia/Jakarta" in drifts[0]["summary_fact"]
+
+
+def test_detect_summary_fact_drift_ignores_semantically_equivalent_value(tmp_path: Path):
+    store = MemoryStore(tmp_path)
+    store.remember_fact("timezone: Asia/Jakarta", category="identity", source="user_input")
+    store.append_session_summary("chat-1", "time zone = asia/jakarta")
+
+    drifts = store.detect_summary_fact_drift()
+    assert drifts == []

@@ -179,6 +179,7 @@ g-agent agent -m "Summarize my top priorities for today."
 g-agent agent -m "/pack daily_brief focus revenue --sticker --silent"
 g-agent proactive-enable
 g-agent status
+g-agent memory-audit --json
 g-agent metrics
 g-agent metrics --prune --retention-hours 168 --max-events 50000
 g-agent metrics --dashboard-json --export ~/.g-agent/metrics.dashboard.json
