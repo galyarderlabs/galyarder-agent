@@ -19,6 +19,30 @@ run_cmd() {
   "$@"
 }
 
+run_python_tool() {
+  local tool="$1"
+  shift
+
+  if command -v "$tool" >/dev/null 2>&1; then
+    run_cmd "$tool" "$@"
+    return
+  fi
+
+  if python -m "$tool" --version >/dev/null 2>&1; then
+    run_cmd python -m "$tool" "$@"
+    return
+  fi
+
+  if command -v pipx >/dev/null 2>&1; then
+    echo "g-agent pre-push: '$tool' not found, using pipx fallback"
+    run_cmd pipx run --spec "$tool" "$tool" "$@"
+    return
+  fi
+
+  echo "g-agent pre-push: missing '$tool'. Install backend dev deps: pip install -e \"backend/agent[dev]\""
+  return 1
+}
+
 target_main=false
 need_backend=false
 need_landing=false
@@ -75,16 +99,8 @@ if [[ "$need_backend" == true ]]; then
   (
     cd backend/agent
     run_cmd python -m compileall -q g_agent
-    if ! command -v ruff >/dev/null 2>&1; then
-      echo "g-agent pre-push: missing 'ruff'. Install backend dev deps first: pip install -e \"backend/agent[dev]\""
-      exit 1
-    fi
-    if ! command -v pytest >/dev/null 2>&1; then
-      echo "g-agent pre-push: missing 'pytest'. Install backend dev deps first: pip install -e \"backend/agent[dev]\""
-      exit 1
-    fi
-    run_cmd ruff check g_agent tests --select F
-    run_cmd pytest -q
+    run_python_tool ruff check g_agent tests --select F
+    run_python_tool pytest -q
   )
 fi
 

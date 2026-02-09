@@ -192,6 +192,8 @@ This guard blocks pushes to `main` when required checks fail:
 - backend: compile + `ruff --select F` + `pytest -q`
 - landingpages: lint + typecheck + build
 
+If `ruff` / `pytest` is not installed globally, the hook automatically tries `python -m ...` then `pipx run` as fallback.
+
 Emergency bypass (single push):
 
 ```bash
