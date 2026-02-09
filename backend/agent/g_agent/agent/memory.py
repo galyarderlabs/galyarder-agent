@@ -961,6 +961,88 @@ class MemoryStore:
             return ""
         return "\n".join(entries[-limit:])
 
+    def detect_summary_fact_drift(self, limit: int = 80) -> list[dict[str, Any]]:
+        """
+        Detect summary facts that conflict with active durable facts.
+
+        Returns list entries containing:
+        - key
+        - summary_fact
+        - active_fact
+        - fact_id
+        - summary_line
+        """
+        active_by_key: dict[str, dict[str, Any]] = {}
+        for item in self._load_fact_index():
+            if item.get("status", "active") != "active":
+                continue
+            key = str(item.get("fact_key", "")).strip()
+            text = str(item.get("text", "")).strip()
+            if not key or not text:
+                continue
+            active_by_key[key] = item
+
+        if not active_by_key:
+            return []
+
+        summary_lines = [
+            line.strip()
+            for line in self.read_summaries().splitlines()
+            if line.strip().startswith("- ")
+        ]
+        if limit > 0:
+            summary_lines = summary_lines[-limit:]
+
+        drifts: list[dict[str, Any]] = []
+        seen: set[tuple[str, str, str]] = set()
+
+        for line in summary_lines:
+            body = line[2:].strip()
+            if not body:
+                continue
+
+            fragments: list[str] = []
+            fragments.extend(
+                match.group(1).strip()
+                for match in re.finditer(r"([a-zA-Z0-9_ \-]{2,40}\s*[:=]\s*[^;,.|]+)", body)
+            )
+            if not fragments:
+                fragments = [body]
+
+            for fragment in fragments:
+                key = self._extract_fact_key(fragment)
+                if not key:
+                    continue
+                active = active_by_key.get(key)
+                if not active:
+                    continue
+
+                summary_norm = self._normalize_for_dedup(fragment)
+                active_text = str(active.get("text", "")).strip()
+                active_norm = self._normalize_for_dedup(active_text)
+                if not summary_norm or not active_norm:
+                    continue
+                if summary_norm == active_norm:
+                    continue
+                if summary_norm in active_norm or active_norm in summary_norm:
+                    continue
+
+                signature = (key, summary_norm, active_norm)
+                if signature in seen:
+                    continue
+                seen.add(signature)
+                drifts.append(
+                    {
+                        "key": key,
+                        "summary_fact": fragment,
+                        "active_fact": active_text,
+                        "fact_id": str(active.get("id", "")),
+                        "summary_line": body,
+                    }
+                )
+
+        return drifts
+
     def get_memory_context(self, query: str | None = None, include_full: bool = True) -> str:
         """
         Get memory context for the agent.

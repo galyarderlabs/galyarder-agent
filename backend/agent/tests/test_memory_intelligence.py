@@ -152,3 +152,37 @@ def test_recall_ranking_deterministic_for_score_ties(tmp_path: Path, monkeypatch
 
     assert [item["text"] for item in recalled_first] == [item["text"] for item in recalled_second]
     assert [item["text"] for item in recalled_first] == ["alpha beta", "beta alpha"]
+
+
+def test_multilingual_fixture_overlap_ranking(tmp_path: Path):
+    fixture = (
+        Path(__file__).resolve().parent
+        / "fixtures"
+        / "memory_multilingual.md"
+    )
+    store = MemoryStore(tmp_path)
+    store.write_long_term(fixture.read_text(encoding="utf-8"))
+    store._load_fact_index()
+
+    mixed_query = "jadwal weekly meeting architecture"
+    recalled_meeting = store.recall(query=mixed_query, max_items=3)
+    assert recalled_meeting
+    assert recalled_meeting[0]["text"] == "jadwal meeting weekly architecture review"
+
+    focus_query = "fokus build memory quality"
+    recalled_focus = store.recall(query=focus_query, max_items=3)
+    assert recalled_focus
+    assert recalled_focus[0]["text"] == "fokus: build agent memory quality"
+
+
+def test_detect_summary_fact_drift_flags_conflict_only(tmp_path: Path):
+    store = MemoryStore(tmp_path)
+    store.remember_fact("timezone: UTC", category="identity", source="user_input")
+    store.append_session_summary("chat-1", "timezone: UTC")
+    store.append_session_summary("chat-2", "timezone: Asia/Jakarta")
+
+    drifts = store.detect_summary_fact_drift()
+    assert len(drifts) == 1
+    assert drifts[0]["key"] == "timezone"
+    assert drifts[0]["active_fact"] == "timezone: UTC"
+    assert "Asia/Jakarta" in drifts[0]["summary_fact"]
