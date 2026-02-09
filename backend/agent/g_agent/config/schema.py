@@ -63,7 +63,7 @@ class AgentDefaults(BaseModel):
     max_tool_iterations: int = 20
     enable_reflection: bool = True
     summary_interval: int = 6
-    routing: "RoutingConfig" = Field(default_factory=lambda: RoutingConfig())
+    routing: "RoutingConfig" = Field(default_factory=RoutingConfig)
 
 
 class AgentsConfig(BaseModel):
