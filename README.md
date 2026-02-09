@@ -99,6 +99,29 @@ Then set provider/model in `~/.g-agent/config.json`.
 
 ---
 
+### Installer flags (optional)
+
+- Common:
+  - `G_AGENT_INSTALL_DIR=/path/to/repo` (default: `~/galyarder-agent`)
+  - `G_AGENT_DATA_DIR=/path/to/data` (default: `~/.g-agent`)
+- Arch:
+  - `G_AGENT_SKIP_PACMAN=1`
+  - `G_AGENT_SKIP_SERVICES=1`
+  - `G_AGENT_AUTO_START_SERVICES=0`
+- Debian/Ubuntu:
+  - `G_AGENT_SKIP_APT=1`
+  - `G_AGENT_SKIP_SERVICES=1`
+  - `G_AGENT_AUTO_START_SERVICES=0`
+- macOS:
+  - `G_AGENT_SKIP_BREW=1`
+  - `G_AGENT_SETUP_LAUNCHD=1`
+  - `G_AGENT_AUTO_START_SERVICES=0`
+- Windows:
+  - `G_AGENT_SKIP_WINGET=1`
+  - `G_AGENT_SETUP_TASKS=1`
+
+---
+
 ## Uninstall
 
 | OS | Command |
@@ -107,6 +130,12 @@ Then set provider/model in `~/.g-agent/config.json`.
 | Debian / Ubuntu | `curl -fsSL https://raw.githubusercontent.com/galyarderlabs/galyarder-agent/main/deploy/debian/uninstall.sh \| bash` |
 | macOS | `curl -fsSL https://raw.githubusercontent.com/galyarderlabs/galyarder-agent/main/deploy/macos/uninstall.sh \| bash` |
 | Windows (PowerShell) | `irm https://raw.githubusercontent.com/galyarderlabs/galyarder-agent/main/deploy/windows/uninstall.ps1 \| iex` |
+
+Optional flags:
+
+- `G_AGENT_REMOVE_SERVICES=0` keep startup services/tasks
+- `G_AGENT_REMOVE_REPO=1` remove repo directory
+- `G_AGENT_WIPE_DATA=1` remove full `~/.g-agent` data
 
 ---
 
@@ -138,9 +167,100 @@ From Telegram/WhatsApp:
 | `g-agent gateway` | Run Telegram/WhatsApp gateway |
 | `g-agent agent -m "..."` | One-shot chat from CLI |
 | `g-agent channels login` | Pair WhatsApp via QR |
+| `g-agent channels status` | Show channel config status |
+| `g-agent google configure/auth-url/exchange/verify` | Google OAuth flow |
 | `g-agent doctor --network` | Connectivity diagnostics |
 | `g-agent proactive-enable` | Enable default proactive jobs |
-| `g-agent cron list` | List scheduled jobs |
+| `g-agent cron add/list/remove/enable/run` | Manage scheduled jobs |
+
+---
+
+## Channel Setup
+
+Supported channels and typical setup effort:
+
+| Channel | Setup |
+|---|---|
+| Telegram | Easy (bot token + user ID allowlist) |
+| WhatsApp | Medium (Node bridge + QR pairing) |
+| Discord* | Medium (bot token + intents + invite URL) |
+| Feishu* | Medium (app credentials + event subscription) |
+
+`*` Experimental in current release.
+
+### Telegram
+
+```json
+{
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "token": "BOTFATHER_TOKEN",
+      "allowFrom": ["6218572023"]
+    }
+  }
+}
+```
+
+### WhatsApp
+
+```json
+{
+  "channels": {
+    "whatsapp": {
+      "enabled": true,
+      "bridgeUrl": "ws://localhost:3001",
+      "allowFrom": ["6281234567890"]
+    }
+  }
+}
+```
+
+Pair WhatsApp:
+
+```bash
+g-agent channels login
+g-agent gateway
+```
+
+### Discord / Feishu (experimental)
+
+- See `docs/channels.md` for full step-by-step setup.
+- Keep `allowFrom` strict for any public-facing deployment.
+
+---
+
+## Google Workspace (OAuth)
+
+```bash
+g-agent google configure --client-id "YOUR_CLIENT_ID" --client-secret "YOUR_CLIENT_SECRET" --calendar-id "primary"
+g-agent google auth-url
+# open URL, approve consent, copy value after ?code=
+g-agent google exchange --code "PASTE_CODE"
+g-agent google verify
+```
+
+Default scopes include:
+
+- `gmail.modify`
+- `calendar`
+- `drive.readonly`
+- `documents`
+- `spreadsheets`
+- `contacts.readonly`
+
+---
+
+## Memory Model
+
+Memory lives in `workspace/memory`:
+
+- `MEMORY.md`: long-term notes
+- `PROFILE.md`: identity/preferences
+- `RELATIONSHIPS.md`: people context
+- `PROJECTS.md`: active project context
+- `LESSONS.md`: behavior improvements
+- `YYYY-MM-DD.md`: daily memory notes
 
 ---
 
@@ -174,6 +294,105 @@ For details, read `SECURITY.md` and `backend/agent/SECURITY.md`.
 
 ---
 
+## 24/7 Service Mode (systemd --user)
+
+```bash
+systemctl --user enable --now g-agent-wa-bridge.service
+systemctl --user enable --now g-agent-gateway.service
+```
+
+Check:
+
+```bash
+systemctl --user status g-agent-wa-bridge.service
+systemctl --user status g-agent-gateway.service
+```
+
+Optional lingering:
+
+```bash
+sudo loginctl enable-linger "$USER"
+```
+
+---
+
+## Docker Quick Run
+
+```bash
+docker build -t g-agent ./backend/agent
+docker run -v ~/.g-agent:/root/.g-agent --rm g-agent g-agent onboard
+docker run -v ~/.g-agent:/root/.g-agent --rm g-agent g-agent status
+docker run -v ~/.g-agent:/root/.g-agent -p 18790:18790 g-agent g-agent gateway
+```
+
+---
+
+## Guest Profile Isolation
+
+```bash
+mkdir -p ~/.g-agent-guest
+G_AGENT_DATA_DIR=~/.g-agent-guest g-agent onboard
+G_AGENT_DATA_DIR=~/.g-agent-guest g-agent status
+```
+
+Each profile has isolated config, memory, cron jobs, bridge data, and OAuth/session artifacts.
+
+---
+
+## Troubleshooting
+
+### Telegram timeout
+
+```bash
+curl -sS "https://api.telegram.org/bot<YOUR_TOKEN>/getMe"
+```
+
+### WhatsApp bridge reconnect loops
+
+```bash
+g-agent channels login --rebuild
+systemctl --user restart g-agent-wa-bridge.service g-agent-gateway.service
+```
+
+---
+
+## Production Checklist
+
+### 1) Lock access
+
+- Keep `channels.*.allowFrom` non-empty on enabled channels.
+- Keep `tools.restrictToWorkspace: true`.
+- Keep `tools.approvalMode: "confirm"` or stricter.
+- Use separate `G_AGENT_DATA_DIR` for guest/public assistants.
+
+### 2) Monitor health
+
+```bash
+g-agent doctor --network
+systemctl --user status g-agent-gateway.service g-agent-wa-bridge.service
+journalctl --user -u g-agent-gateway.service -u g-agent-wa-bridge.service -n 120 --no-pager
+```
+
+### 3) Backup critical state
+
+```bash
+mkdir -p ~/.g-agent-backups
+tar -czf ~/.g-agent-backups/g-agent-$(date +%F).tar.gz \
+  ~/.g-agent/config.json \
+  ~/.g-agent/workspace/memory \
+  ~/.g-agent/cron
+```
+
+### 4) Rotate keys safely
+
+```bash
+NEW_TG_TOKEN='YOUR_NEW_TOKEN'
+tmp=$(mktemp) && jq --arg v "$NEW_TG_TOKEN" '.channels.telegram.token = $v' ~/.g-agent/config.json > "$tmp" && mv "$tmp" ~/.g-agent/config.json
+systemctl --user restart g-agent-gateway.service
+```
+
+---
+
 ## FAQ
 
 ### Why not just use OpenClaw?
@@ -198,6 +417,14 @@ Yes. The typical production flow is user services + allowlists + restricted work
 
 It is built with practical controls (`allowFrom`, `restrictToWorkspace`, approvals, profile isolation).  
 You still need to review your configuration and keep tokens scoped/rotated.
+
+---
+
+## OpenClaw Delta Roadmap
+
+Roadmap and implementation status:
+
+- `docs/roadmap/openclaw-delta.md`
 
 ---
 
@@ -239,10 +466,16 @@ With respect to projects that inspired this direction:
 
 ---
 
+## License
+
+MIT — see `LICENSE`.
+
+---
+
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=galyarderlabs/galyarder-agent&type=Date)](https://star-history.com/#galyarderlabs/galyarder-agent&Date)
 
 ---
 
-> “Digital sovereignty is not isolation — it is ownership with execution.”
+> “Digital sovereignty is not isolation — it is ascendancy with ownership: your memory, your tools, your systems, your future.”
