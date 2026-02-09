@@ -45,6 +45,11 @@ def _p95(values: list[float]) -> float:
     return round(data[index], 2)
 
 
+def _escape_label(value: str) -> str:
+    text = str(value or "")
+    return text.replace("\\", "\\\\").replace("\n", "\\n").replace('"', '\\"')
+
+
 class MetricsStore:
     """Append-only metrics event store with aggregated snapshots."""
 
@@ -240,4 +245,141 @@ class MetricsStore:
                 "latency_ms_p95": _p95(cron_latencies),
                 "proactive_runs": proactive_cron,
             },
+        }
+
+    def dashboard_summary(self, hours: int = 24, top_n_tools: int = 5) -> dict[str, Any]:
+        """Flatten snapshot into dashboard/scraper-friendly fields."""
+        snapshot = self.snapshot(hours=hours)
+        llm = snapshot["llm"]
+        tools = snapshot["tools"]
+        recall = snapshot["recall"]
+        cron = snapshot["cron"]
+        totals = snapshot["totals"]
+        summary: dict[str, Any] = {
+            "generated_at": snapshot["generated_at"],
+            "window_hours": snapshot["window_hours"],
+            "events_file": snapshot["events_file"],
+            "events_total": totals["events"],
+            "llm_calls": llm["calls"],
+            "llm_success": llm["success"],
+            "llm_errors": llm["errors"],
+            "llm_success_rate_pct": llm["success_rate"],
+            "llm_latency_p95_ms": llm["latency_ms_p95"],
+            "tool_calls": tools["calls"],
+            "tool_success": tools["success"],
+            "tool_errors": tools["errors"],
+            "tool_success_rate_pct": tools["success_rate"],
+            "tool_latency_p95_ms": tools["latency_ms_p95"],
+            "recall_queries": recall["queries"],
+            "recall_hit_queries": recall["hit_queries"],
+            "recall_hit_rate_pct": recall["hit_rate"],
+            "recall_avg_hits": recall["avg_hits"],
+            "cron_runs": cron["runs"],
+            "cron_success": cron["success"],
+            "cron_errors": cron["errors"],
+            "cron_success_rate_pct": cron["success_rate"],
+            "cron_latency_p95_ms": cron["latency_ms_p95"],
+            "cron_proactive_runs": cron["proactive_runs"],
+        }
+        for index, item in enumerate(tools.get("top_tools", [])[:max(0, int(top_n_tools))], start=1):
+            summary[f"top_tool_{index}_name"] = item.get("tool", "")
+            summary[f"top_tool_{index}_calls"] = int(item.get("calls", 0))
+            summary[f"top_tool_{index}_errors"] = int(item.get("errors", 0))
+        return summary
+
+    def prometheus_text(self, hours: int = 24) -> str:
+        """Render snapshot as Prometheus text exposition format."""
+        snapshot = self.snapshot(hours=hours)
+        llm = snapshot["llm"]
+        tools = snapshot["tools"]
+        recall = snapshot["recall"]
+        cron = snapshot["cron"]
+        totals = snapshot["totals"]
+
+        lines = [
+            "# HELP g_agent_events_total Total recorded events in snapshot window",
+            "# TYPE g_agent_events_total gauge",
+            f"g_agent_events_total {totals['events']}",
+            "# HELP g_agent_llm_calls_total LLM calls in snapshot window",
+            "# TYPE g_agent_llm_calls_total gauge",
+            f"g_agent_llm_calls_total {llm['calls']}",
+            f"g_agent_llm_success_total {llm['success']}",
+            f"g_agent_llm_errors_total {llm['errors']}",
+            f"g_agent_llm_success_rate_pct {llm['success_rate']}",
+            f"g_agent_llm_latency_p95_ms {llm['latency_ms_p95']}",
+            "# HELP g_agent_tool_calls_total Tool calls in snapshot window",
+            "# TYPE g_agent_tool_calls_total gauge",
+            f"g_agent_tool_calls_total {tools['calls']}",
+            f"g_agent_tool_success_total {tools['success']}",
+            f"g_agent_tool_errors_total {tools['errors']}",
+            f"g_agent_tool_success_rate_pct {tools['success_rate']}",
+            f"g_agent_tool_latency_p95_ms {tools['latency_ms_p95']}",
+            f"g_agent_recall_queries_total {recall['queries']}",
+            f"g_agent_recall_hit_queries_total {recall['hit_queries']}",
+            f"g_agent_recall_hit_rate_pct {recall['hit_rate']}",
+            f"g_agent_recall_avg_hits {recall['avg_hits']}",
+            f"g_agent_cron_runs_total {cron['runs']}",
+            f"g_agent_cron_success_total {cron['success']}",
+            f"g_agent_cron_errors_total {cron['errors']}",
+            f"g_agent_cron_success_rate_pct {cron['success_rate']}",
+            f"g_agent_cron_latency_p95_ms {cron['latency_ms_p95']}",
+            f"g_agent_cron_proactive_runs_total {cron['proactive_runs']}",
+        ]
+        for item in tools.get("top_tools", []):
+            tool = _escape_label(str(item.get("tool", "")))
+            calls = int(item.get("calls", 0))
+            errors = int(item.get("errors", 0))
+            lines.append(f'g_agent_top_tool_calls{{tool="{tool}"}} {calls}')
+            lines.append(f'g_agent_top_tool_errors{{tool="{tool}"}} {errors}')
+        return "\n".join(lines).rstrip() + "\n"
+
+    def export_snapshot(
+        self,
+        output_path: Path,
+        *,
+        hours: int = 24,
+        output_format: str = "auto",
+    ) -> dict[str, Any]:
+        """Export metrics snapshot to a file for shipping/scraping."""
+        path = Path(output_path).expanduser()
+        ensure_dir(path.parent)
+
+        fmt = (output_format or "auto").strip().lower()
+        if fmt == "auto":
+            suffix = path.suffix.lower()
+            filename = path.name.lower()
+            if suffix == ".prom":
+                fmt = "prometheus"
+            elif filename.endswith(".dashboard.json") or suffix == ".djson":
+                fmt = "dashboard_json"
+            else:
+                fmt = "json"
+
+        if fmt == "prometheus":
+            content = self.prometheus_text(hours=hours)
+        elif fmt == "dashboard_json":
+            content = json.dumps(
+                self.dashboard_summary(hours=hours),
+                indent=2,
+                ensure_ascii=False,
+            ) + "\n"
+        elif fmt == "json":
+            content = json.dumps(
+                self.snapshot(hours=hours),
+                indent=2,
+                ensure_ascii=False,
+            ) + "\n"
+        else:
+            return {"ok": False, "error": f"Unknown output format: {output_format}"}
+
+        try:
+            path.write_text(content, encoding="utf-8")
+        except OSError as e:
+            return {"ok": False, "error": str(e)}
+
+        return {
+            "ok": True,
+            "path": str(path),
+            "format": fmt,
+            "bytes": len(content.encode("utf-8")),
         }

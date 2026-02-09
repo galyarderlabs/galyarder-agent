@@ -5,6 +5,7 @@ import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from time import perf_counter
+from typing import Any
 from urllib.parse import quote
 
 import typer
@@ -1443,6 +1444,21 @@ def feedback(
 def metrics_cmd(
     hours: int = typer.Option(24, "--hours", "-w", help="Metrics window in hours"),
     as_json: bool = typer.Option(False, "--json", help="Output JSON snapshot"),
+    dashboard_json: bool = typer.Option(
+        False,
+        "--dashboard-json",
+        help="Output flat dashboard/scraper-friendly JSON summary",
+    ),
+    export: str = typer.Option(
+        "",
+        "--export",
+        help="Optional output path (.json, .prom, .dashboard.json)",
+    ),
+    export_format: str = typer.Option(
+        "auto",
+        "--export-format",
+        help="auto|json|prometheus|dashboard_json",
+    ),
 ):
     """Show runtime observability metrics snapshot."""
     from g_agent.config.loader import load_config
@@ -1452,36 +1468,60 @@ def metrics_cmd(
     store = MetricsStore(config.workspace_path / "state" / "metrics" / "events.jsonl")
     snapshot = store.snapshot(hours=hours)
 
-    if as_json:
+    export_result: dict[str, Any] | None = None
+    if export.strip():
+        export_result = store.export_snapshot(
+            Path(export.strip()),
+            hours=hours,
+            output_format=export_format,
+        )
+        if not export_result.get("ok"):
+            console.print(f"[red]Metrics export failed:[/red] {export_result.get('error', 'unknown')}")
+            raise typer.Exit(1)
+
+    if dashboard_json:
+        console.print(
+            json.dumps(
+                store.dashboard_summary(hours=hours),
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+    elif as_json:
         console.print(json.dumps(snapshot, indent=2, ensure_ascii=False))
-        return
+    else:
+        llm = snapshot["llm"]
+        tools = snapshot["tools"]
+        recall = snapshot["recall"]
+        cron = snapshot["cron"]
+        totals = snapshot["totals"]
 
-    llm = snapshot["llm"]
-    tools = snapshot["tools"]
-    recall = snapshot["recall"]
-    cron = snapshot["cron"]
-    totals = snapshot["totals"]
+        console.print(f"{__logo__} Metrics ({snapshot['window_hours']}h)\n")
+        console.print(f"Events file: {snapshot['events_file']}")
+        console.print(f"Total events: {totals['events']}")
+        console.print(
+            f"LLM calls: {llm['calls']} | success: {llm['success_rate']}% | p95: {llm['latency_ms_p95']}ms"
+        )
+        console.print(
+            f"Tool calls: {tools['calls']} | success: {tools['success_rate']}% | p95: {tools['latency_ms_p95']}ms"
+        )
+        console.print(
+            f"Recall hit-rate: {recall['hit_rate']}% ({recall['hit_queries']}/{recall['queries']}) | avg hits: {recall['avg_hits']}"
+        )
+        console.print(
+            f"Cron runs: {cron['runs']} | success: {cron['success_rate']}% | proactive: {cron['proactive_runs']}"
+        )
+        top_tools = tools.get("top_tools", [])
+        if top_tools:
+            console.print("Top tools:")
+            for item in top_tools[:8]:
+                console.print(f"  - {item['tool']}: {item['calls']} call(s), {item['errors']} error(s)")
 
-    console.print(f"{__logo__} Metrics ({snapshot['window_hours']}h)\n")
-    console.print(f"Events file: {snapshot['events_file']}")
-    console.print(f"Total events: {totals['events']}")
-    console.print(
-        f"LLM calls: {llm['calls']} | success: {llm['success_rate']}% | p95: {llm['latency_ms_p95']}ms"
-    )
-    console.print(
-        f"Tool calls: {tools['calls']} | success: {tools['success_rate']}% | p95: {tools['latency_ms_p95']}ms"
-    )
-    console.print(
-        f"Recall hit-rate: {recall['hit_rate']}% ({recall['hit_queries']}/{recall['queries']}) | avg hits: {recall['avg_hits']}"
-    )
-    console.print(
-        f"Cron runs: {cron['runs']} | success: {cron['success_rate']}% | proactive: {cron['proactive_runs']}"
-    )
-    top_tools = tools.get("top_tools", [])
-    if top_tools:
-        console.print("Top tools:")
-        for item in top_tools[:8]:
-            console.print(f"  - {item['tool']}: {item['calls']} call(s), {item['errors']} error(s)")
+    if export_result:
+        console.print(
+            f"[green]✓[/green] Metrics exported: {export_result['path']} "
+            f"({export_result['format']}, {export_result['bytes']} bytes)"
+        )
 
 
 @app.command()

@@ -1,4 +1,5 @@
 import asyncio
+import json
 from pathlib import Path
 from typing import Any
 
@@ -114,3 +115,58 @@ def test_agent_and_recall_record_metrics(tmp_path: Path, monkeypatch):
     assert snap["llm"]["calls"] >= 1
     assert snap["tools"]["calls"] >= 1
     assert snap["recall"]["queries"] >= 1
+
+
+def test_metrics_store_dashboard_and_export(tmp_path: Path):
+    store = MetricsStore(tmp_path / "events.jsonl")
+    store.record_llm_call(model="gemini-3", success=True, latency_ms=450)
+    store.record_tool_call(tool='web_search"prod"', success=False, latency_ms=700, attempts=2, error="429")
+    store.record_recall(query="timezone", hits=2)
+    store.record_cron_run(
+        name="daily-digest",
+        payload_kind="digest",
+        success=True,
+        latency_ms=180,
+        delivered=True,
+        proactive=True,
+    )
+
+    dashboard = store.dashboard_summary(hours=24, top_n_tools=3)
+    assert dashboard["events_total"] == 4
+    assert dashboard["llm_calls"] == 1
+    assert dashboard["tool_calls"] == 1
+    assert dashboard["top_tool_1_name"] == 'web_search"prod"'
+
+    json_path = tmp_path / "exports" / "metrics.json"
+    result_json = store.export_snapshot(json_path, hours=24)
+    assert result_json["ok"] is True
+    assert result_json["format"] == "json"
+    exported_json = json.loads(json_path.read_text(encoding="utf-8"))
+    assert exported_json["llm"]["calls"] == 1
+
+    dashboard_path = tmp_path / "exports" / "metrics.dashboard.json"
+    result_dashboard = store.export_snapshot(dashboard_path, hours=24)
+    assert result_dashboard["ok"] is True
+    assert result_dashboard["format"] == "dashboard_json"
+    exported_dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
+    assert exported_dashboard["tool_calls"] == 1
+    assert exported_dashboard["cron_runs"] == 1
+
+    prom_path = tmp_path / "exports" / "metrics.prom"
+    result_prom = store.export_snapshot(prom_path, hours=24)
+    assert result_prom["ok"] is True
+    assert result_prom["format"] == "prometheus"
+    prom_text = prom_path.read_text(encoding="utf-8")
+    assert "g_agent_llm_calls_total 1" in prom_text
+    assert "g_agent_top_tool_calls{tool=\"web_search\\\"prod\\\"\"} 1" in prom_text
+
+
+def test_metrics_store_export_rejects_unknown_format(tmp_path: Path):
+    store = MetricsStore(tmp_path / "events.jsonl")
+    result = store.export_snapshot(
+        tmp_path / "exports" / "metrics.unknown",
+        hours=24,
+        output_format="yaml",
+    )
+    assert result["ok"] is False
+    assert "Unknown output format" in result["error"]

@@ -180,6 +180,7 @@ g-agent agent -m "/pack daily_brief focus revenue --sticker --silent"
 g-agent proactive-enable
 g-agent status
 g-agent metrics
+g-agent metrics --dashboard-json --export ~/.g-agent/metrics.dashboard.json
 ```
 
 Channel examples:

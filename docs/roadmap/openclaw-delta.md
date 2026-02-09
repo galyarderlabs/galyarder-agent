@@ -174,6 +174,10 @@ Code:
   - `backend/agent/tests/fixtures/memory_multilingual.md`
   - `backend/agent/tests/test_memory_intelligence.py`
   - `backend/agent/g_agent/agent/memory.py`
+- Metrics export path + dashboard-friendly scrape summary:
+  - `backend/agent/g_agent/observability/metrics.py`
+  - `backend/agent/g_agent/cli/commands.py`
+  - `backend/agent/tests/test_observability_metrics.py`
 
 ### P0 — Reliability Gaps (next)
 
@@ -186,8 +190,8 @@ Code:
 
 ### P2 — Observability Ops
 
-1. add optional metrics export path (file shipper or endpoint)
-2. add baseline dashboard-friendly summary format for external scraping
+1. add optional lightweight HTTP `/metrics` endpoint mode (disabled by default)
+2. add retention/pruning controls for `events.jsonl` growth management
 
 ---
 
