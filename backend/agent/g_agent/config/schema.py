@@ -54,6 +54,24 @@ class ChannelsConfig(BaseModel):
     feishu: FeishuConfig = Field(default_factory=FeishuConfig)
 
 
+class RoutingConfig(BaseModel):
+    """Model routing policy."""
+
+    mode: str = "auto"  # auto | proxy | direct
+    fallback_models: list[str] = Field(default_factory=list)
+
+
+class LLMRoute(BaseModel):
+    """Resolved route for model/provider selection."""
+
+    model: str
+    mode: str
+    provider: str
+    api_key: str | None = None
+    api_base: str | None = None
+    fallback_models: list[str] = Field(default_factory=list)
+
+
 class AgentDefaults(BaseModel):
     """Default agent configuration."""
     workspace: str = Field(default_factory=_default_workspace)
@@ -88,24 +106,6 @@ class ProvidersConfig(BaseModel):
     vllm: ProviderConfig = Field(default_factory=ProviderConfig)
     gemini: ProviderConfig = Field(default_factory=ProviderConfig)
     moonshot: ProviderConfig = Field(default_factory=ProviderConfig)
-
-
-class RoutingConfig(BaseModel):
-    """Model routing policy."""
-
-    mode: str = "auto"  # auto | proxy | direct
-    fallback_models: list[str] = Field(default_factory=list)
-
-
-class LLMRoute(BaseModel):
-    """Resolved route for model/provider selection."""
-
-    model: str
-    mode: str
-    provider: str
-    api_key: str | None = None
-    api_base: str | None = None
-    fallback_models: list[str] = Field(default_factory=list)
 
 
 class SlackConfig(BaseModel):
