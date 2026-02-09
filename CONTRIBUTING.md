@@ -29,6 +29,12 @@ cd ..
 mkdocs build --strict
 ```
 
+### Optional: image asset compression
+
+```bash
+bash deploy/optimize-images.sh --dry-run
+```
+
 ## Pull request rules
 
 - Keep changes focused and minimal.

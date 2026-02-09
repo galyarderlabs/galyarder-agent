@@ -16,4 +16,7 @@ pytest -q
 cd ../..
 python -m pip install -r docs/requirements.txt
 mkdocs build --strict
+
+# optional: compress oversized tracked images
+bash deploy/optimize-images.sh --dry-run
 ```
