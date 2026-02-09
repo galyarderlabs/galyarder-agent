@@ -10,9 +10,13 @@ theme:
 nav:
   - Home: index.md
   - Getting Started: getting-started.md
+  - Install Matrix: install-matrix.md
+  - Migration Guide: migration-from-landingpages.md
   - Configuration: configuration.md
   - Channels: channels.md
   - Operations: operations.md
+  - Troubleshooting: troubleshooting.md
+  - FAQ: faq.md
   - Security: security.md
   - Contributing: contributing.md
   - Roadmap:

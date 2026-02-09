@@ -1,0 +1,45 @@
+# Install Matrix
+
+Use this matrix to choose the cleanest deployment path per environment.
+
+## Runtime matrix
+
+| Platform | Backend runtime | WhatsApp bridge | Service mode | Notes |
+| --- | --- | --- | --- | --- |
+| Linux | Native Python venv | Native Node.js 20+ | systemd user units | Recommended primary path |
+| macOS | Native Python venv | Native Node.js 20+ | LaunchAgent or foreground | systemd user units are Linux-only |
+| Windows | WSL2 (recommended) | WSL2 Node.js | user shell / task scheduler | Keep runtime in one WSL distro |
+
+## Quick install commands
+
+### Linux/macOS
+
+```bash
+git clone https://github.com/galyarderlabs/galyarder-agent.git
+cd galyarder-agent/backend/agent
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+g-agent onboard
+g-agent status
+```
+
+### Windows (WSL2)
+
+```bash
+git clone https://github.com/galyarderlabs/galyarder-agent.git
+cd galyarder-agent/backend/agent
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+g-agent onboard
+g-agent status
+```
+
+## Post-install checklist
+
+1. Confirm provider/model in `~/.g-agent/config.json`
+2. Set strict `allowFrom` for Telegram/WhatsApp
+3. Keep `tools.restrictToWorkspace: true`
+4. Run `g-agent doctor --network`
+5. Start gateway and monitor logs
