@@ -18,6 +18,87 @@ def _env(name: str, default: str = "") -> str:
     return os.environ.get(f"G_AGENT_{key}", default)
 
 
+def _extract_google_error_reason(payload: dict[str, Any]) -> tuple[str, str, list[str]]:
+    """Extract message/status/reasons from Google error payload."""
+    error_obj = payload.get("error")
+    if isinstance(error_obj, str):
+        return error_obj.strip(), "", []
+    if not isinstance(error_obj, dict):
+        return "", "", []
+
+    message = str(error_obj.get("message", "")).strip()
+    status = str(error_obj.get("status", "")).strip()
+    reasons: list[str] = []
+    details = error_obj.get("details", [])
+    if isinstance(details, list):
+        for item in details:
+            if not isinstance(item, dict):
+                continue
+            reason = str(item.get("reason", "")).strip()
+            if reason:
+                reasons.append(reason)
+    return message, status, reasons
+
+
+def _is_scope_error(status_code: int, payload: dict[str, Any]) -> bool:
+    """Return True when Google response indicates OAuth scope mismatch."""
+    if status_code != 403:
+        return False
+    message, status, reasons = _extract_google_error_reason(payload)
+    combined = " ".join([message, status, *reasons]).lower()
+    scope_markers = [
+        "access_token_scope_insufficient",
+        "insufficient authentication scopes",
+        "insufficientpermissions",
+    ]
+    if any(marker in combined for marker in scope_markers):
+        return True
+    return "scope" in combined and "insufficient" in combined
+
+
+def _format_refresh_error(response: httpx.Response) -> str:
+    """Build actionable token refresh error message."""
+    payload: dict[str, Any] = {}
+    try:
+        parsed = response.json()
+        if isinstance(parsed, dict):
+            payload = parsed
+    except (json.JSONDecodeError, ValueError):
+        payload = {}
+
+    error = str(payload.get("error", "")).strip().lower()
+    description = str(payload.get("error_description", "")).strip()
+    if error == "invalid_grant":
+        return (
+            "Token refresh failed: refresh token expired or revoked (invalid_grant). "
+            "Run `g-agent google auth-url` then `g-agent google exchange --code ...`."
+        )
+
+    detail = description or str(payload.get("error", "")).strip()
+    if detail:
+        return f"Token refresh failed (HTTP {response.status_code}): {detail}"
+    return f"Token refresh failed (HTTP {response.status_code})"
+
+
+def _format_google_api_error(status_code: int, payload: dict[str, Any]) -> str:
+    """Build readable error text from Google API payload."""
+    if _is_scope_error(status_code, payload):
+        return (
+            "Google API scope mismatch (insufficient scopes). "
+            "Run `g-agent google auth-url` with required scopes and "
+            "`g-agent google exchange --code ...`."
+        )
+
+    message, _, _ = _extract_google_error_reason(payload)
+    if message:
+        return f"Google API error (HTTP {status_code}): {message}"
+
+    raw_error = payload.get("error")
+    if isinstance(raw_error, str) and raw_error.strip():
+        return f"Google API error (HTTP {status_code}): {raw_error.strip()}"
+    return f"HTTP {status_code}"
+
+
 class GoogleWorkspaceClient:
     """Minimal Google Workspace REST client with token refresh."""
 
@@ -82,7 +163,7 @@ class GoogleWorkspaceClient:
                     },
                 )
             if response.status_code != 200:
-                return False, f"Token refresh failed (HTTP {response.status_code})"
+                return False, _format_refresh_error(response)
             data = response.json()
             token = data.get("access_token", "")
             if not token:
@@ -132,7 +213,9 @@ class GoogleWorkspaceClient:
                         continue
 
                     if response.status_code >= 400:
-                        payload.setdefault("error", f"HTTP {response.status_code}")
+                        if isinstance(payload.get("error"), dict):
+                            payload["google_error"] = payload.get("error")
+                        payload["error"] = _format_google_api_error(response.status_code, payload)
                         return False, payload
 
                     return True, payload

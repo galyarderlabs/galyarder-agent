@@ -156,11 +156,18 @@ Code:
 
 ## What Remains (Hardening Backlog)
 
+### Recently Completed
+
+- Telegram/WhatsApp reconnect harness coverage:
+  - `backend/agent/tests/test_channel_reconnect.py`
+- OAuth edge-case regression checks added for expired refresh token and scope drift:
+  - `backend/agent/tests/test_google_oauth_edges.py`
+  - `backend/agent/g_agent/agent/tools/google_workspace.py`
+
 ### P0 — Reliability Gaps (next)
 
 1. expand E2E harness for Telegram/WhatsApp reconnect behavior
-2. add OAuth edge-case regression checks (expired refresh token, bad scope drift)
-3. improve provider-specific retry taxonomy for transient tool failures
+2. improve provider-specific retry taxonomy for transient tool failures
 
 ### P1 — Memory Quality
 
