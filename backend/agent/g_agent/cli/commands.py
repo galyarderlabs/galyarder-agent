@@ -212,6 +212,20 @@ Actionable feedback and mistakes to avoid repeating.
 def gateway(
     port: int = typer.Option(18790, "--port", "-p", help="Gateway port"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output"),
+    metrics_endpoint: bool = typer.Option(
+        False,
+        "--metrics-endpoint",
+        help="Enable optional lightweight HTTP metrics endpoint (default: off)",
+    ),
+    metrics_host: str = typer.Option("127.0.0.1", "--metrics-host", help="Metrics endpoint bind host"),
+    metrics_port: int = typer.Option(18791, "--metrics-port", help="Metrics endpoint bind port"),
+    metrics_path: str = typer.Option("/metrics", "--metrics-path", help="Metrics endpoint path"),
+    metrics_format: str = typer.Option(
+        "prometheus",
+        "--metrics-format",
+        help="prometheus|json|dashboard_json",
+    ),
+    metrics_hours: int = typer.Option(24, "--metrics-hours", help="Metrics endpoint snapshot window"),
 ):
     """Start the g-agent gateway."""
     from g_agent.config.loader import load_config, get_config_path, get_data_dir
@@ -225,6 +239,7 @@ def gateway(
     from g_agent.cron.types import CronJob
     from g_agent.heartbeat.service import HeartbeatService
     from g_agent.observability.metrics import MetricsStore
+    from g_agent.observability.http_server import MetricsHttpServer
     from g_agent.proactive.engine import (
         ProactiveStateStore,
         compute_due_calendar_reminders,
@@ -452,19 +467,44 @@ def gateway(
     console.print("[green]✓[/green] Heartbeat: every 30m")
     
     async def run():
+        metrics_server: MetricsHttpServer | None = None
+        start_error: str = ""
         try:
+            if metrics_endpoint:
+                metrics_server = MetricsHttpServer(
+                    store=metrics,
+                    host=metrics_host,
+                    port=metrics_port,
+                    path=metrics_path,
+                    default_hours=metrics_hours,
+                    default_format=metrics_format,
+                )
+                await metrics_server.start()
+                console.print(
+                    f"[green]✓[/green] Metrics endpoint: "
+                    f"http://{metrics_host}:{metrics_server.bound_port}{metrics_server.path} "
+                    f"({metrics_server.default_format})"
+                )
             await cron.start()
             await heartbeat.start()
             await asyncio.gather(
                 agent.run(),
                 channels.start_all(),
             )
+        except OSError as e:
+            start_error = str(e)
         except KeyboardInterrupt:
             console.print("\nShutting down...")
+        finally:
             heartbeat.stop()
             cron.stop()
             agent.stop()
             await channels.stop_all()
+            if metrics_server:
+                await metrics_server.stop()
+            if start_error:
+                console.print(f"[red]Gateway startup failed:[/red] {start_error}")
+                raise typer.Exit(1)
     
     asyncio.run(run())
 

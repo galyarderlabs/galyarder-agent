@@ -181,6 +181,7 @@ g-agent proactive-enable
 g-agent status
 g-agent metrics
 g-agent metrics --dashboard-json --export ~/.g-agent/metrics.dashboard.json
+g-agent gateway --metrics-endpoint --metrics-host 127.0.0.1 --metrics-port 18791
 ```
 
 Channel examples:

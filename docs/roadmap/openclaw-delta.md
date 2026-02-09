@@ -178,6 +178,10 @@ Code:
   - `backend/agent/g_agent/observability/metrics.py`
   - `backend/agent/g_agent/cli/commands.py`
   - `backend/agent/tests/test_observability_metrics.py`
+- Optional lightweight HTTP `/metrics` endpoint mode (disabled by default):
+  - `backend/agent/g_agent/observability/http_server.py`
+  - `backend/agent/g_agent/cli/commands.py`
+  - `backend/agent/tests/test_metrics_http_server.py`
 
 ### P0 — Reliability Gaps (next)
 
@@ -190,8 +194,8 @@ Code:
 
 ### P2 — Observability Ops
 
-1. add optional lightweight HTTP `/metrics` endpoint mode (disabled by default)
-2. add retention/pruning controls for `events.jsonl` growth management
+1. add retention/pruning controls for `events.jsonl` growth management
+2. add alert-threshold summary output for uptime/SLO monitoring
 
 ---
 
