@@ -161,7 +161,17 @@ if [[ "$need_docs" == true ]]; then
       echo "g-agent pre-push: no docs changes detected, skipping docs checks"
       exit 0
     fi
-    run_python_tool mkdocs build --strict
+    if command -v mkdocs >/dev/null 2>&1; then
+      run_cmd mkdocs build --strict
+    elif python -m mkdocs --version >/dev/null 2>&1; then
+      run_cmd python -m mkdocs build --strict
+    elif command -v pipx >/dev/null 2>&1; then
+      echo "g-agent pre-push: 'mkdocs' not found, using pipx fallback (mkdocs-material)"
+      run_cmd pipx run --spec mkdocs-material mkdocs build --strict
+    else
+      echo "g-agent pre-push: missing 'mkdocs'. Install docs dependencies: pip install -r docs/requirements.txt"
+      exit 1
+    fi
   )
 fi
 

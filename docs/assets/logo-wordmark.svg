@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 220" role="img" aria-label="g-agent logo">
+  <defs>
+    <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#111827"/>
+      <stop offset="1" stop-color="#0f172a"/>
+    </linearGradient>
+  </defs>
+  <rect width="960" height="220" rx="28" fill="#0b1220"/>
+  <rect x="36" y="36" width="148" height="148" rx="24" fill="url(#panel)"/>
+  <text x="110" y="132" text-anchor="middle" font-size="72" font-family="Noto Color Emoji, Apple Color Emoji, Segoe UI Emoji">🗿</text>
+  <text x="230" y="136" fill="#f8fafc" font-size="92" font-family="Inter, Segoe UI, Arial, sans-serif" font-weight="700">g-agent</text>
+</svg>

@@ -42,6 +42,11 @@ jobs:
       - name: Build site
         run: mkdocs build --strict
 
+      - name: Inject CNAME (optional)
+        if: ${{ vars.G_AGENT_PAGES_CNAME != '' }}
+        run: |
+          echo "${{ vars.G_AGENT_PAGES_CNAME }}" > site/CNAME
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
         with:

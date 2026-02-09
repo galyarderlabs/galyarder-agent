@@ -5,7 +5,17 @@ repo_url: https://github.com/galyarderlabs/galyarder-agent
 repo_name: galyarderlabs/galyarder-agent
 
 theme:
-  name: readthedocs
+  name: material
+  logo: assets/logo-mark.svg
+  favicon: assets/logo-mark.svg
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+  palette:
+    - scheme: slate
+      primary: black
+      accent: light blue
 
 nav:
   - Home: index.md
@@ -17,6 +27,7 @@ nav:
   - Operations: operations.md
   - Troubleshooting: troubleshooting.md
   - FAQ: faq.md
+  - Branding & Domain: branding-domain.md
   - Security: security.md
   - Contributing: contributing.md
   - Roadmap:
@@ -26,3 +37,11 @@ markdown_extensions:
   - admonition
   - toc:
       permalink: true
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/galyarderlabs/galyarder-agent
+
+extra_css:
+  - styles/extra.css
