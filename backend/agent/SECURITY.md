@@ -77,6 +77,12 @@ Baseline example:
 }
 ```
 
+Quick baseline verification:
+
+```bash
+g-agent security-audit --strict
+```
+
 ---
 
 ## Secrets and Key Management

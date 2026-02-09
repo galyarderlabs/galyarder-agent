@@ -1549,6 +1549,63 @@ def memory_audit(
         raise typer.Exit(1)
 
 
+@app.command("security-audit")
+def security_audit(
+    as_json: bool = typer.Option(False, "--json", help="Output JSON payload"),
+    strict: bool = typer.Option(False, "--strict", help="Exit 1 when audit has warn/fail checks"),
+):
+    """Run baseline security audit for current profile."""
+    from g_agent.config.loader import get_config_path, get_data_dir, load_config
+    from g_agent.security.audit import run_security_audit
+
+    data_dir = get_data_dir()
+    config_path = get_config_path()
+    config = load_config()
+    report = run_security_audit(
+        config=config,
+        data_dir=data_dir,
+        config_path=config_path,
+        workspace_path=config.workspace_path,
+    )
+
+    if as_json:
+        console.print(json.dumps(report, indent=2, ensure_ascii=False))
+    else:
+        table = Table(title=f"{__logo__} Security Audit")
+        table.add_column("Check", style="cyan")
+        table.add_column("Status")
+        table.add_column("Details", style="yellow")
+        table.add_column("Fix Hint", style="magenta")
+
+        for item in report.get("checks", []):
+            level = item.get("level", "warn")
+            if level == "pass":
+                mark = "[green]PASS[/green]"
+            elif level == "fail":
+                mark = "[red]FAIL[/red]"
+            else:
+                mark = "[yellow]WARN[/yellow]"
+            table.add_row(
+                str(item.get("name", "")),
+                mark,
+                str(item.get("detail", "")),
+                str(item.get("remediation", "") or "-"),
+            )
+
+        console.print(table)
+        summary = report.get("summary", {})
+        console.print(
+            "Summary: "
+            f"pass={summary.get('pass', 0)}, "
+            f"warn={summary.get('warn', 0)}, "
+            f"fail={summary.get('fail', 0)}"
+        )
+
+    summary = report.get("summary", {})
+    if strict and (int(summary.get("warn", 0)) > 0 or int(summary.get("fail", 0)) > 0):
+        raise typer.Exit(1)
+
+
 @app.command("metrics")
 def metrics_cmd(
     hours: int = typer.Option(24, "--hours", "-w", help="Metrics window in hours"),
@@ -1849,6 +1906,31 @@ def doctor(
         f"restrictToWorkspace={str(config.tools.restrict_to_workspace).lower()}",
         "" if config.tools.restrict_to_workspace else f"Set true in {config_path} (tools.restrictToWorkspace)",
     )
+    try:
+        from g_agent.security.audit import run_security_audit
+
+        security_report = run_security_audit(
+            config=config,
+            data_dir=get_data_dir(),
+            config_path=config_path,
+            workspace_path=workspace,
+        )
+        security_summary = security_report.get("summary", {})
+        security_fail = int(security_summary.get("fail", 0))
+        security_warn = int(security_summary.get("warn", 0))
+        add(
+            "Security baseline audit",
+            "pass" if security_fail == 0 and security_warn == 0 else ("fail" if security_fail > 0 else "warn"),
+            f"pass={security_summary.get('pass', 0)}, warn={security_warn}, fail={security_fail}",
+            "" if security_fail == 0 and security_warn == 0 else "Run: g-agent security-audit --strict",
+        )
+    except Exception as e:
+        add(
+            "Security baseline audit",
+            "warn",
+            f"Unable to inspect ({type(e).__name__}: {e})",
+            "Run: g-agent security-audit --json",
+        )
 
     model = config.agents.defaults.model
     model_key = config.get_api_key(model)

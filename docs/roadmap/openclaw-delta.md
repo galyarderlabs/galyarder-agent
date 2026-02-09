@@ -203,6 +203,10 @@ Code:
   - `backend/agent/g_agent/cli/commands.py`
   - `backend/agent/g_agent/agent/memory.py`
   - `backend/agent/tests/test_memory_intelligence.py`
+- Operator-facing security baseline audit automation (`security-audit` + doctor summary):
+  - `backend/agent/g_agent/security/audit.py`
+  - `backend/agent/g_agent/cli/commands.py`
+  - `backend/agent/tests/test_security_audit.py`
 
 ### P0 — Reliability Gaps (next)
 

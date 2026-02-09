@@ -179,6 +179,7 @@ g-agent agent -m "Summarize my top priorities for today."
 g-agent agent -m "/pack daily_brief focus revenue --sticker --silent"
 g-agent proactive-enable
 g-agent status
+g-agent security-audit --strict
 g-agent memory-audit --json
 g-agent metrics
 g-agent metrics --prune --retention-hours 168 --max-events 50000
@@ -338,6 +339,7 @@ Run from remote one-liners (documented in root README), or execute scripts direc
 ```bash
 g-agent doctor --network
 g-agent status
+g-agent security-audit --strict
 g-agent metrics
 ```
 
