@@ -259,10 +259,13 @@ def gateway(
     bus = MessageBus()
     
     # Create provider (supports OpenRouter, Anthropic, OpenAI, Bedrock)
-    api_key = config.get_api_key()
-    api_base = config.get_api_base()
+    route = config.resolve_model_route()
+    api_key = route.api_key
+    if not api_key and route.provider not in {"vllm", "bedrock"}:
+        api_key = config.get_api_key()
+    api_base = route.api_base
     model = config.agents.defaults.model
-    is_bedrock = model.startswith("bedrock/")
+    is_bedrock = route.provider == "bedrock" or model.startswith("bedrock/")
 
     if not api_key and not is_bedrock:
         console.print("[red]Error: No API key configured.[/red]")
@@ -272,7 +275,7 @@ def gateway(
     provider = LiteLLMProvider(
         api_key=api_key,
         api_base=api_base,
-        default_model=config.agents.defaults.model
+        default_model=route.model,
     )
     
     # Create cron service first (callback set after agent creation)
@@ -284,7 +287,7 @@ def gateway(
         bus=bus,
         provider=provider,
         workspace=config.workspace_path,
-        model=config.agents.defaults.model,
+        model=route.model,
         max_iterations=config.agents.defaults.max_tool_iterations,
         brave_api_key=config.tools.web.search.api_key or None,
         exec_config=config.tools.exec,
@@ -299,6 +302,7 @@ def gateway(
         approval_mode=config.tools.approval_mode,
         enable_reflection=config.agents.defaults.enable_reflection,
         summary_interval=config.agents.defaults.summary_interval,
+        fallback_models=route.fallback_models,
     )
     
     data_dir = get_data_dir()
@@ -529,10 +533,13 @@ def agent(
     
     config = load_config()
     
-    api_key = config.get_api_key()
-    api_base = config.get_api_base()
+    route = config.resolve_model_route()
+    api_key = route.api_key
+    if not api_key and route.provider not in {"vllm", "bedrock"}:
+        api_key = config.get_api_key()
+    api_base = route.api_base
     model = config.agents.defaults.model
-    is_bedrock = model.startswith("bedrock/")
+    is_bedrock = route.provider == "bedrock" or model.startswith("bedrock/")
 
     if not api_key and not is_bedrock:
         console.print("[red]Error: No API key configured.[/red]")
@@ -542,13 +549,14 @@ def agent(
     provider = LiteLLMProvider(
         api_key=api_key,
         api_base=api_base,
-        default_model=config.agents.defaults.model
+        default_model=route.model
     )
     
     agent_loop = AgentLoop(
         bus=bus,
         provider=provider,
         workspace=config.workspace_path,
+        model=route.model,
         brave_api_key=config.tools.web.search.api_key or None,
         exec_config=config.tools.exec,
         restrict_to_workspace=config.tools.restrict_to_workspace,
@@ -561,6 +569,7 @@ def agent(
         approval_mode=config.tools.approval_mode,
         enable_reflection=config.agents.defaults.enable_reflection,
         summary_interval=config.agents.defaults.summary_interval,
+        fallback_models=route.fallback_models,
     )
     
     if message:
@@ -1165,24 +1174,27 @@ def digest(
     from g_agent.agent.loop import AgentLoop
 
     config = load_config()
-    api_key = config.get_api_key()
+    route = config.resolve_model_route()
+    api_key = route.api_key
+    if not api_key and route.provider not in {"vllm", "bedrock"}:
+        api_key = config.get_api_key()
     model = config.agents.defaults.model
-    is_bedrock = model.startswith("bedrock/")
+    is_bedrock = route.provider == "bedrock" or model.startswith("bedrock/")
     if not api_key and not is_bedrock:
         console.print("[red]Error: No API key configured.[/red]")
         raise typer.Exit(1)
 
     provider = LiteLLMProvider(
         api_key=api_key,
-        api_base=config.get_api_base(),
-        default_model=model,
+        api_base=route.api_base,
+        default_model=route.model,
     )
     bus = MessageBus()
     agent_loop = AgentLoop(
         bus=bus,
         provider=provider,
         workspace=config.workspace_path,
-        model=model,
+        model=route.model,
         max_iterations=config.agents.defaults.max_tool_iterations,
         brave_api_key=config.tools.web.search.api_key or None,
         exec_config=config.tools.exec,
@@ -1196,6 +1208,7 @@ def digest(
         approval_mode=config.tools.approval_mode,
         enable_reflection=config.agents.defaults.enable_reflection,
         summary_interval=config.agents.defaults.summary_interval,
+        fallback_models=route.fallback_models,
     )
 
     async def run_digest() -> str:
@@ -1821,7 +1834,13 @@ def status():
     console.print(f"Workspace: {workspace} {'[green]✓[/green]' if workspace.exists() else '[red]✗[/red]'}")
 
     if config_path.exists():
-        console.print(f"Model: {config.agents.defaults.model}")
+        route = config.resolve_model_route()
+        console.print(f"Model: {route.model}")
+        console.print(
+            f"Routing: mode={route.mode}, provider={route.provider}, base={route.api_base or 'none'}"
+        )
+        if route.fallback_models:
+            console.print(f"Fallback models: {', '.join(route.fallback_models)}")
         
         # Check API keys
         has_openrouter = bool(config.providers.openrouter.api_key)
@@ -1995,19 +2014,22 @@ def doctor(
         )
 
     model = config.agents.defaults.model
-    model_key = config.get_api_key(model)
-    model_base = config.get_api_base(model)
-    is_bedrock = model.startswith("bedrock/")
+    route = config.resolve_model_route(model)
+    model_key = route.api_key
+    if not model_key and route.provider not in {"vllm", "bedrock"}:
+        model_key = config.get_api_key(model)
+    is_bedrock = route.provider == "bedrock" or model.startswith("bedrock/")
     if is_bedrock or model_key:
-        provider_detail = "bedrock" if is_bedrock else "api key configured"
-        if model_base:
-            provider_detail += f", base={model_base}"
-        add("Model routing", "pass", f"model={model} ({provider_detail})")
+        provider_detail = (
+            f"mode={route.mode}, provider={route.provider}, "
+            f"base={route.api_base or 'none'}, fallback={len(route.fallback_models)}"
+        )
+        add("Model routing", "pass", f"model={route.model} ({provider_detail})")
     else:
         add(
             "Model routing",
             "fail",
-            f"model={model} (no API key)",
+            f"model={route.model} (mode={route.mode}, provider={route.provider}, no API key)",
             f"Set provider API key in {config_path} (or providers.vllm.apiKey for local proxy)",
         )
 
