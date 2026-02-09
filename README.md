@@ -8,6 +8,12 @@
     <img src="https://img.shields.io/badge/License-MIT-22c55e" alt="MIT">
     <img src="https://img.shields.io/badge/Channels-Telegram%20%7C%20WhatsApp%20%7C%20CLI-10b981" alt="Channels">
   </p>
+  <p>
+    <a href="https://github.com/galyarderlabs/galyarder-agent/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/galyarderlabs/galyarder-agent/ci.yml?branch=main&label=CI" alt="CI"></a>
+    <a href="https://github.com/galyarderlabs/galyarder-agent/actions/workflows/security.yml"><img src="https://img.shields.io/github/actions/workflow/status/galyarderlabs/galyarder-agent/security.yml?branch=main&label=Security" alt="Security"></a>
+    <a href="https://galyarderlabs.github.io/galyarder-agent/"><img src="https://img.shields.io/badge/Docs-GitHub%20Pages-0ea5e9" alt="Docs"></a>
+    <a href="https://github.com/galyarderlabs/galyarder-agent/releases"><img src="https://img.shields.io/github/v/release/galyarderlabs/galyarder-agent?sort=semver" alt="Release"></a>
+  </p>
 </div>
 
 ---
@@ -24,6 +30,23 @@ That means:
 - and you can audit every operational decision in code and logs.
 
 This repository is a public, production-oriented foundation that favors clarity, safety boundaries, and predictable behavior over feature sprawl.
+
+---
+
+## Open-Source Signals
+
+[![Stars](https://img.shields.io/github/stars/galyarderlabs/galyarder-agent?style=flat)](https://github.com/galyarderlabs/galyarder-agent/stargazers)
+[![Forks](https://img.shields.io/github/forks/galyarderlabs/galyarder-agent?style=flat)](https://github.com/galyarderlabs/galyarder-agent/network/members)
+[![Contributors](https://img.shields.io/github/contributors/galyarderlabs/galyarder-agent?style=flat)](https://github.com/galyarderlabs/galyarder-agent/graphs/contributors)
+[![Issues](https://img.shields.io/github/issues/galyarderlabs/galyarder-agent?style=flat)](https://github.com/galyarderlabs/galyarder-agent/issues)
+[![PRs](https://img.shields.io/github/issues-pr/galyarderlabs/galyarder-agent?style=flat)](https://github.com/galyarderlabs/galyarder-agent/pulls)
+[![Last Commit](https://img.shields.io/github/last-commit/galyarderlabs/galyarder-agent?style=flat)](https://github.com/galyarderlabs/galyarder-agent/commits/main)
+[![Commit Activity](https://img.shields.io/github/commit-activity/m/galyarderlabs/galyarder-agent?style=flat)](https://github.com/galyarderlabs/galyarder-agent/graphs/commit-activity)
+[![Repo Size](https://img.shields.io/github/repo-size/galyarderlabs/galyarder-agent?style=flat)](https://github.com/galyarderlabs/galyarder-agent)
+
+- **Star history**: https://star-history.com/#galyarderlabs/galyarder-agent&Date
+- **Repository pulse**: https://github.com/galyarderlabs/galyarder-agent/pulse
+- **Traffic dashboard** (maintainers): https://github.com/galyarderlabs/galyarder-agent/graphs/traffic
 
 ---
 
