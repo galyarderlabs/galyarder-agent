@@ -166,6 +166,10 @@ Code:
 - Provider-specific retry taxonomy for transient tool failures:
   - `backend/agent/g_agent/agent/loop.py`
   - `backend/agent/tests/test_retry_and_idempotency.py`
+- Memory quality fixtures and ranking consistency assertions:
+  - `backend/agent/tests/fixtures/memory_conflicts.md`
+  - `backend/agent/tests/test_memory_intelligence.py`
+  - `backend/agent/g_agent/agent/memory.py`
 
 ### P0 — Reliability Gaps (next)
 
@@ -173,8 +177,8 @@ Code:
 
 ### P1 — Memory Quality
 
-1. add regression fixture set for memory conflict/supersede resolution
-2. define quality assertions for recall ranking consistency
+1. expand multilingual memory fixtures for mixed-language overlap scoring
+2. add drift checks for session-summary vs durable-fact coherence
 
 ### P2 — Observability Ops
 

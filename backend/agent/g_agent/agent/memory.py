@@ -885,7 +885,15 @@ class MemoryStore:
                 }
             scored.append(item)
 
-        scored.sort(key=lambda item: item["score"], reverse=True)
+        scored.sort(
+            key=lambda item: (
+                -int(item.get("score", 0)),
+                -float(item.get("confidence", 0.0)),
+                int(item.get("age_days", 0)),
+                str(item.get("source", "")),
+                str(item.get("text", "")),
+            )
+        )
         return scored[:max_items]
 
     def get_relevant_memories(

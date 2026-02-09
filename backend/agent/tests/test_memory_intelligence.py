@@ -82,3 +82,73 @@ def test_recall_explain_hides_superseded_fact(tmp_path: Path):
     output = asyncio.run(recall_tool.execute(query="timezone", explain=True))
     assert "why:" in output
     assert "timezone: UTC" in output
+
+
+def test_bootstrap_fact_index_from_fixture_resolves_conflicts(tmp_path: Path):
+    fixture = (
+        Path(__file__).resolve().parent
+        / "fixtures"
+        / "memory_conflicts.md"
+    )
+    store = MemoryStore(tmp_path)
+    store.write_long_term(fixture.read_text(encoding="utf-8"))
+
+    records = store._load_fact_index()
+    active = [entry for entry in records if entry.get("status") == "active"]
+    superseded = [entry for entry in records if entry.get("status") == "superseded"]
+
+    timezone_active = [
+        entry for entry in active
+        if entry.get("fact_key") == "timezone"
+    ]
+    editor_active = [
+        entry for entry in active
+        if entry.get("fact_key") == "editor"
+    ]
+    focus_active = [
+        entry for entry in active
+        if entry.get("fact_key") == "focus"
+    ]
+
+    assert len(records) == 7
+    assert len(active) == 3
+    assert len(superseded) == 4
+    assert timezone_active[0]["text"] == "timezone: Asia/Singapore"
+    assert editor_active[0]["text"] == "editor: helix"
+    assert focus_active[0]["text"] == "focus: g-agent memory quality"
+
+
+def test_recall_ranking_deterministic_for_score_ties(tmp_path: Path, monkeypatch):
+    store = MemoryStore(tmp_path)
+
+    first = {
+        "source": "profile",
+        "text": "beta alpha",
+        "age_days": 0,
+        "type": "profile",
+        "confidence": 0.9,
+        "meta": {"fact_id": "fact_b"},
+    }
+    second = {
+        "source": "profile",
+        "text": "alpha beta",
+        "age_days": 0,
+        "type": "profile",
+        "confidence": 0.9,
+        "meta": {"fact_id": "fact_a"},
+    }
+    order = {"flip": False}
+
+    def fake_iter_memory_candidates(*args, **kwargs):
+        order["flip"] = not order["flip"]
+        if order["flip"]:
+            return [first, second]
+        return [second, first]
+
+    monkeypatch.setattr(store, "_iter_memory_candidates", fake_iter_memory_candidates)
+
+    recalled_first = store.recall(query="alpha beta", max_items=2)
+    recalled_second = store.recall(query="alpha beta", max_items=2)
+
+    assert [item["text"] for item in recalled_first] == [item["text"] for item in recalled_second]
+    assert [item["text"] for item in recalled_first] == ["alpha beta", "beta alpha"]
