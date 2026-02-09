@@ -6,6 +6,9 @@ on:
     - cron: "0 2 * * 1"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   dependency-review:
     name: Dependency Review (PR)
