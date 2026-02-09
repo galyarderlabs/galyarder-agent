@@ -20,16 +20,20 @@
 
 ## Mission
 
-`g-agent` is built for one goal: **digital sovereignty in daily AI operations**.
+Most assistants are optimized for convenience first and control later.  
+`g-agent` flips that order.
 
-That means:
+This project exists for operators who want real automation without surrendering ownership of data, policy, and runtime behavior.
 
-- you control where the agent runs,
-- you control which models and tools it can use,
-- you control who can reach it,
-- and you can audit every operational decision in code and logs.
+At any time, you should be able to answer:
 
-This repository is a public, production-oriented foundation that favors clarity, safety boundaries, and predictable behavior over feature sprawl.
+- where your assistant runs,
+- who is allowed to interact with it,
+- what it can access and execute.
+
+If your assistant can act, but you cannot explain those three clearly, it is not truly under your control.
+
+`g-agent` is a public, production-oriented foundation built for that standard: clarity, boundaries, and predictable operation.
 
 ---
 
@@ -51,14 +55,21 @@ This repository is a public, production-oriented foundation that favors clarity,
 
 ## Why This Project Exists
 
-Many agent projects optimize for breadth. `g-agent` optimizes for **operational ownership**:
+The agent ecosystem usually drifts to one of two extremes:
+
+- platforms with broad capability but heavy abstraction,
+- minimal demos that feel clean but break in real operations.
+
+`g-agent` is built in the middle: lean enough to audit, structured enough to run every day.
+
+Its design center is **operational ownership**:
 
 - **Local-first control**: data, memory, and runtime state live in your environment.
 - **Inspectable architecture**: practical code paths that can be reviewed and customized quickly.
 - **Policy-driven safety**: allowlists, workspace boundaries, approval gates, and profile presets.
 - **Reliable automation**: scheduling, proactive reminders, workflow packs, and service-mode operation.
 
-`g-agent` takes inspiration from strong open-source predecessors and focuses on shipping a hardening-friendly runtime you can trust in real workflows.
+`g-agent` takes inspiration from strong open-source predecessors, then focuses on hardening for real workflows instead of feature theater.
 
 ---
 
