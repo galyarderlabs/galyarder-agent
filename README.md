@@ -239,7 +239,6 @@ Use:
 - Install matrix: `docs/install-matrix.md`
 - Troubleshooting matrix: `docs/troubleshooting.md`
 - FAQ: `docs/faq.md`
-- Branding/domain setup: `docs/branding-domain.md`
 - Backend docs: `backend/agent/README.md`
 - Roadmap: `docs/roadmap/openclaw-delta.md`
 - Changelog: `CHANGELOG.md`

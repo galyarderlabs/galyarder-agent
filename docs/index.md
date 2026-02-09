@@ -42,7 +42,6 @@ This project is for builders who want:
 
 ## Open-source navigation
 
-- Migration notes for this repo model: [Migration Guide](migration-from-landingpages.md)
 - Common operator questions: [FAQ](faq.md)
 - Contribution expectations: [Contributing](contributing.md)
 

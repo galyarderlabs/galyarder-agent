@@ -42,5 +42,3 @@ Use Telegram/WhatsApp after login and allowlist setup.
 Use service templates in `backend/agent/deploy/systemd/` and run as user units.
 
 For day-to-day operations and diagnostics, see [Operations](operations.md).
-
-For migration context from old repo layout, see [Migration Guide](migration-from-landingpages.md).
