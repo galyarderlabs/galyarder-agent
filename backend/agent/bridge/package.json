@@ -13,10 +13,10 @@
     "@whiskeysockets/baileys": "7.0.0-rc.9",
     "ws": "^8.17.1",
     "qrcode-terminal": "^0.12.0",
-    "pino": "^9.0.0"
+    "pino": "^10.3.0"
   },
   "devDependencies": {
-    "@types/node": "^20.14.0",
+    "@types/node": "^25.2.2",
     "@types/ws": "^8.5.10",
     "typescript": "^5.4.0"
   },
