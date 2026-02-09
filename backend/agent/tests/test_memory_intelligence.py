@@ -175,6 +175,47 @@ def test_multilingual_fixture_overlap_ranking(tmp_path: Path):
     assert recalled_focus[0]["text"] == "fokus: build agent memory quality"
 
 
+def test_recall_semantic_normalization_handles_mixed_language_synonyms(tmp_path: Path):
+    store = MemoryStore(tmp_path)
+    store.write_long_term(
+        "# Long-term Memory\n\n"
+        "- [2026-01-09 09:00] (projects) jadwal rapat mingguan arsitektur\n"
+        "- [2026-01-09 10:00] (projects) sales followup enterprise\n"
+    )
+    store._load_fact_index()
+
+    recalled = store.recall(query="weekly meeting architecture schedule", max_items=2, explain=True)
+    assert recalled
+    assert recalled[0]["text"] == "jadwal rapat mingguan arsitektur"
+    assert recalled[0]["why"]["overlap_count"] >= 3
+    assert "weekly" in recalled[0]["why"]["overlap_terms"]
+    assert "meeting" in recalled[0]["why"]["overlap_terms"]
+
+
+def test_detect_cross_scope_fact_conflicts_profile_long_term_custom(tmp_path: Path):
+    store = MemoryStore(tmp_path)
+    store.remember_fact("timezone: UTC", category="identity", source="user_input")
+    store.upsert_profile_field("Identity", "timezone", "Asia/Jakarta")
+    (tmp_path / "memory" / "assistant_profile.md").write_text(
+        "# Assistant Profile\n\n- timezone: Asia/Singapore\n",
+        encoding="utf-8",
+    )
+
+    conflicts = store.detect_cross_scope_fact_conflicts()
+    timezone_conflict = next((item for item in conflicts if item.get("key") == "timezone"), None)
+
+    assert timezone_conflict is not None
+    assert set(timezone_conflict["scopes"]) == {"custom", "long-term", "profile"}
+    assert timezone_conflict["preferred_scope"] == "profile"
+    assert timezone_conflict["preferred_value"] == "Asia/Jakarta"
+
+    values = {item["value"] for item in timezone_conflict["conflicting_facts"]}
+    assert values == {"Asia/Singapore", "UTC"}
+    sources = {item["source"] for item in timezone_conflict["conflicting_facts"]}
+    assert "assistant_profile" in sources
+    assert "long-term" in sources
+
+
 def test_detect_summary_fact_drift_flags_conflict_only(tmp_path: Path):
     store = MemoryStore(tmp_path)
     store.remember_fact("timezone: UTC", category="identity", source="user_input")

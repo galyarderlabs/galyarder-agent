@@ -193,6 +193,12 @@ Code:
 - Integration-level reconnect harness (manager + dispatcher + multi-channel recovery):
   - `backend/agent/tests/test_channel_reconnect.py`
   - `backend/agent/g_agent/channels/manager.py`
+- Semantic normalization checks for mixed-language recall drift:
+  - `backend/agent/g_agent/agent/memory.py`
+  - `backend/agent/tests/test_memory_intelligence.py`
+- Cross-scope memory conflict regression checks (profile/long-term/custom):
+  - `backend/agent/g_agent/agent/memory.py`
+  - `backend/agent/tests/test_memory_intelligence.py`
 
 ### P0 — Reliability Gaps (next)
 
@@ -200,8 +206,7 @@ Code:
 
 ### P1 — Memory Quality
 
-1. add semantic normalization checks for mixed-language synonym drift
-2. add regression checks for conflicting facts across profile/long-term/custom scopes
+1. none (closed)
 
 ### P2 — Observability Ops
 

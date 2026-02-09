@@ -51,6 +51,30 @@ class MemoryStore:
         "user_profile.md",
         "FACTS.md",
     }
+    SEMANTIC_PHRASE_MAP = (
+        ("time zone", "timezone"),
+        ("zona waktu", "timezone"),
+    )
+    SEMANTIC_TOKEN_MAP = {
+        "jadwal": "schedule",
+        "schedule": "schedule",
+        "rapat": "meeting",
+        "meeting": "meeting",
+        "mingguan": "weekly",
+        "weekly": "weekly",
+        "fokus": "focus",
+        "focus": "focus",
+        "arsitektur": "architecture",
+        "architecture": "architecture",
+        "proyek": "project",
+        "project": "project",
+        "bahasa": "language",
+        "language": "language",
+        "pengingat": "reminder",
+        "reminder": "reminder",
+        "memori": "memory",
+        "memory": "memory",
+    }
     
     def __init__(self, workspace: Path):
         self.workspace = workspace
@@ -149,6 +173,15 @@ class MemoryStore:
     def _normalize_for_dedup(self, text: str) -> str:
         """Normalize text for lightweight dedup checks."""
         return re.sub(r"\s+", " ", (text or "").strip().lower())
+
+    def _semantic_normalize(self, text: str) -> str:
+        """Apply lightweight phrase normalization for multilingual matching."""
+        normalized = self._normalize_for_dedup(text)
+        if not normalized:
+            return ""
+        for source, target in self.SEMANTIC_PHRASE_MAP:
+            normalized = re.sub(rf"\b{re.escape(source)}\b", target, normalized)
+        return normalized
 
     def _safe_read(self, path: Path) -> str:
         """Read file safely (returns empty string on error)."""
@@ -250,6 +283,31 @@ class MemoryStore:
         if direct_key:
             return direct_key.group(1)
         return ""
+
+    def _extract_fact_value(self, text: str) -> str:
+        raw = (text or "").strip()
+        if not raw:
+            return ""
+        if raw.startswith("- "):
+            raw = raw[2:].strip()
+        for separator in (":", "="):
+            if separator in raw:
+                value = raw.split(separator, 1)[1].strip()
+                if value:
+                    return value
+        direct_value = re.match(
+            r"^(?:my|i|i'm|i am|saya|aku|gua)\s+[a-z0-9_ \-]{2,40}\s+"
+            r"(?:is|are|adalah)\s+(.+)$",
+            raw.lower(),
+        )
+        if direct_value:
+            return direct_value.group(1).strip()
+        return ""
+
+    def _normalize_fact_value(self, value: str) -> str:
+        normalized = self._semantic_normalize(value)
+        normalized = normalized.strip(" .;,|")
+        return re.sub(r"\s+", " ", normalized)
 
     def _parse_long_term_entry(self, line: str, fallback_iso: str) -> dict[str, Any] | None:
         raw = line.strip()
@@ -689,9 +747,10 @@ class MemoryStore:
     
     def _tokenize(self, text: str) -> set[str]:
         """Tokenize text for lightweight lexical matching."""
-        normalized = (text or "").lower().replace("_", " ")
+        normalized = self._semantic_normalize((text or "").replace("_", " "))
         tokens = re.findall(r"[a-zA-Z0-9]{3,}", normalized)
-        return {token for token in tokens if token not in self.STOPWORDS}
+        canonical = [self.SEMANTIC_TOKEN_MAP.get(token, token) for token in tokens]
+        return {token for token in canonical if token not in self.STOPWORDS}
 
     def _iter_memory_candidates(
         self,
@@ -961,6 +1020,140 @@ class MemoryStore:
             return ""
         return "\n".join(entries[-limit:])
 
+    def _collect_scope_fact_entries(self, scopes: set[str]) -> list[dict[str, Any]]:
+        """Collect key/value facts across selected memory scopes."""
+        entries: list[dict[str, Any]] = []
+        seen: set[tuple[str, str, str, str]] = set()
+
+        def add_entry(scope: str, source: str, text: str) -> None:
+            body = (text or "").strip().lstrip("-* ").strip()
+            if not body or body.startswith("#"):
+                return
+            key = self._extract_fact_key(body)
+            if not key:
+                return
+            value = self._extract_fact_value(body)
+            if not value:
+                return
+            value_norm = self._normalize_fact_value(value)
+            if not value_norm:
+                return
+            signature = (scope, key, value_norm, body)
+            if signature in seen:
+                return
+            seen.add(signature)
+            entries.append(
+                {
+                    "scope": scope,
+                    "source": source,
+                    "key": key,
+                    "value": value.strip(),
+                    "value_normalized": value_norm,
+                    "text": body,
+                }
+            )
+
+        if "long-term" in scopes:
+            for item in self._load_fact_index():
+                if item.get("status", "active") != "active":
+                    continue
+                add_entry("long-term", "long-term", str(item.get("text", "")))
+
+        if "profile" in scopes:
+            for line in self.read_profile().splitlines():
+                add_entry("profile", "profile", line)
+
+        if "custom" in scopes:
+            for file_path in self.list_custom_memory_files():
+                source_name = file_path.stem
+                for line in self._safe_read(file_path).splitlines():
+                    add_entry("custom", source_name, line)
+
+        if "projects" in scopes:
+            for line in self.read_projects().splitlines():
+                add_entry("projects", "projects", line)
+
+        if "relationships" in scopes:
+            for line in self.read_relationships().splitlines():
+                add_entry("relationships", "relationships", line)
+
+        return entries
+
+    def detect_cross_scope_fact_conflicts(
+        self,
+        scopes: list[str] | None = None,
+        limit: int = 80,
+    ) -> list[dict[str, Any]]:
+        """
+        Detect conflicting fact values across memory scopes.
+
+        Default scope set: profile + long-term + custom.
+        """
+        scope_set = (
+            {item.strip().lower() for item in (scopes or []) if item.strip()}
+            if scopes
+            else {"profile", "long-term", "custom"}
+        )
+        if not scope_set:
+            return []
+
+        by_key: dict[str, list[dict[str, Any]]] = {}
+        for entry in self._collect_scope_fact_entries(scope_set):
+            by_key.setdefault(entry["key"], []).append(entry)
+
+        conflicts: list[dict[str, Any]] = []
+        for key in sorted(by_key.keys()):
+            entries = by_key[key]
+            if len(entries) < 2:
+                continue
+            unique_values = {item["value_normalized"] for item in entries}
+            if len(unique_values) < 2:
+                continue
+            involved_scopes = {item["scope"] for item in entries}
+            if len(involved_scopes) < 2:
+                continue
+
+            ordered = sorted(
+                entries,
+                key=lambda item: (
+                    -self.SOURCE_WEIGHTS.get(item["scope"], 100),
+                    item["scope"],
+                    item["source"],
+                    item["text"],
+                ),
+            )
+            preferred = ordered[0]
+            conflicting = [
+                item for item in ordered
+                if item["value_normalized"] != preferred["value_normalized"]
+            ]
+            if not conflicting:
+                continue
+
+            conflicts.append(
+                {
+                    "key": key,
+                    "preferred_scope": preferred["scope"],
+                    "preferred_source": preferred["source"],
+                    "preferred_fact": preferred["text"],
+                    "preferred_value": preferred["value"],
+                    "scopes": sorted(involved_scopes),
+                    "conflicting_facts": [
+                        {
+                            "scope": item["scope"],
+                            "source": item["source"],
+                            "text": item["text"],
+                            "value": item["value"],
+                        }
+                        for item in conflicting
+                    ],
+                }
+            )
+
+        if limit > 0:
+            return conflicts[:limit]
+        return conflicts
+
     def detect_summary_fact_drift(self, limit: int = 80) -> list[dict[str, Any]]:
         """
         Detect summary facts that conflict with active durable facts.
@@ -1017,9 +1210,11 @@ class MemoryStore:
                 if not active:
                     continue
 
-                summary_norm = self._normalize_for_dedup(fragment)
+                summary_value = self._extract_fact_value(fragment) or fragment
+                summary_norm = self._normalize_fact_value(summary_value)
                 active_text = str(active.get("text", "")).strip()
-                active_norm = self._normalize_for_dedup(active_text)
+                active_value = self._extract_fact_value(active_text) or active_text
+                active_norm = self._normalize_fact_value(active_value)
                 if not summary_norm or not active_norm:
                     continue
                 if summary_norm == active_norm:
