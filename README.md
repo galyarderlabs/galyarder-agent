@@ -178,37 +178,22 @@ For a stricter setup, run the stack under isolated runtime boundaries (for examp
 
 ---
 
-## Local Main-Branch Guard (Fallback)
+## Main Branch Safety
 
-If GitHub branch protection is unavailable (private repo plan limits), enable local `pre-push` guard:
+For this public repo, use **GitHub branch protection** as the primary guard for `main`.
+
+Recommended required checks:
+
+- `Landingpages Checks`
+- `Backend Agent Checks`
+- `Analyze (python)`
+- `Analyze (javascript-typescript)`
+
+Optional local guard for maintainers:
 
 ```bash
-cd galyarder-agent
 bash deploy/install-local-guard.sh
-```
-
-This guard blocks pushes to `main` when required checks fail:
-
-- backend: compile + `ruff --select F` + `pytest -q`
-- landingpages: lint + typecheck + build
-
-If `ruff` / `pytest` is not installed globally, the hook automatically tries `python -m ...` then `pipx run` as fallback.
-
-Hook modes:
-
-- default `quick` mode: backend smoke tests + landing lint/typecheck
-- `full` mode: full backend test suite + landing build
-- `changed` mode: target only changed backend/landing files (fastest)
-
-```bash
-G_AGENT_PRE_PUSH_MODE=full git push origin main
 G_AGENT_PRE_PUSH_MODE=changed git push origin main
-```
-
-Emergency bypass (single push):
-
-```bash
-G_AGENT_SKIP_PRE_PUSH=1 git push origin main
 ```
 
 ---
