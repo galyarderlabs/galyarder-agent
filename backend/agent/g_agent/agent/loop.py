@@ -891,11 +891,26 @@ class AgentLoop:
             metadata["idempotency_key"] = key
         return metadata
 
-    def _classify_retryable_tool_error(self, result: str) -> str | None:
-        """Classify retryable tool errors: network, auth, or rate_limit."""
+    def _tool_retry_provider(self, tool_name: str) -> str:
+        """Map tool name into retry taxonomy provider group."""
+        name = (tool_name or "").strip().lower()
+        if name.startswith(("gmail_", "calendar_", "drive_", "docs_", "sheets_", "contacts_")):
+            return "google"
+        if name.startswith("slack_"):
+            return "slack"
+        if name.startswith("browser_"):
+            return "browser"
+        if name in {"web_search", "web_fetch"}:
+            return "web"
+        return "generic"
+
+    def _classify_retryable_tool_error(self, result: str, tool_name: str = "") -> str | None:
+        """Classify provider-aware retryable errors: network, auth, or rate_limit."""
         text = (result or "").strip().lower()
         if not text.startswith("error"):
             return None
+
+        provider = self._tool_retry_provider(tool_name)
 
         non_retryable_markers = (
             "approval required",
@@ -905,9 +920,56 @@ class AgentLoop:
             "is required",
             "missing required",
             "must be",
+            "scope mismatch",
+            "insufficient scopes",
+            "invalid_scope",
+            "invalid_grant",
+            "expired or revoked",
+            "permission denied",
+            "not configured",
         )
         if any(marker in text for marker in non_retryable_markers):
             return None
+
+        if provider == "google":
+            google_rate_limit_markers = (
+                "resource_exhausted",
+                "quota exceeded",
+                "quota_exceeded",
+                "ratelimitexceeded",
+                "userratelimitexceeded",
+            )
+            if any(marker in text for marker in google_rate_limit_markers):
+                return "rate_limit"
+
+            google_transient_markers = (
+                "backend error",
+                "internal error",
+                "service unavailable",
+                "temporarily unavailable",
+                "deadline exceeded",
+                "http 500",
+                "http 502",
+                "http 503",
+                "http 504",
+            )
+            if any(marker in text for marker in google_transient_markers):
+                return "network"
+
+            google_auth_markers = (
+                "unauthenticated",
+                "invalid credentials",
+                "invalid token",
+                "token expired",
+            )
+            if any(marker in text for marker in google_auth_markers):
+                return "auth"
+
+        if provider == "slack":
+            if "http 429" in text:
+                return "rate_limit"
+            if any(marker in text for marker in ("http 500", "http 502", "http 503", "http 504")):
+                return "network"
 
         rate_limit_markers = (
             "429",
@@ -915,6 +977,8 @@ class AgentLoop:
             "too many requests",
             "retry-after",
             "retry after",
+            "resource exhausted",
+            "quota exceeded",
         )
         if any(marker in text for marker in rate_limit_markers):
             return "rate_limit"
@@ -936,11 +1000,15 @@ class AgentLoop:
         network_markers = (
             "timeout",
             "timed out",
+            "temporary failure",
             "connect",
             "connection",
             "network",
             "dns",
             "temporarily unavailable",
+            "service unavailable",
+            "upstream",
+            "500",
             "502",
             "503",
             "504",
@@ -1029,7 +1097,7 @@ class AgentLoop:
             )
         attempts_used = 1
         result = await self.tools.execute(tool_name, tool_args)
-        retry_kind = self._classify_retryable_tool_error(str(result))
+        retry_kind = self._classify_retryable_tool_error(str(result), tool_name=tool_name)
         retry_kind_used = retry_kind or ""
         if not retry_kind:
             return _record(str(result))
@@ -1049,7 +1117,7 @@ class AgentLoop:
                 f"(attempt {attempt}/{attempts})"
             )
             next_result = await self.tools.execute(tool_name, tool_args)
-            if not self._classify_retryable_tool_error(str(next_result)):
+            if not self._classify_retryable_tool_error(str(next_result), tool_name=tool_name):
                 return _record(str(next_result))
             last_result = str(next_result)
         return _record(last_result)

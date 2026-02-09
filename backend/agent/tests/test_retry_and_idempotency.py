@@ -27,14 +27,15 @@ class DummyProvider(LLMProvider):
 
 
 class FlakyTool(Tool):
-    def __init__(self, fail_count: int, error_text: str):
+    def __init__(self, fail_count: int, error_text: str, tool_name: str = "flaky_tool"):
         self.fail_count = fail_count
         self.error_text = error_text
+        self.tool_name = tool_name
         self.calls = 0
 
     @property
     def name(self) -> str:
-        return "flaky_tool"
+        return self.tool_name
 
     @property
     def description(self) -> str:
@@ -117,6 +118,111 @@ def test_retry_auth_error_stops_after_policy_limit(tmp_path, monkeypatch):
     )
 
     assert "401 unauthorized" in result
+    assert flaky.calls == 2
+
+
+def test_google_scope_mismatch_not_retried(tmp_path, monkeypatch):
+    monkeypatch.setenv("G_AGENT_DATA_DIR", str(tmp_path / "data"))
+    loop = AgentLoop(
+        bus=MessageBus(),
+        provider=DummyProvider(),
+        workspace=tmp_path,
+        enable_reflection=False,
+    )
+    flaky = FlakyTool(
+        fail_count=3,
+        error_text=(
+            "Error: Google API scope mismatch (insufficient scopes). "
+            "Run `g-agent google auth-url` with required scopes."
+        ),
+        tool_name="gmail_list_threads",
+    )
+    loop.tools.register(flaky)
+
+    result = asyncio.run(
+        loop._execute_tool_with_policy(
+            tool_name="gmail_list_threads",
+            tool_args={},
+            channel="cli",
+            sender_id="user",
+            approved_tools=set(),
+            approve_all=False,
+        )
+    )
+
+    assert "scope mismatch" in result.lower()
+    assert flaky.calls == 1
+
+
+def test_google_rate_limit_retried_with_provider_taxonomy(tmp_path, monkeypatch):
+    monkeypatch.setenv("G_AGENT_DATA_DIR", str(tmp_path / "data"))
+    loop = AgentLoop(
+        bus=MessageBus(),
+        provider=DummyProvider(),
+        workspace=tmp_path,
+        enable_reflection=False,
+    )
+
+    async def _fast_sleep(_seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr("g_agent.agent.loop.asyncio.sleep", _fast_sleep)
+
+    flaky = FlakyTool(
+        fail_count=2,
+        error_text="Error: Google API error (HTTP 429): RESOURCE_EXHAUSTED",
+        tool_name="drive_list_files",
+    )
+    loop.tools.register(flaky)
+
+    result = asyncio.run(
+        loop._execute_tool_with_policy(
+            tool_name="drive_list_files",
+            tool_args={},
+            channel="cli",
+            sender_id="user",
+            approved_tools=set(),
+            approve_all=False,
+        )
+    )
+
+    assert result == "ok"
+    assert flaky.calls == 3
+
+
+def test_slack_503_retried_with_provider_taxonomy(tmp_path, monkeypatch):
+    monkeypatch.setenv("G_AGENT_DATA_DIR", str(tmp_path / "data"))
+    loop = AgentLoop(
+        bus=MessageBus(),
+        provider=DummyProvider(),
+        workspace=tmp_path,
+        enable_reflection=False,
+    )
+
+    async def _fast_sleep(_seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr("g_agent.agent.loop.asyncio.sleep", _fast_sleep)
+
+    flaky = FlakyTool(
+        fail_count=1,
+        error_text="Error: Slack webhook returned HTTP 503",
+        tool_name="slack_webhook_send",
+    )
+    loop.tools.register(flaky)
+
+    result = asyncio.run(
+        loop._execute_tool_with_policy(
+            tool_name="slack_webhook_send",
+            tool_args={},
+            channel="cli",
+            sender_id="user",
+            approved_tools=set(),
+            approve_all=False,
+        )
+    )
+
+    assert result == "ok"
     assert flaky.calls == 2
 
 

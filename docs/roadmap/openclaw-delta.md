@@ -163,11 +163,13 @@ Code:
 - OAuth edge-case regression checks added for expired refresh token and scope drift:
   - `backend/agent/tests/test_google_oauth_edges.py`
   - `backend/agent/g_agent/agent/tools/google_workspace.py`
+- Provider-specific retry taxonomy for transient tool failures:
+  - `backend/agent/g_agent/agent/loop.py`
+  - `backend/agent/tests/test_retry_and_idempotency.py`
 
 ### P0 — Reliability Gaps (next)
 
-1. expand E2E harness for Telegram/WhatsApp reconnect behavior
-2. improve provider-specific retry taxonomy for transient tool failures
+1. expand integration-level reconnect harness (beyond unit-level channel tests)
 
 ### P1 — Memory Quality
 
