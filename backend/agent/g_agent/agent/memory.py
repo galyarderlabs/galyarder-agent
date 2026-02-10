@@ -13,13 +13,41 @@ from g_agent.utils.helpers import ensure_dir, today_date
 class MemoryStore:
     """
     Memory system for the agent.
-    
+
     Supports daily notes (memory/YYYY-MM-DD.md) and long-term memory (MEMORY.md).
     """
+
     STOPWORDS = {
-        "the", "and", "for", "with", "that", "this", "from", "have", "your", "you",
-        "are", "was", "were", "will", "can", "not", "just", "buat", "yang", "dan",
-        "dari", "atau", "itu", "ini", "aja", "saya", "aku", "gua", "kamu", "nya",
+        "the",
+        "and",
+        "for",
+        "with",
+        "that",
+        "this",
+        "from",
+        "have",
+        "your",
+        "you",
+        "are",
+        "was",
+        "were",
+        "will",
+        "can",
+        "not",
+        "just",
+        "buat",
+        "yang",
+        "dan",
+        "dari",
+        "atau",
+        "itu",
+        "ini",
+        "aja",
+        "saya",
+        "aku",
+        "gua",
+        "kamu",
+        "nya",
     }
     SOURCE_WEIGHTS = {
         "profile": 240,
@@ -75,7 +103,7 @@ class MemoryStore:
         "memori": "memory",
         "memory": "memory",
     }
-    
+
     def __init__(self, workspace: Path):
         self.workspace = workspace
         self.memory_dir = ensure_dir(workspace / "memory")
@@ -92,10 +120,7 @@ class MemoryStore:
     def _ensure_scaffold(self) -> None:
         """Create baseline memory files when missing."""
         templates = {
-            self.memory_file: (
-                "# Long-term Memory\n\n"
-                "Durable facts to keep across sessions.\n"
-            ),
+            self.memory_file: ("# Long-term Memory\n\nDurable facts to keep across sessions.\n"),
             self.profile_file: (
                 "# Profile\n\n"
                 "## Identity\n"
@@ -106,15 +131,9 @@ class MemoryStore:
                 "- communication_style: \n"
                 "- notification_style: \n"
             ),
-            self.relationships_file: (
-                "# Relationships\n\n"
-                "- [name] role, context, preference\n"
-            ),
+            self.relationships_file: ("# Relationships\n\n- [name] role, context, preference\n"),
             self.projects_file: (
-                "# Projects\n\n"
-                "## Active\n"
-                "- [project] status: ; next: \n\n"
-                "## Backlog\n"
+                "# Projects\n\n## Active\n- [project] status: ; next: \n\n## Backlog\n"
             ),
             self.facts_file: (
                 "# Fact Index (Machine-readable)\n\n"
@@ -438,19 +457,19 @@ class MemoryStore:
         if bootstrapped:
             self._write_fact_index(bootstrapped)
         return bootstrapped
-    
+
     def get_today_file(self) -> Path:
         """Get path to today's memory file."""
         return self.memory_dir / f"{today_date()}.md"
-    
+
     def read_today(self) -> str:
         """Read today's memory notes."""
         return self._safe_read(self.get_today_file())
-    
+
     def append_today(self, content: str) -> None:
         """Append content to today's memory notes."""
         today_file = self.get_today_file()
-        
+
         existing = self._safe_read(today_file)
         if existing:
             content = existing + "\n" + content
@@ -458,13 +477,13 @@ class MemoryStore:
             # Add header for new day
             header = f"# {today_date()}\n\n"
             content = header + content
-        
+
         self._safe_write(today_file, content)
-    
+
     def read_long_term(self) -> str:
         """Read long-term memory (MEMORY.md)."""
         return self._safe_read(self.memory_file)
-    
+
     def write_long_term(self, content: str) -> None:
         """Write to long-term memory (MEMORY.md)."""
         self._safe_write(self.memory_file, content)
@@ -554,7 +573,9 @@ class MemoryStore:
         normalized = self._normalize_for_dedup(text)
         fact_key = self._extract_fact_key(text)
         confidence_value = self._clamp_confidence(
-            confidence if confidence is not None else self._default_confidence_for_category(fact_type)
+            confidence
+            if confidence is not None
+            else self._default_confidence_for_category(fact_type)
         )
 
         for item in records:
@@ -563,7 +584,9 @@ class MemoryStore:
             if item.get("normalized") != normalized:
                 continue
             item["last_seen"] = now_iso
-            item["confidence"] = max(self._clamp_confidence(item.get("confidence")), confidence_value)
+            item["confidence"] = max(
+                self._clamp_confidence(item.get("confidence")), confidence_value
+            )
             if not item.get("source"):
                 item["source"] = source_label
             if self._write_fact_index(records):
@@ -648,8 +671,7 @@ class MemoryStore:
         existing = self.read_lessons()
         if not existing:
             existing = (
-                "# Lessons Learned\n\n"
-                "Actionable feedback and mistakes to avoid repeating.\n\n"
+                "# Lessons Learned\n\nActionable feedback and mistakes to avoid repeating.\n\n"
             )
 
         normalized = self._normalize_for_dedup(text)
@@ -675,43 +697,40 @@ class MemoryStore:
             return False
 
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
-        entry = (
-            f"## {timestamp} ({session_key})\n"
-            f"- {text}"
-        )
+        entry = f"## {timestamp} ({session_key})\n- {text}"
         return self._safe_write(self.summaries_file, existing.rstrip() + "\n" + entry + "\n")
-    
+
     def get_recent_memories(self, days: int = 7) -> str:
         """
         Get memories from the last N days.
-        
+
         Args:
             days: Number of days to look back.
-        
+
         Returns:
             Combined memory content.
         """
         from datetime import timedelta
-        
+
         memories = []
         today = datetime.now().date()
-        
+
         for i in range(days):
             date = today - timedelta(days=i)
             date_str = date.strftime("%Y-%m-%d")
             file_path = self.memory_dir / f"{date_str}.md"
-            
+
             if file_path.exists():
                 content = file_path.read_text(encoding="utf-8")
                 memories.append(content)
-        
+
         return "\n\n---\n\n".join(memories)
-    
+
     def list_memory_files(self) -> list[Path]:
         """List all memory files sorted by date (newest first)."""
         if not self.memory_dir.exists():
             return []
-        
+
         files = list(self.memory_dir.glob("????-??-??.md"))
         return sorted(files, reverse=True)
 
@@ -744,7 +763,7 @@ class MemoryStore:
                 content = content[:max_chars_per_file].rstrip() + "\n..."
             sections.append(f"### {file_path.name}\n{content}")
         return "\n\n".join(sections)
-    
+
     def _tokenize(self, text: str) -> set[str]:
         """Tokenize text for lightweight lexical matching."""
         normalized = self._semantic_normalize((text or "").replace("_", " "))
@@ -792,7 +811,9 @@ class MemoryStore:
                     "age_days": max(0, age_days),
                     "type": source_type,
                     "confidence": self._clamp_confidence(
-                        confidence if confidence is not None else self.SOURCE_DEFAULT_CONFIDENCE.get(source_type, 0.72)
+                        confidence
+                        if confidence is not None
+                        else self.SOURCE_DEFAULT_CONFIDENCE.get(source_type, 0.72)
                     ),
                     "meta": metadata or {},
                 }
@@ -1124,7 +1145,8 @@ class MemoryStore:
             )
             preferred = ordered[0]
             conflicting = [
-                item for item in ordered
+                item
+                for item in ordered
                 if item["value_normalized"] != preferred["value_normalized"]
             ]
             if not conflicting:
@@ -1241,7 +1263,7 @@ class MemoryStore:
     def get_memory_context(self, query: str | None = None, include_full: bool = True) -> str:
         """
         Get memory context for the agent.
-        
+
         Returns:
             Formatted memory context including long-term and recent memories.
         """
@@ -1272,7 +1294,7 @@ class MemoryStore:
             custom_memory = self._read_custom_memory_sections()
             if custom_memory:
                 parts.append("## Additional Memory Files\n" + custom_memory)
-            
+
             # Today's notes
             today = self.read_today()
             if today:
@@ -1294,5 +1316,5 @@ class MemoryStore:
             recent_summaries = self._get_recent_summaries()
             if recent_summaries:
                 parts.append("## Recent Session Summaries\n" + recent_summaries)
-        
+
         return "\n\n".join(parts) if parts else ""

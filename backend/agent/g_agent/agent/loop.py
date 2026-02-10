@@ -1,4 +1,5 @@
 """Agent loop: the core processing engine."""
+
 from __future__ import annotations
 
 import asyncio
@@ -11,61 +12,61 @@ from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
-from g_agent.bus.events import InboundMessage, OutboundMessage
-from g_agent.bus.queue import MessageBus
-from g_agent.providers.base import LLMProvider
 from g_agent.agent.context import ContextBuilder
-from g_agent.agent.tools.registry import ToolRegistry
-from g_agent.agent.tools.filesystem import ReadFileTool, WriteFileTool, EditFileTool, ListDirTool
-from g_agent.agent.tools.shell import ExecTool
-from g_agent.agent.tools.web import WebSearchTool, WebFetchTool
-from g_agent.agent.tools.message import MessageTool
-from g_agent.agent.tools.spawn import SpawnTool
-from g_agent.agent.tools.cron import CronTool
-from g_agent.agent.tools.integrations import (
-    RememberTool,
-    RecallTool,
-    UpdateProfileTool,
-    LogFeedbackTool,
-    SlackWebhookTool,
-    SendEmailTool,
-    CreateCalendarEventTool,
-)
+from g_agent.agent.runtime import TaskCheckpointStore
+from g_agent.agent.subagent import SubagentManager
 from g_agent.agent.tools.browser import (
-    BrowserSession,
-    BrowserOpenTool,
-    BrowserSnapshotTool,
     BrowserClickTool,
-    BrowserTypeTool,
     BrowserExtractTool,
+    BrowserOpenTool,
     BrowserScreenshotTool,
+    BrowserSession,
+    BrowserSnapshotTool,
+    BrowserTypeTool,
 )
+from g_agent.agent.tools.cron import CronTool
+from g_agent.agent.tools.filesystem import EditFileTool, ListDirTool, ReadFileTool, WriteFileTool
 from g_agent.agent.tools.google_workspace import (
-    GoogleWorkspaceClient,
+    CalendarCreateEventTool,
+    CalendarListEventsTool,
+    CalendarUpdateEventTool,
+    ContactsGetTool,
+    ContactsListTool,
+    DocsAppendTextTool,
+    DocsGetDocumentTool,
+    DriveListFilesTool,
+    DriveReadTextTool,
+    GmailDraftTool,
     GmailListThreadsTool,
     GmailReadThreadTool,
     GmailSendTool,
-    GmailDraftTool,
-    CalendarListEventsTool,
-    CalendarCreateEventTool,
-    CalendarUpdateEventTool,
-    DriveListFilesTool,
-    DriveReadTextTool,
-    DocsGetDocumentTool,
-    DocsAppendTextTool,
-    SheetsGetValuesTool,
+    GoogleWorkspaceClient,
     SheetsAppendValuesTool,
-    ContactsListTool,
-    ContactsGetTool,
+    SheetsGetValuesTool,
 )
-from g_agent.agent.subagent import SubagentManager
-from g_agent.agent.runtime import TaskCheckpointStore
+from g_agent.agent.tools.integrations import (
+    CreateCalendarEventTool,
+    LogFeedbackTool,
+    RecallTool,
+    RememberTool,
+    SendEmailTool,
+    SlackWebhookTool,
+    UpdateProfileTool,
+)
+from g_agent.agent.tools.message import MessageTool
+from g_agent.agent.tools.registry import ToolRegistry
+from g_agent.agent.tools.shell import ExecTool
+from g_agent.agent.tools.spawn import SpawnTool
+from g_agent.agent.tools.web import WebFetchTool, WebSearchTool
 from g_agent.agent.workflow_packs import (
     build_workflow_pack_prompt,
     extract_workflow_pack_flags,
     resolve_workflow_pack_request,
 )
+from g_agent.bus.events import InboundMessage, OutboundMessage
+from g_agent.bus.queue import MessageBus
 from g_agent.observability.metrics import MetricsStore
+from g_agent.providers.base import LLMProvider
 from g_agent.session.manager import SessionManager
 
 if TYPE_CHECKING:
@@ -82,7 +83,7 @@ if TYPE_CHECKING:
 class AgentLoop:
     """
     The agent loop is the core processing engine.
-    
+
     It:
     1. Receives messages from the bus
     2. Builds context with history, memory, skills
@@ -90,7 +91,7 @@ class AgentLoop:
     4. Executes tool calls
     5. Sends responses back
     """
-    
+
     def __init__(
         self,
         bus: MessageBus,
@@ -114,11 +115,12 @@ class AgentLoop:
         fallback_models: list[str] | None = None,
     ):
         from g_agent.config.schema import (
-            ExecToolConfig,
-            SMTPConfig,
-            GoogleWorkspaceConfig,
             BrowserToolsConfig,
+            ExecToolConfig,
+            GoogleWorkspaceConfig,
+            SMTPConfig,
         )
+
         self.bus = bus
         self.provider = provider
         self.workspace = workspace
@@ -158,7 +160,7 @@ class AgentLoop:
             request_timeout=float(self.browser_config.timeout_seconds),
             max_html_chars=max(20000, int(self.browser_config.max_html_chars)),
         )
-        
+
         self.context = ContextBuilder(workspace)
         self.sessions = SessionManager(workspace)
         self.runtime = TaskCheckpointStore(workspace)
@@ -173,10 +175,10 @@ class AgentLoop:
             exec_config=self.exec_config,
             restrict_to_workspace=restrict_to_workspace,
         )
-        
+
         self._running = False
         self._register_default_tools()
-    
+
     def _register_default_tools(self) -> None:
         """Register the default set of tools."""
         # File tools (restrict to workspace if configured)
@@ -185,18 +187,20 @@ class AgentLoop:
         self.tools.register(WriteFileTool(allowed_dir=allowed_dir))
         self.tools.register(EditFileTool(allowed_dir=allowed_dir))
         self.tools.register(ListDirTool(allowed_dir=allowed_dir))
-        
+
         # Shell tool
-        self.tools.register(ExecTool(
-            working_dir=str(self.workspace),
-            timeout=self.exec_config.timeout,
-            restrict_to_workspace=self.restrict_to_workspace,
-        ))
-        
+        self.tools.register(
+            ExecTool(
+                working_dir=str(self.workspace),
+                timeout=self.exec_config.timeout,
+                restrict_to_workspace=self.restrict_to_workspace,
+            )
+        )
+
         # Web tools
         self.tools.register(WebSearchTool(api_key=self.brave_api_key))
         self.tools.register(WebFetchTool())
-        
+
         # Browser tools (stateful)
         self.tools.register(BrowserOpenTool(self.browser))
         self.tools.register(BrowserSnapshotTool(self.browser))
@@ -211,14 +215,16 @@ class AgentLoop:
         self.tools.register(UpdateProfileTool(workspace=self.workspace))
         self.tools.register(LogFeedbackTool(workspace=self.workspace))
         self.tools.register(SlackWebhookTool(webhook_url=self.slack_webhook_url))
-        self.tools.register(SendEmailTool(
-            host=self.smtp_config.host,
-            port=self.smtp_config.port,
-            username=self.smtp_config.username,
-            password=self.smtp_config.password,
-            from_email=self.smtp_config.from_email,
-            use_tls=self.smtp_config.use_tls,
-        ))
+        self.tools.register(
+            SendEmailTool(
+                host=self.smtp_config.host,
+                port=self.smtp_config.port,
+                username=self.smtp_config.username,
+                password=self.smtp_config.password,
+                from_email=self.smtp_config.from_email,
+                use_tls=self.smtp_config.use_tls,
+            )
+        )
         self.tools.register(CreateCalendarEventTool(workspace=self.workspace))
 
         # Google Workspace tools
@@ -244,35 +250,32 @@ class AgentLoop:
         self.tools.register(SheetsAppendValuesTool(google))
         self.tools.register(ContactsListTool(google))
         self.tools.register(ContactsGetTool(google))
-        
+
         # Message tool
         message_tool = MessageTool(
             send_callback=self.bus.publish_outbound,
             workspace=self.workspace,
         )
         self.tools.register(message_tool)
-        
+
         # Spawn tool (for subagents)
         spawn_tool = SpawnTool(manager=self.subagents)
         self.tools.register(spawn_tool)
-        
+
         # Cron tool (for scheduling)
         if self.cron_service:
             self.tools.register(CronTool(self.cron_service))
-    
+
     async def run(self) -> None:
         """Run the agent loop, processing messages from the bus."""
         self._running = True
         logger.info("Agent loop started")
-        
+
         while self._running:
             try:
                 # Wait for next message
-                msg = await asyncio.wait_for(
-                    self.bus.consume_inbound(),
-                    timeout=1.0
-                )
-                
+                msg = await asyncio.wait_for(self.bus.consume_inbound(), timeout=1.0)
+
                 # Process it
                 try:
                     response = await self._process_message(msg)
@@ -285,27 +288,29 @@ class AgentLoop:
                     key = self._message_idempotency_key(msg)
                     if key:
                         error_metadata["idempotency_key"] = key
-                    await self.bus.publish_outbound(OutboundMessage(
-                        channel=msg.channel,
-                        chat_id=msg.chat_id,
-                        content=f"Sorry, I encountered an error: {str(e)}",
-                        metadata=error_metadata,
-                    ))
+                    await self.bus.publish_outbound(
+                        OutboundMessage(
+                            channel=msg.channel,
+                            chat_id=msg.chat_id,
+                            content=f"Sorry, I encountered an error: {str(e)}",
+                            metadata=error_metadata,
+                        )
+                    )
             except asyncio.TimeoutError:
                 continue
-    
+
     def stop(self) -> None:
         """Stop the agent loop."""
         self._running = False
         logger.info("Agent loop stopping")
-    
+
     async def _process_message(self, msg: InboundMessage) -> OutboundMessage | None:
         """
         Process a single inbound message.
-        
+
         Args:
             msg: The inbound message to process.
-        
+
         Returns:
             The response message, or None if no response needed.
         """
@@ -332,7 +337,7 @@ class AgentLoop:
             if previous_task_id:
                 self.runtime.mark_resumed(previous_task_id)
                 self.runtime.append_event(task_id, "resume_hint", previous_task_id)
-        
+
         try:
             logger.info(f"Processing message from {msg.channel}:{msg.sender_id}")
             self._log_user_message_to_daily_memory(msg)
@@ -349,25 +354,27 @@ class AgentLoop:
                         "silent" in flags and flags.intersection({"voice", "image", "sticker"})
                     )
                     self.runtime.append_event(task_id, "workflow_pack", pack_name)
-                    logger.info(f"Workflow pack '{pack_name}' requested by {msg.channel}:{msg.sender_id}")
-            
+                    logger.info(
+                        f"Workflow pack '{pack_name}' requested by {msg.channel}:{msg.sender_id}"
+                    )
+
             # Get or create session
             session = self.sessions.get_or_create(msg.session_key)
             self.runtime.append_event(task_id, "session_loaded", msg.session_key)
-            
+
             # Update tool contexts
             message_tool = self.tools.get("message")
             if isinstance(message_tool, MessageTool):
                 message_tool.set_context(msg.channel, msg.chat_id)
-            
+
             spawn_tool = self.tools.get("spawn")
             if isinstance(spawn_tool, SpawnTool):
                 spawn_tool.set_context(msg.channel, msg.chat_id)
-            
+
             cron_tool = self.tools.get("cron")
             if isinstance(cron_tool, CronTool):
                 cron_tool.set_context(msg.channel, msg.chat_id)
-            
+
             # Build initial messages (use get_history for LLM-formatted messages)
             messages = self.context.build_messages(
                 history=session.get_history(),
@@ -377,7 +384,7 @@ class AgentLoop:
                 channel=msg.channel,
                 chat_id=msg.chat_id,
             )
-            
+
             # Agent loop
             iteration = 0
             final_content = None
@@ -385,11 +392,11 @@ class AgentLoop:
             executed_tools: list[str] = []
             executed_tool_results: list[tuple[str, str]] = []
             approved_tools, approve_all = self._extract_approval_intent(msg.content)
-            
+
             while iteration < self.max_iterations:
                 iteration += 1
                 self.runtime.append_event(task_id, "llm_call", f"iteration={iteration}")
-                
+
                 # Call LLM
                 response, active_model = await self._chat_with_model_failover(
                     messages=messages,
@@ -398,7 +405,7 @@ class AgentLoop:
                 )
                 if active_model != self.model:
                     self.runtime.append_event(task_id, "llm_fallback_active_model", active_model)
-                
+
                 # Handle tool calls
                 if response.has_tool_calls:
                     used_tools = True
@@ -409,15 +416,15 @@ class AgentLoop:
                             "type": "function",
                             "function": {
                                 "name": tc.name,
-                                "arguments": json.dumps(tc.arguments)  # Must be JSON string
-                            }
+                                "arguments": json.dumps(tc.arguments),  # Must be JSON string
+                            },
                         }
                         for tc in response.tool_calls
                     ]
                     messages = self.context.add_assistant_message(
                         messages, response.content, tool_call_dicts
                     )
-                    
+
                     # Execute tools
                     for tool_call in response.tool_calls:
                         args_str = json.dumps(tool_call.arguments)
@@ -440,7 +447,7 @@ class AgentLoop:
                     # No tool calls, we're done
                     final_content = response.content
                     break
-            
+
             if final_content is None:
                 final_content = "I've completed processing but have no response to give."
 
@@ -459,13 +466,13 @@ class AgentLoop:
             if suppress_outbound:
                 log_content = "[silent delivery via message tool]"
             self._log_assistant_message_to_daily_memory(msg.channel, msg.chat_id, log_content)
-            
+
             # Save to session
             session.add_message("user", msg.content)
             session.add_message("assistant", log_content)
             self.sessions.save(session)
             self._maybe_write_session_summary(session)
-            
+
             self.runtime.complete(
                 task_id,
                 log_content,
@@ -493,7 +500,9 @@ class AgentLoop:
         """Append inbound user message to today's memory notes."""
         self._append_daily_memory_entry(msg.channel, msg.sender_id, msg.content)
 
-    def _log_assistant_message_to_daily_memory(self, channel: str, chat_id: str, content: str) -> None:
+    def _log_assistant_message_to_daily_memory(
+        self, channel: str, chat_id: str, content: str
+    ) -> None:
         """Append assistant reply to today's memory notes."""
         self._append_daily_memory_entry(channel, f"assistant@{chat_id}", content)
 
@@ -514,16 +523,16 @@ class AgentLoop:
             self.context.memory.append_today(entry)
         except Exception as e:
             logger.warning(f"Failed to append daily memory: {e}")
-    
+
     async def _process_system_message(self, msg: InboundMessage) -> OutboundMessage | None:
         """
         Process a system message (e.g., subagent announce).
-        
+
         The chat_id field contains "original_channel:original_chat_id" to route
         the response back to the correct destination.
         """
         logger.info(f"Processing system message from {msg.sender_id}")
-        
+
         # Parse origin from chat_id (format: "channel:chat_id")
         if ":" in msg.chat_id:
             parts = msg.chat_id.split(":", 1)
@@ -533,24 +542,24 @@ class AgentLoop:
             # Fallback
             origin_channel = "cli"
             origin_chat_id = msg.chat_id
-        
+
         # Use the origin session for context
         session_key = f"{origin_channel}:{origin_chat_id}"
         session = self.sessions.get_or_create(session_key)
-        
+
         # Update tool contexts
         message_tool = self.tools.get("message")
         if isinstance(message_tool, MessageTool):
             message_tool.set_context(origin_channel, origin_chat_id)
-        
+
         spawn_tool = self.tools.get("spawn")
         if isinstance(spawn_tool, SpawnTool):
             spawn_tool.set_context(origin_channel, origin_chat_id)
-        
+
         cron_tool = self.tools.get("cron")
         if isinstance(cron_tool, CronTool):
             cron_tool.set_context(origin_channel, origin_chat_id)
-        
+
         # Build messages with the announce content
         messages = self.context.build_messages(
             history=session.get_history(),
@@ -559,39 +568,36 @@ class AgentLoop:
             channel=origin_channel,
             chat_id=origin_chat_id,
         )
-        
+
         # Agent loop (limited for announce handling)
         iteration = 0
         final_content = None
         used_tools = False
         approved_tools: set[str] = set()
         approve_all = False
-        
+
         while iteration < self.max_iterations:
             iteration += 1
-            
+
             response, _ = await self._chat_with_model_failover(
                 messages=messages,
                 tools=self.tools.get_definitions(),
             )
-            
+
             if response.has_tool_calls:
                 used_tools = True
                 tool_call_dicts = [
                     {
                         "id": tc.id,
                         "type": "function",
-                        "function": {
-                            "name": tc.name,
-                            "arguments": json.dumps(tc.arguments)
-                        }
+                        "function": {"name": tc.name, "arguments": json.dumps(tc.arguments)},
                     }
                     for tc in response.tool_calls
                 ]
                 messages = self.context.add_assistant_message(
                     messages, response.content, tool_call_dicts
                 )
-                
+
                 for tool_call in response.tool_calls:
                     args_str = json.dumps(tool_call.arguments)
                     logger.debug(f"Executing tool: {tool_call.name} with arguments: {args_str}")
@@ -609,7 +615,7 @@ class AgentLoop:
             else:
                 final_content = response.content
                 break
-        
+
         if final_content is None:
             final_content = "Background task completed."
 
@@ -617,19 +623,17 @@ class AgentLoop:
             final_content = await self._reflect_response(msg.content, final_content)
         final_content = self._enforce_memory_truth(final_content)
         self._log_assistant_message_to_daily_memory(origin_channel, origin_chat_id, final_content)
-        
+
         # Save to session (mark as system message in history)
         session.add_message("user", f"[System: {msg.sender_id}] {msg.content}")
         session.add_message("assistant", final_content)
         self.sessions.save(session)
         self._maybe_write_session_summary(session)
-        
+
         return OutboundMessage(
-            channel=origin_channel,
-            chat_id=origin_chat_id,
-            content=final_content
+            channel=origin_channel, chat_id=origin_chat_id, content=final_content
         )
-    
+
     async def process_direct(
         self,
         content: str,
@@ -641,7 +645,7 @@ class AgentLoop:
     ) -> str:
         """
         Process a message directly (for CLI or cron usage).
-        
+
         Args:
             content: The message content.
             session_key: Session identifier.
@@ -649,7 +653,7 @@ class AgentLoop:
             chat_id: Source chat ID (for context).
             sender_id: Sender identifier used for policy checks.
             metadata: Optional channel metadata/attachments envelope.
-        
+
         Returns:
             The agent's response.
         """
@@ -660,7 +664,7 @@ class AgentLoop:
             content=content,
             metadata=metadata or {},
         )
-        
+
         response = await self._process_message(msg)
         return response.content if response else ""
 
@@ -704,7 +708,13 @@ class AgentLoop:
             return False
         if any(
             marker in text
-            for marker in ("jangan ingat", "jgn ingat", "jangan simpan", "do not remember", "don't remember")
+            for marker in (
+                "jangan ingat",
+                "jgn ingat",
+                "jangan simpan",
+                "do not remember",
+                "don't remember",
+            )
         ):
             return False
 
@@ -744,7 +754,9 @@ class AgentLoop:
             return fact[:500].rstrip() + "..."
         return fact
 
-    async def _auto_remember_if_requested(self, user_content: str, executed_tools: list[str]) -> str | None:
+    async def _auto_remember_if_requested(
+        self, user_content: str, executed_tools: list[str]
+    ) -> str | None:
         """Auto-save memory for explicit remember requests when model skipped memory tools."""
         if "remember" in executed_tools or "update_profile" in executed_tools:
             return None
@@ -759,7 +771,10 @@ class AgentLoop:
             result = await self.tools.execute("remember", {"fact": fact, "category": "user"})
             if not isinstance(result, str):
                 return None
-            if "saved to long-term memory" in result.lower() or "long-term memory" in result.lower():
+            if (
+                "saved to long-term memory" in result.lower()
+                or "long-term memory" in result.lower()
+            ):
                 logger.info("Auto-remember saved durable fact from explicit user request")
                 return f"✅ {result}"
             return None
@@ -789,7 +804,8 @@ class AgentLoop:
             return text
 
         profile_saved = any(
-            name == "update_profile" and ("updated profile" in result.lower() or "profile." in result.lower())
+            name == "update_profile"
+            and ("updated profile" in result.lower() or "profile." in result.lower())
             for name, result in tool_results
         )
         memory_saved = any(
@@ -825,8 +841,7 @@ class AgentLoop:
         if not message_results:
             return False
         return any(
-            not str(result).strip().lower().startswith("error")
-            for result in message_results
+            not str(result).strip().lower().startswith("error") for result in message_results
         )
 
     def _extract_approval_intent(self, text: str) -> tuple[set[str], bool]:
@@ -847,7 +862,9 @@ class AgentLoop:
         names = {item.strip() for item in chunks if item.strip() and item.strip() not in skip}
         return names, False
 
-    def _message_idempotency_key(self, msg: InboundMessage, fallback: str | None = None) -> str | None:
+    def _message_idempotency_key(
+        self, msg: InboundMessage, fallback: str | None = None
+    ) -> str | None:
         """Build stable idempotency key from inbound metadata if available."""
         metadata = msg.metadata if isinstance(msg.metadata, dict) else {}
         message_id = metadata.get("message_id")
@@ -1046,9 +1063,13 @@ class AgentLoop:
                 last_exception = exc
                 if index < len(self.model_chain) - 1 and self._should_failover_model(str(exc)):
                     next_model = self.model_chain[index + 1]
-                    logger.warning(f"LLM call failed on {model_name}; retrying with fallback {next_model}")
+                    logger.warning(
+                        f"LLM call failed on {model_name}; retrying with fallback {next_model}"
+                    )
                     if task_id:
-                        self.runtime.append_event(task_id, "llm_model_fallback", f"{model_name}->{next_model}")
+                        self.runtime.append_event(
+                            task_id, "llm_model_fallback", f"{model_name}->{next_model}"
+                        )
                     continue
                 raise
 
@@ -1064,9 +1085,13 @@ class AgentLoop:
                 last_error_response = response
                 if index < len(self.model_chain) - 1 and self._should_failover_model(error_text):
                     next_model = self.model_chain[index + 1]
-                    logger.warning(f"LLM response error on {model_name}; retrying with fallback {next_model}")
+                    logger.warning(
+                        f"LLM response error on {model_name}; retrying with fallback {next_model}"
+                    )
                     if task_id:
-                        self.runtime.append_event(task_id, "llm_model_fallback", f"{model_name}->{next_model}")
+                        self.runtime.append_event(
+                            task_id, "llm_model_fallback", f"{model_name}->{next_model}"
+                        )
                     continue
                 return response, model_name
 
@@ -1197,8 +1222,17 @@ class AgentLoop:
 
         text = (user_content or "").lower()
         complex_keywords = (
-            "plan", "roadmap", "step", "debug", "error", "fix", "why",
-            "compare", "analyze", "implement", "design",
+            "plan",
+            "roadmap",
+            "step",
+            "debug",
+            "error",
+            "fix",
+            "why",
+            "compare",
+            "analyze",
+            "implement",
+            "design",
         )
         is_complex = len(text) >= 120 or any(k in text for k in complex_keywords)
         return used_tools or is_complex
@@ -1252,7 +1286,7 @@ class AgentLoop:
 
     def _build_session_summary(self, session: Session, max_pairs: int = 4) -> str:
         """Build a compact heuristic summary from recent session turns."""
-        recent = session.messages[-max_pairs * 2:]
+        recent = session.messages[-max_pairs * 2 :]
         user_items: list[str] = []
         assistant_items: list[str] = []
 

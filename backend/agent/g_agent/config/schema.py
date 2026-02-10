@@ -15,6 +15,7 @@ def _default_workspace() -> str:
 
 class WhatsAppConfig(BaseModel):
     """WhatsApp channel configuration."""
+
     enabled: bool = False
     bridge_url: str = "ws://localhost:3001"
     allow_from: list[str] = Field(default_factory=list)  # Allowed phone numbers
@@ -22,14 +23,18 @@ class WhatsAppConfig(BaseModel):
 
 class TelegramConfig(BaseModel):
     """Telegram channel configuration."""
+
     enabled: bool = False
     token: str = ""  # Bot token from @BotFather
     allow_from: list[str] = Field(default_factory=list)  # Allowed user IDs or usernames
-    proxy: str | None = None  # HTTP/SOCKS5 proxy URL, e.g. "http://127.0.0.1:7890" or "socks5://127.0.0.1:1080"
+    proxy: str | None = (
+        None  # HTTP/SOCKS5 proxy URL, e.g. "http://127.0.0.1:7890" or "socks5://127.0.0.1:1080"
+    )
 
 
 class FeishuConfig(BaseModel):
     """Feishu/Lark channel configuration using WebSocket long connection."""
+
     enabled: bool = False
     app_id: str = ""  # App ID from Feishu Open Platform
     app_secret: str = ""  # App Secret from Feishu Open Platform
@@ -40,6 +45,7 @@ class FeishuConfig(BaseModel):
 
 class DiscordConfig(BaseModel):
     """Discord channel configuration."""
+
     enabled: bool = False
     token: str = ""  # Bot token from Discord Developer Portal
     allow_from: list[str] = Field(default_factory=list)  # Allowed user IDs
@@ -47,12 +53,71 @@ class DiscordConfig(BaseModel):
     intents: int = 37377  # GUILDS + GUILD_MESSAGES + DIRECT_MESSAGES + MESSAGE_CONTENT
 
 
+class EmailConfig(BaseModel):
+    """Email channel configuration (IMAP inbound + SMTP outbound)."""
+
+    enabled: bool = False
+    consent_granted: bool = False  # Explicit owner permission to access mailbox data
+
+    # IMAP (receive)
+    imap_host: str = ""
+    imap_port: int = 993
+    imap_username: str = ""
+    imap_password: str = ""
+    imap_mailbox: str = "INBOX"
+    imap_use_ssl: bool = True
+
+    # SMTP (send)
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_use_tls: bool = True
+    smtp_use_ssl: bool = False
+    from_address: str = ""
+
+    # Behavior
+    auto_reply_enabled: bool = (
+        True  # If false, inbound email is read but no automatic reply is sent
+    )
+    poll_interval_seconds: int = 30
+    mark_seen: bool = True
+    max_body_chars: int = 12000
+    subject_prefix: str = "Re: "
+    allow_from: list[str] = Field(default_factory=list)  # Allowed sender email addresses
+
+
+class SlackDMConfig(BaseModel):
+    """Slack DM policy configuration."""
+
+    enabled: bool = True
+    policy: str = "open"  # "open" or "allowlist"
+    allow_from: list[str] = Field(default_factory=list)  # Allowed Slack user IDs
+
+
+class SlackChannelConfig(BaseModel):
+    """Slack channel configuration (Socket Mode — bidirectional channel, not webhook)."""
+
+    enabled: bool = False
+    mode: str = "socket"  # "socket" supported
+    webhook_path: str = "/slack/events"
+    bot_token: str = ""  # xoxb-...
+    app_token: str = ""  # xapp-...
+    user_token_read_only: bool = True
+    group_policy: str = "mention"  # "mention", "open", "allowlist"
+    group_allow_from: list[str] = Field(default_factory=list)  # Allowed channel IDs if allowlist
+    dm: SlackDMConfig = Field(default_factory=SlackDMConfig)
+
+
 class ChannelsConfig(BaseModel):
     """Configuration for chat channels."""
+
     whatsapp: WhatsAppConfig = Field(default_factory=WhatsAppConfig)
     telegram: TelegramConfig = Field(default_factory=TelegramConfig)
     discord: DiscordConfig = Field(default_factory=DiscordConfig)
     feishu: FeishuConfig = Field(default_factory=FeishuConfig)
+    email: EmailConfig = Field(default_factory=EmailConfig)
+    slack_channel: SlackChannelConfig = Field(default_factory=SlackChannelConfig)
 
 
 class RoutingConfig(BaseModel):
@@ -76,6 +141,7 @@ class LLMRoute(BaseModel):
 
 class AgentDefaults(BaseModel):
     """Default agent configuration."""
+
     workspace: str = Field(default_factory=_default_workspace)
     model: str = "anthropic/claude-opus-4-5"
     max_tokens: int = 8192
@@ -88,17 +154,21 @@ class AgentDefaults(BaseModel):
 
 class AgentsConfig(BaseModel):
     """Agent configuration."""
+
     defaults: AgentDefaults = Field(default_factory=AgentDefaults)
 
 
 class ProviderConfig(BaseModel):
     """LLM provider configuration."""
+
     api_key: str = ""
     api_base: str | None = None
+    extra_headers: dict[str, str] | None = None  # Custom headers (e.g. APP-Code for AiHubMix)
 
 
 class ProvidersConfig(BaseModel):
     """Configuration for LLM providers."""
+
     anthropic: ProviderConfig = Field(default_factory=ProviderConfig)
     openai: ProviderConfig = Field(default_factory=ProviderConfig)
     openrouter: ProviderConfig = Field(default_factory=ProviderConfig)
@@ -108,16 +178,22 @@ class ProvidersConfig(BaseModel):
     vllm: ProviderConfig = Field(default_factory=ProviderConfig)
     gemini: ProviderConfig = Field(default_factory=ProviderConfig)
     moonshot: ProviderConfig = Field(default_factory=ProviderConfig)
+    dashscope: ProviderConfig = Field(
+        default_factory=ProviderConfig
+    )  # Alibaba Cloud Tongyi Qianwen
+    aihubmix: ProviderConfig = Field(default_factory=ProviderConfig)  # AiHubMix API gateway
     proxy: ProviderConfig = Field(default_factory=ProviderConfig)
 
 
 class SlackConfig(BaseModel):
     """Slack integration via Incoming Webhook."""
+
     webhook_url: str = ""
 
 
 class SMTPConfig(BaseModel):
     """SMTP integration config for email sending."""
+
     host: str = ""
     port: int = 587
     username: str = ""
@@ -128,6 +204,7 @@ class SMTPConfig(BaseModel):
 
 class GoogleWorkspaceConfig(BaseModel):
     """Google Workspace integration config."""
+
     client_id: str = ""
     client_secret: str = ""
     refresh_token: str = ""
@@ -137,6 +214,7 @@ class GoogleWorkspaceConfig(BaseModel):
 
 class IntegrationsConfig(BaseModel):
     """Optional integrations configuration."""
+
     slack: SlackConfig = Field(default_factory=SlackConfig)
     smtp: SMTPConfig = Field(default_factory=SMTPConfig)
     google: GoogleWorkspaceConfig = Field(default_factory=GoogleWorkspaceConfig)
@@ -144,6 +222,7 @@ class IntegrationsConfig(BaseModel):
 
 class QuietHoursConfig(BaseModel):
     """Quiet hours policy for proactive delivery."""
+
     enabled: bool = False
     start: str = "22:00"
     end: str = "06:00"
@@ -152,6 +231,7 @@ class QuietHoursConfig(BaseModel):
 
 class ProactiveConfig(BaseModel):
     """Proactive runtime behavior."""
+
     quiet_hours: QuietHoursConfig = Field(default_factory=QuietHoursConfig)
     calendar_watch_enabled: bool = True
     calendar_watch_every_minutes: int = 15
@@ -161,23 +241,27 @@ class ProactiveConfig(BaseModel):
 
 class GatewayConfig(BaseModel):
     """Gateway/server configuration."""
+
     host: str = "0.0.0.0"
     port: int = 18790
 
 
 class WebSearchConfig(BaseModel):
     """Web search tool configuration."""
+
     api_key: str = ""  # Brave Search API key
     max_results: int = 5
 
 
 class WebToolsConfig(BaseModel):
     """Web tools configuration."""
+
     search: WebSearchConfig = Field(default_factory=WebSearchConfig)
 
 
 class BrowserToolsConfig(BaseModel):
     """Browser tool safety configuration."""
+
     allow_domains: list[str] = Field(default_factory=list)
     deny_domains: list[str] = Field(
         default_factory=lambda: [
@@ -195,24 +279,33 @@ class BrowserToolsConfig(BaseModel):
 
 class ExecToolConfig(BaseModel):
     """Shell exec tool configuration."""
+
     timeout: int = 60
 
 
 class ToolsConfig(BaseModel):
     """Tools configuration."""
+
     web: WebToolsConfig = Field(default_factory=WebToolsConfig)
     browser: BrowserToolsConfig = Field(default_factory=BrowserToolsConfig)
     exec: ExecToolConfig = Field(default_factory=ExecToolConfig)
     restrict_to_workspace: bool = False  # If true, restrict all tool access to workspace directory
     policy: dict[str, str] = Field(default_factory=dict)  # tool_name -> allow|ask|deny
     risky_tools: list[str] = Field(
-        default_factory=lambda: ["exec", "send_email", "gmail_send", "slack_webhook_send", "message"]
+        default_factory=lambda: [
+            "exec",
+            "send_email",
+            "gmail_send",
+            "slack_webhook_send",
+            "message",
+        ]
     )
     approval_mode: str = "off"  # off|confirm
 
 
 class Config(BaseSettings):
     """Root configuration for Galyarder Agent."""
+
     agents: AgentsConfig = Field(default_factory=AgentsConfig)
     channels: ChannelsConfig = Field(default_factory=ChannelsConfig)
     providers: ProvidersConfig = Field(default_factory=ProvidersConfig)
@@ -237,9 +330,42 @@ class Config(BaseSettings):
             "zhipu": self.providers.zhipu,
             "groq": self.providers.groq,
             "moonshot": self.providers.moonshot,
+            "dashscope": self.providers.dashscope,
+            "aihubmix": self.providers.aihubmix,
             "vllm": self.providers.vllm,
             "proxy": self.providers.proxy,
         }
+
+    def _match_provider(
+        self, model: str | None = None
+    ) -> tuple["ProviderConfig | None", str | None]:
+        """Match provider config and its registry name using ProviderSpec registry."""
+        from g_agent.providers.registry import PROVIDERS
+
+        model_lower = (model or self.agents.defaults.model).lower()
+
+        # Match by keyword (order follows PROVIDERS registry)
+        for spec in PROVIDERS:
+            p = getattr(self.providers, spec.name, None)
+            if p and any(kw in model_lower for kw in spec.keywords) and p.api_key:
+                return p, spec.name
+
+        # Fallback: gateways first, then others (follows registry order)
+        for spec in PROVIDERS:
+            p = getattr(self.providers, spec.name, None)
+            if p and p.api_key:
+                return p, spec.name
+        return None, None
+
+    def get_provider(self, model: str | None = None) -> ProviderConfig | None:
+        """Get matched provider config (api_key, api_base, extra_headers)."""
+        p, _ = self._match_provider(model)
+        return p
+
+    def get_provider_name(self, model: str | None = None) -> str | None:
+        """Get the registry name of the matched provider."""
+        _, name = self._match_provider(model)
+        return name
 
     def _routing_mode(self) -> str:
         """Normalize routing mode value."""
@@ -268,6 +394,10 @@ class Config(BaseSettings):
             hints.append("groq")
         if lowered.startswith(("moonshot/",)):
             hints.append("moonshot")
+        if lowered.startswith(("dashscope/", "qwen/")):
+            hints.append("dashscope")
+        if lowered.startswith(("aihubmix/",)):
+            hints.append("aihubmix")
         if lowered.startswith(("vllm/", "hosted_vllm/")):
             hints.append("vllm")
 
@@ -285,6 +415,10 @@ class Config(BaseSettings):
             "groq": "groq",
             "moonshot": "moonshot",
             "kimi": "moonshot",
+            "dashscope": "dashscope",
+            "qwen": "dashscope",
+            "tongyi": "dashscope",
+            "aihubmix": "aihubmix",
             "vllm": "vllm",
             "hosted_vllm": "vllm",
             "proxy": "proxy",
@@ -308,6 +442,9 @@ class Config(BaseSettings):
             ("zai/", "zhipu"),
             ("groq/", "groq"),
             ("moonshot/", "moonshot"),
+            ("dashscope/", "dashscope"),
+            ("qwen/", "dashscope"),
+            ("aihubmix/", "aihubmix"),
             ("vllm/", "vllm"),
             ("hosted_vllm/", "vllm"),
             ("proxy/", "proxy"),
@@ -349,6 +486,8 @@ class Config(BaseSettings):
             "gemini",
             "zhipu",
             "moonshot",
+            "dashscope",
+            "aihubmix",
             "groq",
         )
         hints = self._model_provider_hints(model) if model else ()
@@ -371,7 +510,9 @@ class Config(BaseSettings):
         return provider_cfg.api_base
 
     def _resolve_proxy_route(
-        self, selected_model: str, fallback_models: list[str],
+        self,
+        selected_model: str,
+        fallback_models: list[str],
     ) -> LLMRoute:
         """Build LLMRoute for the configured proxy provider."""
         providers = self._provider_map()
@@ -484,10 +625,14 @@ class Config(BaseSettings):
             return route.api_key
         # Fallback: return first available key
         for provider in [
-            self.providers.openrouter, self.providers.deepseek,
-            self.providers.anthropic, self.providers.openai,
-            self.providers.gemini, self.providers.zhipu,
-            self.providers.moonshot, self.providers.vllm,
+            self.providers.openrouter,
+            self.providers.deepseek,
+            self.providers.anthropic,
+            self.providers.openai,
+            self.providers.gemini,
+            self.providers.zhipu,
+            self.providers.moonshot,
+            self.providers.vllm,
             self.providers.groq,
         ]:
             if provider.api_key:

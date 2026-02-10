@@ -1,11 +1,11 @@
 """Message tool for sending messages to users."""
 
-from datetime import datetime
-from pathlib import Path
 import shutil
 import subprocess
 import textwrap
-from typing import Any, Callable, Awaitable
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Awaitable, Callable
 
 from g_agent.agent.tools.base import Tool
 from g_agent.bus.events import OutboundMessage
@@ -29,9 +29,9 @@ def _infer_media_type(media_path: str, explicit_type: str | None = None) -> str:
 
 class MessageTool(Tool):
     """Tool to send messages to users on chat channels."""
-    
+
     def __init__(
-        self, 
+        self,
         send_callback: Callable[[OutboundMessage], Awaitable[None]] | None = None,
         default_channel: str = "",
         default_chat_id: str = "",
@@ -41,75 +41,69 @@ class MessageTool(Tool):
         self._default_channel = default_channel
         self._default_chat_id = default_chat_id
         self._workspace = workspace.expanduser().resolve() if workspace else None
-    
+
     def set_context(self, channel: str, chat_id: str) -> None:
         """Set the current message context."""
         self._default_channel = channel
         self._default_chat_id = chat_id
-    
+
     def set_send_callback(self, callback: Callable[[OutboundMessage], Awaitable[None]]) -> None:
         """Set the callback for sending messages."""
         self._send_callback = callback
-    
+
     @property
     def name(self) -> str:
         return "message"
-    
+
     @property
     def description(self) -> str:
         return (
             "Send a message to the user. Supports plain text or media payloads "
             "(image/voice/audio/sticker/document)."
         )
-    
+
     @property
     def parameters(self) -> dict[str, Any]:
         return {
             "type": "object",
             "properties": {
-                "content": {
-                    "type": "string",
-                    "description": "The message content to send"
-                },
+                "content": {"type": "string", "description": "The message content to send"},
                 "channel": {
                     "type": "string",
-                    "description": "Optional: target channel (telegram, discord, etc.)"
+                    "description": "Optional: target channel (telegram, discord, etc.)",
                 },
-                "chat_id": {
-                    "type": "string",
-                    "description": "Optional: target chat/user ID"
-                },
+                "chat_id": {"type": "string", "description": "Optional: target chat/user ID"},
                 "media_path": {
                     "type": "string",
-                    "description": "Optional local file path for media payload."
+                    "description": "Optional local file path for media payload.",
                 },
                 "media_type": {
                     "type": "string",
                     "enum": ["image", "voice", "audio", "sticker", "document"],
-                    "description": "Optional media type. If omitted, inferred from file extension."
+                    "description": "Optional media type. If omitted, inferred from file extension.",
                 },
                 "mime_type": {
                     "type": "string",
-                    "description": "Optional MIME type for media payload."
+                    "description": "Optional MIME type for media payload.",
                 },
                 "caption": {
                     "type": "string",
-                    "description": "Optional caption (defaults to content when present)."
+                    "description": "Optional caption (defaults to content when present).",
                 },
             },
-            "required": []
+            "required": [],
         }
-    
+
     async def execute(
-        self, 
-        content: str | None = None, 
-        channel: str | None = None, 
+        self,
+        content: str | None = None,
+        channel: str | None = None,
         chat_id: str | None = None,
         media_path: str | None = None,
         media_type: str | None = None,
         mime_type: str | None = None,
         caption: str | None = None,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> str:
         content_text = (content or "").strip()
         media_path_text = (media_path or "").strip()
@@ -166,13 +160,13 @@ class MessageTool(Tool):
                     )
         channel = channel or self._default_channel
         chat_id = chat_id or self._default_chat_id
-        
+
         if not channel or not chat_id:
             return "Error: No target channel/chat specified"
-        
+
         if not self._send_callback:
             return "Error: Message sending not configured"
-        
+
         metadata: dict[str, Any] = {}
         media_items: list[str] = []
         if media_path_text:
@@ -195,7 +189,7 @@ class MessageTool(Tool):
             media=media_items,
             metadata=metadata,
         )
-        
+
         try:
             await self._send_callback(msg)
             if media_items:

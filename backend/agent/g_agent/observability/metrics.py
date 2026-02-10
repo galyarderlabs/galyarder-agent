@@ -292,7 +292,9 @@ class MetricsStore:
             "cron_latency_p95_ms": cron["latency_ms_p95"],
             "cron_proactive_runs": cron["proactive_runs"],
         }
-        for index, item in enumerate(tools.get("top_tools", [])[:max(0, int(top_n_tools))], start=1):
+        for index, item in enumerate(
+            tools.get("top_tools", [])[: max(0, int(top_n_tools))], start=1
+        ):
             summary[f"top_tool_{index}_name"] = item.get("tool", "")
             summary[f"top_tool_{index}_calls"] = int(item.get("calls", 0))
             summary[f"top_tool_{index}_errors"] = int(item.get("errors", 0))
@@ -547,7 +549,9 @@ class MetricsStore:
         if dry_run:
             return result
 
-        serialized = "".join(json.dumps(event, ensure_ascii=False) + "\n" for event in retained_events)
+        serialized = "".join(
+            json.dumps(event, ensure_ascii=False) + "\n" for event in retained_events
+        )
         tmp_path = self.events_path.with_name(f"{self.events_path.name}.tmp")
         try:
             tmp_path.write_text(serialized, encoding="utf-8")
@@ -583,17 +587,23 @@ class MetricsStore:
         if fmt == "prometheus":
             content = self.prometheus_text(hours=hours)
         elif fmt == "dashboard_json":
-            content = json.dumps(
-                self.dashboard_summary(hours=hours),
-                indent=2,
-                ensure_ascii=False,
-            ) + "\n"
+            content = (
+                json.dumps(
+                    self.dashboard_summary(hours=hours),
+                    indent=2,
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
         elif fmt == "json":
-            content = json.dumps(
-                self.snapshot(hours=hours),
-                indent=2,
-                ensure_ascii=False,
-            ) + "\n"
+            content = (
+                json.dumps(
+                    self.snapshot(hours=hours),
+                    indent=2,
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
         else:
             return {"ok": False, "error": f"Unknown output format: {output_format}"}
 

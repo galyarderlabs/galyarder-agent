@@ -33,7 +33,9 @@ def _path_mode(path: Path) -> int | None:
         return None
 
 
-def _permission_level(path: Path, expected_max_mode: int, missing_level: str = "warn") -> tuple[str, str]:
+def _permission_level(
+    path: Path, expected_max_mode: int, missing_level: str = "warn"
+) -> tuple[str, str]:
     mode_value = _path_mode(path)
     if mode_value is None:
         return missing_level, f"{path} (missing)"
@@ -101,7 +103,9 @@ def run_security_audit(
 ) -> dict[str, Any]:
     """Run practical baseline security checks."""
     checks: list[dict[str, str]] = []
-    root_mode = bool(is_root) if is_root is not None else hasattr(os, "geteuid") and os.geteuid() == 0
+    root_mode = (
+        bool(is_root) if is_root is not None else hasattr(os, "geteuid") and os.geteuid() == 0
+    )
 
     if config.tools.restrict_to_workspace:
         checks.append(
@@ -150,7 +154,9 @@ def run_security_audit(
         )
     )
 
-    data_level, data_detail = _permission_level(data_dir, expected_max_mode=0o700, missing_level="fail")
+    data_level, data_detail = _permission_level(
+        data_dir, expected_max_mode=0o700, missing_level="fail"
+    )
     checks.append(
         _make_check(
             "Data directory permissions",
@@ -160,7 +166,9 @@ def run_security_audit(
         )
     )
 
-    config_level, config_detail = _permission_level(config_path, expected_max_mode=0o600, missing_level="fail")
+    config_level, config_detail = _permission_level(
+        config_path, expected_max_mode=0o600, missing_level="fail"
+    )
     checks.append(
         _make_check(
             "Config file permissions",
@@ -171,7 +179,9 @@ def run_security_audit(
     )
 
     wa_auth_dir = data_dir / "whatsapp-auth"
-    wa_level, wa_detail = _permission_level(wa_auth_dir, expected_max_mode=0o700, missing_level="warn")
+    wa_level, wa_detail = _permission_level(
+        wa_auth_dir, expected_max_mode=0o700, missing_level="warn"
+    )
     if config.channels.whatsapp.enabled and not wa_auth_dir.exists():
         wa_level = "warn"
         wa_detail = f"{wa_auth_dir} (missing)"

@@ -122,7 +122,9 @@ def test_agent_loop_writes_error_checkpoint(tmp_path: Path, monkeypatch: pytest.
     assert "provider failed" in checkpoint["error"]
 
 
-def test_agent_loop_marks_previous_running_as_resumed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def test_agent_loop_marks_previous_running_as_resumed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     monkeypatch.setenv("G_AGENT_DATA_DIR", str(tmp_path / "data"))
     store = TaskCheckpointStore(tmp_path)
     old_task_id = store.start(

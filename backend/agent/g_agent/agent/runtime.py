@@ -1,4 +1,5 @@
 """Runtime checkpoint storage for agent task execution."""
+
 from __future__ import annotations
 
 import json

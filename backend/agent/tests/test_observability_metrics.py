@@ -49,7 +49,9 @@ def test_metrics_store_snapshot(tmp_path: Path):
     store.record_llm_call(model="gemini", success=True, latency_ms=800)
     store.record_llm_call(model="gemini", success=False, latency_ms=1200, error="timeout")
     store.record_tool_call(tool="web_search", success=True, latency_ms=300, attempts=1)
-    store.record_tool_call(tool="web_search", success=False, latency_ms=900, attempts=2, error="429")
+    store.record_tool_call(
+        tool="web_search", success=False, latency_ms=900, attempts=2, error="429"
+    )
     store.record_recall(query="timezone", hits=1)
     store.record_recall(query="random", hits=0)
     store.record_cron_run(
@@ -120,7 +122,9 @@ def test_agent_and_recall_record_metrics(tmp_path: Path, monkeypatch):
 def test_metrics_store_dashboard_and_export(tmp_path: Path):
     store = MetricsStore(tmp_path / "events.jsonl")
     store.record_llm_call(model="gemini-3", success=True, latency_ms=450)
-    store.record_tool_call(tool='web_search"prod"', success=False, latency_ms=700, attempts=2, error="429")
+    store.record_tool_call(
+        tool='web_search"prod"', success=False, latency_ms=700, attempts=2, error="429"
+    )
     store.record_recall(query="timezone", hits=2)
     store.record_cron_run(
         name="daily-digest",
@@ -158,7 +162,7 @@ def test_metrics_store_dashboard_and_export(tmp_path: Path):
     assert result_prom["format"] == "prometheus"
     prom_text = prom_path.read_text(encoding="utf-8")
     assert "g_agent_llm_calls_total 1" in prom_text
-    assert "g_agent_top_tool_calls{tool=\"web_search\\\"prod\\\"\"} 1" in prom_text
+    assert 'g_agent_top_tool_calls{tool="web_search\\"prod\\""} 1' in prom_text
 
 
 def test_metrics_store_export_rejects_unknown_format(tmp_path: Path):

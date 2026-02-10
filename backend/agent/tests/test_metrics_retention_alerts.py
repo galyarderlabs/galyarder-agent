@@ -18,11 +18,9 @@ def test_prune_events_applies_retention_and_cap(tmp_path: Path):
     old_ts = (now - timedelta(hours=48)).isoformat()
     fresh_ts = (now - timedelta(hours=1)).isoformat()
     events = [
-        {"type": "llm_call", "success": True, "latency_ms": 100, "ts": old_ts}
-        for _ in range(5)
+        {"type": "llm_call", "success": True, "latency_ms": 100, "ts": old_ts} for _ in range(5)
     ] + [
-        {"type": "tool_call", "success": True, "latency_ms": 200, "ts": fresh_ts}
-        for _ in range(5)
+        {"type": "tool_call", "success": True, "latency_ms": 200, "ts": fresh_ts} for _ in range(5)
     ]
     _write_events(events_path, events)
 

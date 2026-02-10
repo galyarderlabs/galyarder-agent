@@ -43,7 +43,9 @@ def test_message_tool_accepts_media_without_text(tmp_path: Path):
     voice_file = tmp_path / "clip.ogg"
     voice_file.write_bytes(b"voice")
 
-    tool = MessageTool(send_callback=_send, default_channel="whatsapp", default_chat_id="62811@s.whatsapp.net")
+    tool = MessageTool(
+        send_callback=_send, default_channel="whatsapp", default_chat_id="62811@s.whatsapp.net"
+    )
     result = asyncio.run(
         tool.execute(
             media_path=str(voice_file),

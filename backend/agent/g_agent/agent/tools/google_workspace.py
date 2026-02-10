@@ -395,7 +395,7 @@ class GmailDraftTool(Tool):
         )
         if not ok:
             return f"Error: {data.get('error', data)}"
-        draft_id = (data.get("id") or data.get("draft", {}).get("id") or "unknown")
+        draft_id = data.get("id") or data.get("draft", {}).get("id") or "unknown"
         return f"Gmail draft created (id: {draft_id})"
 
 
@@ -749,7 +749,9 @@ class DocsGetDocumentTool(Tool):
     def __init__(self, client: GoogleWorkspaceClient):
         self.client = client
 
-    async def execute(self, documentId: str | None = None, maxChars: int = 8000, **kwargs: Any) -> str:
+    async def execute(
+        self, documentId: str | None = None, maxChars: int = 8000, **kwargs: Any
+    ) -> str:
         document_id = (documentId or "").strip()
         if not document_id:
             return "Error: documentId is required."
@@ -967,9 +969,7 @@ def _format_person_line(person: dict[str, Any]) -> str:
     display_name = "(no name)"
     if names and isinstance(names[0], dict):
         display_name = str(
-            names[0].get("displayName")
-            or names[0].get("unstructuredName")
-            or "(no name)"
+            names[0].get("displayName") or names[0].get("unstructuredName") or "(no name)"
         )
 
     email = ""

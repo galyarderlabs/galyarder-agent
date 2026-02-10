@@ -12,7 +12,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from g_agent import __version__, __logo__, __brand__
+from g_agent import __brand__, __logo__, __version__
 
 app = typer.Typer(
     name="g-agent",
@@ -31,9 +31,7 @@ def version_callback(value: bool):
 
 @app.callback()
 def main(
-    version: bool = typer.Option(
-        None, "--version", "-v", callback=version_callback, is_eager=True
-    ),
+    version: bool = typer.Option(None, "--version", "-v", callback=version_callback, is_eager=True),
 ):
     """g-agent - Personal AI Assistant."""
     pass
@@ -50,34 +48,32 @@ def onboard():
     from g_agent.config.loader import get_config_path, save_config
     from g_agent.config.schema import Config
     from g_agent.utils.helpers import get_workspace_path
-    
+
     config_path = get_config_path()
-    
+
     if config_path.exists():
         console.print(f"[yellow]Config already exists at {config_path}[/yellow]")
         if not typer.confirm("Overwrite?"):
             raise typer.Exit()
-    
+
     # Create default config
     config = Config()
     save_config(config)
     console.print(f"[green]✓[/green] Created config at {config_path}")
-    
+
     # Create workspace
     workspace = get_workspace_path()
     console.print(f"[green]✓[/green] Created workspace at {workspace}")
-    
+
     # Create default bootstrap files
     _create_workspace_templates(workspace)
-    
+
     console.print(f"\n{__logo__} {__brand__} is ready!")
     console.print("\nNext steps:")
     console.print(f"  1. Add your API key to [cyan]{config_path}[/cyan]")
     console.print("     Get one at: https://openrouter.ai/keys")
-    console.print("  2. Chat: [cyan]g-agent agent -m \"Hello!\"[/cyan]")
+    console.print('  2. Chat: [cyan]g-agent agent -m "Hello!"[/cyan]')
     console.print("\n[dim]Want Telegram/WhatsApp? See the README Chat Apps section.[/dim]")
-
-
 
 
 def _create_workspace_templates(workspace: Path):
@@ -122,13 +118,13 @@ Information about the user goes here.
 - Language: (your preferred language)
 """,
     }
-    
+
     for filename, content in templates.items():
         file_path = workspace / filename
         if not file_path.exists():
             file_path.write_text(content)
             console.print(f"  [dim]Created {filename}[/dim]")
-    
+
     # Create memory directory and MEMORY.md
     memory_dir = workspace / "memory"
     memory_dir.mkdir(exist_ok=True)
@@ -173,13 +169,13 @@ Actionable feedback and mistakes to avoid repeating.
         profile_file.write_text("""# Profile
 
 ## Identity
-- name: 
-- timezone: 
-- language: 
+- name:
+- timezone:
+- language:
 
 ## Preferences
-- communication_style: 
-- notification_style: 
+- communication_style:
+- notification_style:
 """)
         console.print("  [dim]Created memory/PROFILE.md[/dim]")
 
@@ -196,7 +192,7 @@ Actionable feedback and mistakes to avoid repeating.
         projects_file.write_text("""# Projects
 
 ## Active
-- [project] status: ; next: 
+- [project] status: ; next:
 
 ## Backlog
 """)
@@ -217,7 +213,9 @@ def gateway(
         "--metrics-endpoint",
         help="Enable optional lightweight HTTP metrics endpoint (default: off)",
     ),
-    metrics_host: str = typer.Option("127.0.0.1", "--metrics-host", help="Metrics endpoint bind host"),
+    metrics_host: str = typer.Option(
+        "127.0.0.1", "--metrics-host", help="Metrics endpoint bind host"
+    ),
     metrics_port: int = typer.Option(18791, "--metrics-port", help="Metrics endpoint bind port"),
     metrics_path: str = typer.Option("/metrics", "--metrics-path", help="Metrics endpoint path"),
     metrics_format: str = typer.Option(
@@ -225,39 +223,42 @@ def gateway(
         "--metrics-format",
         help="prometheus|json|dashboard_json",
     ),
-    metrics_hours: int = typer.Option(24, "--metrics-hours", help="Metrics endpoint snapshot window"),
+    metrics_hours: int = typer.Option(
+        24, "--metrics-hours", help="Metrics endpoint snapshot window"
+    ),
 ):
     """Start the g-agent gateway."""
-    from g_agent.config.loader import load_config, get_config_path, get_data_dir
-    from g_agent.bus.queue import MessageBus
-    from g_agent.bus.events import OutboundMessage
-    from g_agent.providers.litellm_provider import LiteLLMProvider
     from g_agent.agent.loop import AgentLoop
     from g_agent.agent.tools.google_workspace import GoogleWorkspaceClient
+    from g_agent.bus.events import OutboundMessage
+    from g_agent.bus.queue import MessageBus
     from g_agent.channels.manager import ChannelManager
+    from g_agent.config.loader import get_config_path, get_data_dir, load_config
     from g_agent.cron.service import CronService
     from g_agent.cron.types import CronJob
     from g_agent.heartbeat.service import HeartbeatService
-    from g_agent.observability.metrics import MetricsStore
     from g_agent.observability.http_server import MetricsHttpServer
+    from g_agent.observability.metrics import MetricsStore
     from g_agent.proactive.engine import (
         ProactiveStateStore,
         compute_due_calendar_reminders,
         is_quiet_hours_now,
         resolve_timezone,
     )
-    
+    from g_agent.providers.litellm_provider import LiteLLMProvider
+
     if verbose:
         import logging
+
         logging.basicConfig(level=logging.DEBUG)
-    
+
     console.print(f"{__logo__} Starting {__brand__} gateway on port {port}...")
-    
+
     config = load_config()
-    
+
     # Create components
     bus = MessageBus()
-    
+
     # Create provider (supports OpenRouter, Anthropic, OpenAI, Bedrock)
     route = config.resolve_model_route()
     api_key = route.api_key
@@ -271,17 +272,20 @@ def gateway(
         console.print("[red]Error: No API key configured.[/red]")
         console.print(f"Set one in {get_config_path()} under providers.openrouter.apiKey")
         raise typer.Exit(1)
-    
+
+    provider_cfg = config.get_provider(route.model)
     provider = LiteLLMProvider(
         api_key=api_key,
         api_base=api_base,
         default_model=route.model,
+        extra_headers=provider_cfg.extra_headers if provider_cfg else None,
+        provider_name=route.provider,
     )
-    
+
     # Create cron service first (callback set after agent creation)
     cron_store_path = get_data_dir() / "cron" / "jobs.json"
     cron = CronService(cron_store_path)
-    
+
     # Create agent with cron service
     agent = AgentLoop(
         bus=bus,
@@ -304,7 +308,7 @@ def gateway(
         summary_interval=config.agents.defaults.summary_interval,
         fallback_models=route.fallback_models,
     )
-    
+
     data_dir = get_data_dir()
     proactive_state = ProactiveStateStore(data_dir / "proactive" / "state.json")
     metrics = MetricsStore(config.workspace_path / "state" / "metrics" / "events.jsonl")
@@ -417,16 +421,18 @@ def gateway(
                 chat_id=job.payload.to or "direct",
             )
             if job.payload.deliver and job.payload.to:
-                await bus.publish_outbound(OutboundMessage(
-                    channel=job.payload.channel or "cli",
-                    chat_id=job.payload.to,
-                    content=response or "",
-                    metadata={
-                        "idempotency_key": (
-                            f"cron:{job.id}:{datetime.now(timezone.utc).strftime('%Y%m%d%H%M')}"
-                        )
-                    },
-                ))
+                await bus.publish_outbound(
+                    OutboundMessage(
+                        channel=job.payload.channel or "cli",
+                        chat_id=job.payload.to,
+                        content=response or "",
+                        metadata={
+                            "idempotency_key": (
+                                f"cron:{job.id}:{datetime.now(timezone.utc).strftime('%Y%m%d%H%M')}"
+                            )
+                        },
+                    )
+                )
             return response
         except Exception as e:
             success = False
@@ -442,34 +448,35 @@ def gateway(
                 proactive=_is_proactive_job(job),
                 error=error_message,
             )
+
     cron.on_job = on_cron_job
-    
+
     # Create heartbeat service
     async def on_heartbeat(prompt: str) -> str:
         """Execute heartbeat through the agent."""
         return await agent.process_direct(prompt, session_key="heartbeat")
-    
+
     heartbeat = HeartbeatService(
         workspace=config.workspace_path,
         on_heartbeat=on_heartbeat,
         interval_s=30 * 60,  # 30 minutes
-        enabled=True
+        enabled=True,
     )
-    
+
     # Create channel manager
     channels = ChannelManager(config, bus)
-    
+
     if channels.enabled_channels:
         console.print(f"[green]✓[/green] Channels enabled: {', '.join(channels.enabled_channels)}")
     else:
         console.print("[yellow]Warning: No channels enabled[/yellow]")
-    
+
     cron_status = cron.status()
     if cron_status["jobs"] > 0:
         console.print(f"[green]✓[/green] Cron: {cron_status['jobs']} scheduled jobs")
-    
+
     console.print("[green]✓[/green] Heartbeat: every 30m")
-    
+
     async def run():
         metrics_server: MetricsHttpServer | None = None
         start_error: str = ""
@@ -509,10 +516,8 @@ def gateway(
             if start_error:
                 console.print(f"[red]Gateway startup failed:[/red] {start_error}")
                 raise typer.Exit(1)
-    
+
     asyncio.run(run())
-
-
 
 
 # ============================================================================
@@ -526,13 +531,13 @@ def agent(
     session_id: str = typer.Option("cli:default", "--session", "-s", help="Session ID"),
 ):
     """Interact with the agent directly."""
-    from g_agent.config.loader import load_config
-    from g_agent.bus.queue import MessageBus
-    from g_agent.providers.litellm_provider import LiteLLMProvider
     from g_agent.agent.loop import AgentLoop
-    
+    from g_agent.bus.queue import MessageBus
+    from g_agent.config.loader import load_config
+    from g_agent.providers.litellm_provider import LiteLLMProvider
+
     config = load_config()
-    
+
     route = config.resolve_model_route()
     api_key = route.api_key
     if not api_key and route.provider not in {"vllm", "bedrock"}:
@@ -546,12 +551,15 @@ def agent(
         raise typer.Exit(1)
 
     bus = MessageBus()
+    provider_cfg = config.get_provider(route.model)
     provider = LiteLLMProvider(
         api_key=api_key,
         api_base=api_base,
-        default_model=route.model
+        default_model=route.model,
+        extra_headers=provider_cfg.extra_headers if provider_cfg else None,
+        provider_name=route.provider,
     )
-    
+
     agent_loop = AgentLoop(
         bus=bus,
         provider=provider,
@@ -571,31 +579,31 @@ def agent(
         summary_interval=config.agents.defaults.summary_interval,
         fallback_models=route.fallback_models,
     )
-    
+
     if message:
         # Single message mode
         async def run_once():
             response = await agent_loop.process_direct(message, session_id)
             console.print(f"\n{__logo__} {response}")
-        
+
         asyncio.run(run_once())
     else:
         # Interactive mode
         console.print(f"{__logo__} Interactive mode (Ctrl+C to exit)\n")
-        
+
         async def run_interactive():
             while True:
                 try:
                     user_input = console.input("[bold blue]You:[/bold blue] ")
                     if not user_input.strip():
                         continue
-                    
+
                     response = await agent_loop.process_direct(user_input, session_id)
                     console.print(f"\n{__logo__} {response}\n")
                 except KeyboardInterrupt:
                     console.print("\nGoodbye!")
                     break
-        
+
         asyncio.run(run_interactive())
 
 
@@ -622,27 +630,15 @@ def channels_status():
 
     # WhatsApp
     wa = config.channels.whatsapp
-    table.add_row(
-        "WhatsApp",
-        "✓" if wa.enabled else "✗",
-        wa.bridge_url
-    )
+    table.add_row("WhatsApp", "✓" if wa.enabled else "✗", wa.bridge_url)
 
     dc = config.channels.discord
-    table.add_row(
-        "Discord",
-        "✓" if dc.enabled else "✗",
-        dc.gateway_url
-    )
-    
+    table.add_row("Discord", "✓" if dc.enabled else "✗", dc.gateway_url)
+
     # Telegram
     tg = config.channels.telegram
     tg_config = f"token: {tg.token[:10]}..." if tg.token else "[dim]not configured[/dim]"
-    table.add_row(
-        "Telegram",
-        "✓" if tg.enabled else "✗",
-        tg_config
-    )
+    table.add_row("Telegram", "✓" if tg.enabled else "✗", tg_config)
 
     console.print(table)
 
@@ -651,58 +647,59 @@ def _get_bridge_dir(force_rebuild: bool = False) -> Path:
     """Get the bridge directory, setting it up if needed."""
     import shutil
     import subprocess
+
     from g_agent.config.loader import get_data_dir
-    
+
     # User's bridge location
     user_bridge = get_data_dir() / "bridge"
-    
+
     # Check if already built
     if not force_rebuild and (user_bridge / "dist" / "index.js").exists():
         return user_bridge
-    
+
     # Check for npm
     if not shutil.which("npm"):
         console.print("[red]npm not found. Please install Node.js >= 18.[/red]")
         raise typer.Exit(1)
-    
+
     # Find source bridge: first check package data, then source dir
     pkg_bridge = Path(__file__).parent.parent / "bridge"  # g-agent/bridge (installed)
     src_bridge = Path(__file__).parent.parent.parent / "bridge"  # repo root/bridge (dev)
-    
+
     source = None
     if (pkg_bridge / "package.json").exists():
         source = pkg_bridge
     elif (src_bridge / "package.json").exists():
         source = src_bridge
-    
+
     if not source:
         console.print("[red]Bridge source not found.[/red]")
         console.print("Try reinstalling: pip install --force-reinstall galyarder-agent")
         raise typer.Exit(1)
-    
+
     console.print(f"{__logo__} Setting up bridge...")
-    
+
     # Copy to user directory
     user_bridge.parent.mkdir(parents=True, exist_ok=True)
     if user_bridge.exists():
         shutil.rmtree(user_bridge)
     shutil.copytree(source, user_bridge, ignore=shutil.ignore_patterns("node_modules", "dist"))
-    
+
     # Install and build
     try:
         console.print("  Installing dependencies...")
         subprocess.run(["npm", "install"], cwd=user_bridge, check=True, capture_output=True)
-        
+
         console.print("  Building...")
         subprocess.run(["npm", "run", "build"], cwd=user_bridge, check=True, capture_output=True)
-        
+
         console.print("[green]✓[/green] Bridge ready\n")
     except subprocess.CalledProcessError as e:
         console.print(f"[red]Build failed: {e}[/red]")
         if e.stderr:
             console.print(f"[dim]{e.stderr.decode()[:500]}[/dim]")
         raise typer.Exit(1)
-    
+
     return user_bridge
 
 
@@ -712,18 +709,18 @@ def channels_login(
         False,
         "--rebuild",
         help="Force rebuild local WhatsApp bridge before login",
-    )
+    ),
 ):
     """Link device via QR code."""
     import subprocess
-    
+
     bridge_dir = _get_bridge_dir(force_rebuild=rebuild)
-    
+
     console.print(f"{__logo__} Starting bridge...")
     console.print("Scan the QR code to connect.\n")
     console.print("[dim]Tip: keep this process running after connected.[/dim]")
     console.print("[dim]Run `g-agent gateway` in another terminal.[/dim]\n")
-    
+
     try:
         subprocess.run(["npm", "start"], cwd=bridge_dir, check=True)
     except subprocess.CalledProcessError as e:
@@ -753,9 +750,15 @@ def google_status():
     has_access = bool(google_cfg.access_token)
 
     console.print("Google Workspace status")
-    console.print(f"- Client credentials: {'[green]✓[/green]' if has_client else '[yellow]missing[/yellow]'}")
-    console.print(f"- Refresh token: {'[green]✓[/green]' if has_refresh else '[yellow]missing[/yellow]'}")
-    console.print(f"- Access token: {'[green]✓[/green]' if has_access else '[dim]not cached[/dim]'}")
+    console.print(
+        f"- Client credentials: {'[green]✓[/green]' if has_client else '[yellow]missing[/yellow]'}"
+    )
+    console.print(
+        f"- Refresh token: {'[green]✓[/green]' if has_refresh else '[yellow]missing[/yellow]'}"
+    )
+    console.print(
+        f"- Access token: {'[green]✓[/green]' if has_access else '[dim]not cached[/dim]'}"
+    )
     console.print(f"- Calendar ID: {google_cfg.calendar_id or 'primary'}")
 
 
@@ -777,7 +780,9 @@ def google_configure(
         config.integrations.google.calendar_id = calendar_id.strip()
     save_config(config)
 
-    has_client = bool(config.integrations.google.client_id and config.integrations.google.client_secret)
+    has_client = bool(
+        config.integrations.google.client_id and config.integrations.google.client_secret
+    )
     if has_client:
         console.print("[green]✓[/green] Google client credentials saved.")
     else:
@@ -786,7 +791,9 @@ def google_configure(
 
 @google_app.command("auth-url")
 def google_auth_url(
-    redirect_uri: str = typer.Option("http://localhost", "--redirect-uri", help="OAuth redirect URI"),
+    redirect_uri: str = typer.Option(
+        "http://localhost", "--redirect-uri", help="OAuth redirect URI"
+    ),
     scopes: str = typer.Option(
         "openid email "
         "https://www.googleapis.com/auth/gmail.modify "
@@ -801,7 +808,8 @@ def google_auth_url(
 ):
     """Generate Google OAuth consent URL."""
     from urllib.parse import urlencode
-    from g_agent.config.loader import load_config, get_config_path
+
+    from g_agent.config.loader import get_config_path, load_config
 
     config = load_config()
     google_cfg = config.integrations.google
@@ -825,18 +833,25 @@ def google_auth_url(
 
 @google_app.command("exchange")
 def google_exchange(
-    code: str = typer.Option(..., "--code", prompt=True, hide_input=False, help="OAuth authorization code"),
-    redirect_uri: str = typer.Option("http://localhost", "--redirect-uri", help="OAuth redirect URI"),
+    code: str = typer.Option(
+        ..., "--code", prompt=True, hide_input=False, help="OAuth authorization code"
+    ),
+    redirect_uri: str = typer.Option(
+        "http://localhost", "--redirect-uri", help="OAuth redirect URI"
+    ),
 ):
     """Exchange OAuth code and save Google tokens into config."""
     import httpx
+
     from g_agent.config.loader import load_config, save_config
 
     config = load_config()
     google_cfg = config.integrations.google
     if not (google_cfg.client_id and google_cfg.client_secret):
         console.print("[red]Google client_id/client_secret missing.[/red]")
-        console.print("Set integrations.google.clientId and integrations.google.clientSecret first.")
+        console.print(
+            "Set integrations.google.clientId and integrations.google.clientSecret first."
+        )
         raise typer.Exit(1)
 
     payload = {
@@ -884,12 +899,15 @@ def google_exchange(
 def google_verify(timeout: float = typer.Option(10.0, "--timeout", help="HTTP timeout seconds")):
     """Verify Google auth by calling Gmail profile endpoint."""
     import httpx
+
     from g_agent.config.loader import load_config, save_config
 
     config = load_config()
     google_cfg = config.integrations.google
 
-    has_refresh_creds = bool(google_cfg.client_id and google_cfg.client_secret and google_cfg.refresh_token)
+    has_refresh_creds = bool(
+        google_cfg.client_id and google_cfg.client_secret and google_cfg.refresh_token
+    )
     access_token = (google_cfg.access_token or "").strip()
 
     def refresh_access_token() -> tuple[bool, str, str]:
@@ -971,11 +989,17 @@ def google_verify(timeout: float = typer.Option(10.0, "--timeout", help="HTTP ti
     profile = profile_resp.json()
     email_address = profile.get("emailAddress", "(unknown)")
     total_messages = profile.get("messagesTotal", "n/a")
-    console.print(f"[green]✓[/green] Google auth verified for {email_address} (messages: {total_messages})")
+    console.print(
+        f"[green]✓[/green] Google auth verified for {email_address} (messages: {total_messages})"
+    )
 
 
 @google_app.command("clear")
-def google_clear(clear_client: bool = typer.Option(False, "--clear-client", help="Also clear client_id/client_secret")):
+def google_clear(
+    clear_client: bool = typer.Option(
+        False, "--clear-client", help="Also clear client_id/client_secret"
+    ),
+):
     """Clear saved Google Workspace tokens from config."""
     from g_agent.config.loader import load_config, save_config
 
@@ -1004,24 +1028,25 @@ def cron_list(
     """List scheduled jobs."""
     from g_agent.config.loader import get_data_dir
     from g_agent.cron.service import CronService
-    
+
     store_path = get_data_dir() / "cron" / "jobs.json"
     service = CronService(store_path)
-    
+
     jobs = service.list_jobs(include_disabled=all)
-    
+
     if not jobs:
         console.print("No scheduled jobs.")
         return
-    
+
     table = Table(title="Scheduled Jobs")
     table.add_column("ID", style="cyan")
     table.add_column("Name")
     table.add_column("Schedule")
     table.add_column("Status")
     table.add_column("Next Run")
-    
+
     import time
+
     for job in jobs:
         # Format schedule
         if job.schedule.kind == "every":
@@ -1030,17 +1055,19 @@ def cron_list(
             sched = job.schedule.expr or ""
         else:
             sched = "one-time"
-        
+
         # Format next run
         next_run = ""
         if job.state.next_run_at_ms:
-            next_time = time.strftime("%Y-%m-%d %H:%M", time.localtime(job.state.next_run_at_ms / 1000))
+            next_time = time.strftime(
+                "%Y-%m-%d %H:%M", time.localtime(job.state.next_run_at_ms / 1000)
+            )
             next_run = next_time
-        
+
         status = "[green]enabled[/green]" if job.enabled else "[dim]disabled[/dim]"
-        
+
         table.add_row(job.id, job.name, sched, status, next_run)
-    
+
     console.print(table)
 
 
@@ -1053,13 +1080,15 @@ def cron_add(
     at: str = typer.Option(None, "--at", help="Run once at time (ISO format)"),
     deliver: bool = typer.Option(False, "--deliver", "-d", help="Deliver response to channel"),
     to: str = typer.Option(None, "--to", help="Recipient for delivery"),
-    channel: str = typer.Option(None, "--channel", help="Channel for delivery (e.g. 'telegram', 'whatsapp')"),
+    channel: str = typer.Option(
+        None, "--channel", help="Channel for delivery (e.g. 'telegram', 'whatsapp')"
+    ),
 ):
     """Add a scheduled job."""
     from g_agent.config.loader import get_data_dir
     from g_agent.cron.service import CronService
     from g_agent.cron.types import CronSchedule
-    
+
     # Determine schedule type
     if every:
         schedule = CronSchedule(kind="every", every_ms=every * 1000)
@@ -1067,15 +1096,16 @@ def cron_add(
         schedule = CronSchedule(kind="cron", expr=cron_expr)
     elif at:
         import datetime
+
         dt = datetime.datetime.fromisoformat(at)
         schedule = CronSchedule(kind="at", at_ms=int(dt.timestamp() * 1000))
     else:
         console.print("[red]Error: Must specify --every, --cron, or --at[/red]")
         raise typer.Exit(1)
-    
+
     store_path = get_data_dir() / "cron" / "jobs.json"
     service = CronService(store_path)
-    
+
     job = service.add_job(
         name=name,
         schedule=schedule,
@@ -1084,7 +1114,7 @@ def cron_add(
         to=to,
         channel=channel,
     )
-    
+
     console.print(f"[green]✓[/green] Added job '{job.name}' ({job.id})")
 
 
@@ -1095,10 +1125,10 @@ def cron_remove(
     """Remove a scheduled job."""
     from g_agent.config.loader import get_data_dir
     from g_agent.cron.service import CronService
-    
+
     store_path = get_data_dir() / "cron" / "jobs.json"
     service = CronService(store_path)
-    
+
     if service.remove_job(job_id):
         console.print(f"[green]✓[/green] Removed job {job_id}")
     else:
@@ -1113,10 +1143,10 @@ def cron_enable(
     """Enable or disable a job."""
     from g_agent.config.loader import get_data_dir
     from g_agent.cron.service import CronService
-    
+
     store_path = get_data_dir() / "cron" / "jobs.json"
     service = CronService(store_path)
-    
+
     job = service.enable_job(job_id, enabled=not disable)
     if job:
         status = "disabled" if disable else "enabled"
@@ -1133,13 +1163,13 @@ def cron_run(
     """Manually run a job."""
     from g_agent.config.loader import get_data_dir
     from g_agent.cron.service import CronService
-    
+
     store_path = get_data_dir() / "cron" / "jobs.json"
     service = CronService(store_path)
-    
+
     async def run():
         return await service.run_job(job_id, force=force)
-    
+
     if asyncio.run(run()):
         console.print("[green]✓[/green] Job executed")
     else:
@@ -1165,13 +1195,15 @@ WEEKLY_LESSONS_PROMPT = (
 
 @app.command()
 def digest(
-    session_id: str = typer.Option("cli:digest", "--session", "-s", help="Session ID for digest generation"),
+    session_id: str = typer.Option(
+        "cli:digest", "--session", "-s", help="Session ID for digest generation"
+    ),
 ):
     """Generate a daily personal digest via the agent."""
-    from g_agent.config.loader import load_config
-    from g_agent.bus.queue import MessageBus
-    from g_agent.providers.litellm_provider import LiteLLMProvider
     from g_agent.agent.loop import AgentLoop
+    from g_agent.bus.queue import MessageBus
+    from g_agent.config.loader import load_config
+    from g_agent.providers.litellm_provider import LiteLLMProvider
 
     config = load_config()
     route = config.resolve_model_route()
@@ -1184,10 +1216,13 @@ def digest(
         console.print("[red]Error: No API key configured.[/red]")
         raise typer.Exit(1)
 
+    provider_cfg = config.get_provider(route.model)
     provider = LiteLLMProvider(
         api_key=api_key,
         api_base=route.api_base,
         default_model=route.model,
+        extra_headers=provider_cfg.extra_headers if provider_cfg else None,
+        provider_name=route.provider,
     )
     bus = MessageBus()
     agent_loop = AgentLoop(
@@ -1226,13 +1261,25 @@ def digest(
 @app.command("proactive-enable")
 def proactive_enable(
     daily_cron: str = typer.Option("0 8 * * *", "--daily-cron", help="Cron for daily digest"),
-    weekly_cron: str = typer.Option("0 9 * * 1", "--weekly-cron", help="Cron for weekly lessons distillation"),
-    include_calendar_watch: bool = typer.Option(True, "--calendar-watch/--no-calendar-watch", help="Enable calendar lookahead reminders"),
-    calendar_every: int | None = typer.Option(None, "--calendar-every", help="Calendar watch interval in minutes"),
-    calendar_horizon: int | None = typer.Option(None, "--calendar-horizon", help="Calendar lookahead window in minutes"),
-    calendar_leads: str | None = typer.Option(None, "--calendar-leads", help="Lead reminders in minutes, comma-separated (e.g. 30,10)"),
+    weekly_cron: str = typer.Option(
+        "0 9 * * 1", "--weekly-cron", help="Cron for weekly lessons distillation"
+    ),
+    include_calendar_watch: bool = typer.Option(
+        True, "--calendar-watch/--no-calendar-watch", help="Enable calendar lookahead reminders"
+    ),
+    calendar_every: int | None = typer.Option(
+        None, "--calendar-every", help="Calendar watch interval in minutes"
+    ),
+    calendar_horizon: int | None = typer.Option(
+        None, "--calendar-horizon", help="Calendar lookahead window in minutes"
+    ),
+    calendar_leads: str | None = typer.Option(
+        None, "--calendar-leads", help="Lead reminders in minutes, comma-separated (e.g. 30,10)"
+    ),
     deliver: bool = typer.Option(False, "--deliver", help="Deliver output to a channel target"),
-    channel: str = typer.Option(None, "--channel", help="Target channel for delivery (telegram/whatsapp)"),
+    channel: str = typer.Option(
+        None, "--channel", help="Target channel for delivery (telegram/whatsapp)"
+    ),
     to: str = typer.Option(None, "--to", help="Target chat ID / number for delivery"),
 ):
     """Install proactive cron jobs (daily digest + weekly lessons)."""
@@ -1368,8 +1415,12 @@ def policy_list():
 
 @policy_app.command("apply")
 def policy_apply(
-    preset: str = typer.Argument(..., help="Preset name: personal_full|guest_limited|guest_readonly"),
-    channel: str = typer.Option("", "--channel", help="Optional channel scope (telegram/whatsapp/...)"),
+    preset: str = typer.Argument(
+        ..., help="Preset name: personal_full|guest_limited|guest_readonly"
+    ),
+    channel: str = typer.Option(
+        "", "--channel", help="Optional channel scope (telegram/whatsapp/...)"
+    ),
     sender: str = typer.Option("", "--sender", help="Optional sender scope (user ID/phone)"),
     replace_scope: bool = typer.Option(
         False,
@@ -1412,13 +1463,15 @@ def policy_apply(
 
     console.print(f"[green]✓[/green] Applied preset: [bold]{result['preset']}[/bold]")
     console.print(f"Scope: {scope_text}")
-    console.print(
-        f"Rules: {result['applied_rules']} applied ({result['changed_rules']} changed)"
-    )
+    console.print(f"Rules: {result['applied_rules']} applied ({result['changed_rules']} changed)")
     console.print(f"Approval mode: {config.tools.approval_mode}")
     console.print(
         "Security (restrictToWorkspace): "
-        + ("[green]enabled[/green]" if config.tools.restrict_to_workspace else "[yellow]disabled[/yellow]")
+        + (
+            "[green]enabled[/green]"
+            if config.tools.restrict_to_workspace
+            else "[yellow]disabled[/yellow]"
+        )
     )
 
 
@@ -1472,8 +1525,8 @@ def feedback(
     source: str = typer.Option("manual", "--source", help="Feedback source label"),
 ):
     """Log a lesson for self-improvement memory."""
-    from g_agent.config.loader import load_config
     from g_agent.agent.memory import MemoryStore
+    from g_agent.config.loader import load_config
 
     if severity not in {"low", "medium", "high"}:
         console.print("[red]Severity must be one of: low, medium, high[/red]")
@@ -1505,8 +1558,8 @@ def memory_audit(
     strict: bool = typer.Option(False, "--strict", help="Exit 1 when drift/conflicts exist"),
 ):
     """Audit memory drift and cross-scope fact conflicts."""
-    from g_agent.config.loader import load_config
     from g_agent.agent.memory import MemoryStore
+    from g_agent.config.loader import load_config
 
     max_items = max(1, int(limit))
     scopes = [item.strip().lower() for item in (scope or []) if item.strip()]
@@ -1551,7 +1604,9 @@ def memory_audit(
             for item in cross_scope_conflicts[:12]:
                 preferred_scope = item.get("preferred_scope", "")
                 preferred_fact = item.get("preferred_fact", "")
-                console.print(f"  - {item.get('key', 'unknown')}: prefer [{preferred_scope}] {preferred_fact}")
+                console.print(
+                    f"  - {item.get('key', 'unknown')}: prefer [{preferred_scope}] {preferred_fact}"
+                )
                 for conflict in item.get("conflicting_facts", [])[:5]:
                     console.print(
                         f"      vs [{conflict.get('scope', '')}:{conflict.get('source', '')}] "
@@ -1735,7 +1790,9 @@ def metrics_cmd(
             dry_run=prune_dry_run,
         )
         if not prune_result.get("ok"):
-            console.print(f"[red]Metrics prune failed:[/red] {prune_result.get('error', 'unknown')}")
+            console.print(
+                f"[red]Metrics prune failed:[/red] {prune_result.get('error', 'unknown')}"
+            )
             raise typer.Exit(1)
 
     snapshot = store.snapshot(hours=hours)
@@ -1749,7 +1806,9 @@ def metrics_cmd(
             output_format=export_format,
         )
         if not export_result.get("ok"):
-            console.print(f"[red]Metrics export failed:[/red] {export_result.get('error', 'unknown')}")
+            console.print(
+                f"[red]Metrics export failed:[/red] {export_result.get('error', 'unknown')}"
+            )
             raise typer.Exit(1)
 
     if dashboard_json:
@@ -1801,7 +1860,9 @@ def metrics_cmd(
         if top_tools:
             console.print("Top tools:")
             for item in top_tools[:8]:
-                console.print(f"  - {item['tool']}: {item['calls']} call(s), {item['errors']} error(s)")
+                console.print(
+                    f"  - {item['tool']}: {item['calls']} call(s), {item['errors']} error(s)"
+                )
         if prune_result:
             console.print(
                 f"Prune: removed {prune_result['removed_total']} event(s), "
@@ -1820,7 +1881,8 @@ def metrics_cmd(
 def status():
     """Show g-agent status."""
     from datetime import datetime
-    from g_agent.config.loader import load_config, get_config_path, get_data_dir
+
+    from g_agent.config.loader import get_config_path, get_data_dir, load_config
 
     data_dir = get_data_dir()
     config_path = get_config_path()
@@ -1829,9 +1891,15 @@ def status():
 
     console.print(f"{__logo__} {__brand__} Status\n")
 
-    console.print(f"Data dir: {data_dir} {'[green]✓[/green]' if data_dir.exists() else '[red]✗[/red]'}")
-    console.print(f"Config: {config_path} {'[green]✓[/green]' if config_path.exists() else '[red]✗[/red]'}")
-    console.print(f"Workspace: {workspace} {'[green]✓[/green]' if workspace.exists() else '[red]✗[/red]'}")
+    console.print(
+        f"Data dir: {data_dir} {'[green]✓[/green]' if data_dir.exists() else '[red]✗[/red]'}"
+    )
+    console.print(
+        f"Config: {config_path} {'[green]✓[/green]' if config_path.exists() else '[red]✗[/red]'}"
+    )
+    console.print(
+        f"Workspace: {workspace} {'[green]✓[/green]' if workspace.exists() else '[red]✗[/red]'}"
+    )
 
     if config_path.exists():
         route = config.resolve_model_route()
@@ -1841,7 +1909,7 @@ def status():
         )
         if route.fallback_models:
             console.print(f"Fallback models: {', '.join(route.fallback_models)}")
-        
+
         # Check API keys
         has_openrouter = bool(config.providers.openrouter.api_key)
         has_anthropic = bool(config.providers.anthropic.api_key)
@@ -1849,26 +1917,48 @@ def status():
         has_gemini = bool(config.providers.gemini.api_key)
         has_vllm = bool(config.providers.vllm.api_base)
         has_brave = bool(config.tools.web.search.api_key)
-        
-        console.print(f"OpenRouter API: {'[green]✓[/green]' if has_openrouter else '[dim]not set[/dim]'}")
-        console.print(f"Anthropic API: {'[green]✓[/green]' if has_anthropic else '[dim]not set[/dim]'}")
+
+        console.print(
+            f"OpenRouter API: {'[green]✓[/green]' if has_openrouter else '[dim]not set[/dim]'}"
+        )
+        console.print(
+            f"Anthropic API: {'[green]✓[/green]' if has_anthropic else '[dim]not set[/dim]'}"
+        )
         console.print(f"OpenAI API: {'[green]✓[/green]' if has_openai else '[dim]not set[/dim]'}")
         console.print(f"Gemini API: {'[green]✓[/green]' if has_gemini else '[dim]not set[/dim]'}")
-        vllm_status = f"[green]✓ {config.providers.vllm.api_base}[/green]" if has_vllm else "[dim]not set[/dim]"
+        vllm_status = (
+            f"[green]✓ {config.providers.vllm.api_base}[/green]"
+            if has_vllm
+            else "[dim]not set[/dim]"
+        )
         console.print(f"vLLM/Local: {vllm_status}")
-        console.print(f"Brave Search API: {'[green]✓[/green]' if has_brave else '[dim]not set[/dim]'}")
-        console.print(f"Security (restrictToWorkspace): {'[green]✓ enabled[/green]' if config.tools.restrict_to_workspace else '[yellow]disabled[/yellow]'}")
-        console.print(f"Reasoning reflection: {'[green]✓ enabled[/green]' if config.agents.defaults.enable_reflection else '[dim]disabled[/dim]'}")
+        console.print(
+            f"Brave Search API: {'[green]✓[/green]' if has_brave else '[dim]not set[/dim]'}"
+        )
+        console.print(
+            f"Security (restrictToWorkspace): {'[green]✓ enabled[/green]' if config.tools.restrict_to_workspace else '[yellow]disabled[/yellow]'}"
+        )
+        console.print(
+            f"Reasoning reflection: {'[green]✓ enabled[/green]' if config.agents.defaults.enable_reflection else '[dim]disabled[/dim]'}"
+        )
         console.print(f"Session summary interval: {config.agents.defaults.summary_interval} turns")
 
         tg = config.channels.telegram
         wa = config.channels.whatsapp
-        console.print(f"Telegram channel: {'[green]✓ enabled[/green]' if tg.enabled else '[dim]disabled[/dim]'} (allowFrom: {len(tg.allow_from)})")
-        console.print(f"WhatsApp channel: {'[green]✓ enabled[/green]' if wa.enabled else '[dim]disabled[/dim]'} (allowFrom: {len(wa.allow_from)})")
+        console.print(
+            f"Telegram channel: {'[green]✓ enabled[/green]' if tg.enabled else '[dim]disabled[/dim]'} (allowFrom: {len(tg.allow_from)})"
+        )
+        console.print(
+            f"WhatsApp channel: {'[green]✓ enabled[/green]' if wa.enabled else '[dim]disabled[/dim]'} (allowFrom: {len(wa.allow_from)})"
+        )
 
-        console.print(f"Slack webhook: {'[green]✓[/green]' if config.integrations.slack.webhook_url else '[dim]not set[/dim]'}")
+        console.print(
+            f"Slack webhook: {'[green]✓[/green]' if config.integrations.slack.webhook_url else '[dim]not set[/dim]'}"
+        )
         has_smtp = bool(config.integrations.smtp.host)
-        console.print(f"SMTP integration: {'[green]✓[/green]' if has_smtp else '[dim]not set[/dim]'}")
+        console.print(
+            f"SMTP integration: {'[green]✓[/green]' if has_smtp else '[dim]not set[/dim]'}"
+        )
         has_google = bool(
             config.integrations.google.access_token
             or (
@@ -1877,7 +1967,9 @@ def status():
                 and config.integrations.google.refresh_token
             )
         )
-        console.print(f"Google Workspace: {'[green]✓[/green]' if has_google else '[dim]not set[/dim]'}")
+        console.print(
+            f"Google Workspace: {'[green]✓[/green]' if has_google else '[dim]not set[/dim]'}"
+        )
         google_has_client = bool(
             config.integrations.google.client_id and config.integrations.google.client_secret
         )
@@ -1898,15 +1990,19 @@ def status():
         quiet_cfg = config.proactive.quiet_hours
         quiet_desc = (
             f"{quiet_cfg.start}-{quiet_cfg.end} ({quiet_cfg.timezone})"
-            if quiet_cfg.enabled else "disabled"
+            if quiet_cfg.enabled
+            else "disabled"
         )
         console.print(f"Quiet hours: {quiet_desc}")
         try:
             from g_agent.cron.service import CronService
+
             proactive_names = {"daily-digest", "weekly-lessons-distill", "calendar-watch"}
             cron_service = CronService(get_data_dir() / "cron" / "jobs.json")
             proactive_count = sum(
-                1 for job in cron_service.list_jobs(include_disabled=True) if job.name in proactive_names
+                1
+                for job in cron_service.list_jobs(include_disabled=True)
+                if job.name in proactive_names
             )
             console.print(f"Proactive jobs: {proactive_count}")
         except Exception:
@@ -1933,27 +2029,45 @@ def status():
         relationships_file = workspace / "memory" / "RELATIONSHIPS.md"
         projects_file = workspace / "memory" / "PROJECTS.md"
         today_file = workspace / "memory" / f"{datetime.now().strftime('%Y-%m-%d')}.md"
-        console.print(f"Long-term memory: {'[green]✓[/green]' if memory_file.exists() else '[yellow]missing[/yellow]'} ({memory_file})")
-        console.print(f"Fact index memory: {'[green]✓[/green]' if facts_file.exists() else '[dim]not created yet[/dim]'} ({facts_file})")
-        console.print(f"Lessons memory: {'[green]✓[/green]' if lessons_file.exists() else '[dim]not created yet[/dim]'} ({lessons_file})")
-        console.print(f"Profile memory: {'[green]✓[/green]' if profile_file.exists() else '[dim]not created yet[/dim]'} ({profile_file})")
-        console.print(f"Relationships memory: {'[green]✓[/green]' if relationships_file.exists() else '[dim]not created yet[/dim]'} ({relationships_file})")
-        console.print(f"Projects memory: {'[green]✓[/green]' if projects_file.exists() else '[dim]not created yet[/dim]'} ({projects_file})")
-        console.print(f"Today memory note: {'[green]✓[/green]' if today_file.exists() else '[dim]not created yet[/dim]'}")
+        console.print(
+            f"Long-term memory: {'[green]✓[/green]' if memory_file.exists() else '[yellow]missing[/yellow]'} ({memory_file})"
+        )
+        console.print(
+            f"Fact index memory: {'[green]✓[/green]' if facts_file.exists() else '[dim]not created yet[/dim]'} ({facts_file})"
+        )
+        console.print(
+            f"Lessons memory: {'[green]✓[/green]' if lessons_file.exists() else '[dim]not created yet[/dim]'} ({lessons_file})"
+        )
+        console.print(
+            f"Profile memory: {'[green]✓[/green]' if profile_file.exists() else '[dim]not created yet[/dim]'} ({profile_file})"
+        )
+        console.print(
+            f"Relationships memory: {'[green]✓[/green]' if relationships_file.exists() else '[dim]not created yet[/dim]'} ({relationships_file})"
+        )
+        console.print(
+            f"Projects memory: {'[green]✓[/green]' if projects_file.exists() else '[dim]not created yet[/dim]'} ({projects_file})"
+        )
+        console.print(
+            f"Today memory note: {'[green]✓[/green]' if today_file.exists() else '[dim]not created yet[/dim]'}"
+        )
 
 
 @app.command()
 def doctor(
-    network: bool = typer.Option(True, "--network/--no-network", help="Run external network checks"),
+    network: bool = typer.Option(
+        True, "--network/--no-network", help="Run external network checks"
+    ),
     timeout: float = typer.Option(6.0, "--timeout", help="Per-check timeout in seconds"),
     strict: bool = typer.Option(False, "--strict", help="Exit with code 1 if any check fails"),
 ):
     """Run diagnostics for model, channels, memory, and tool configuration."""
-    import httpx
     import socket
     from datetime import datetime
     from urllib.parse import urlparse
-    from g_agent.config.loader import load_config, get_config_path, get_data_dir
+
+    import httpx
+
+    from g_agent.config.loader import get_config_path, get_data_dir, load_config
 
     def _mark(level: str) -> str:
         if level == "pass":
@@ -1985,7 +2099,9 @@ def doctor(
         "Security sandbox",
         "pass" if config.tools.restrict_to_workspace else "warn",
         f"restrictToWorkspace={str(config.tools.restrict_to_workspace).lower()}",
-        "" if config.tools.restrict_to_workspace else f"Set true in {config_path} (tools.restrictToWorkspace)",
+        ""
+        if config.tools.restrict_to_workspace
+        else f"Set true in {config_path} (tools.restrictToWorkspace)",
     )
     try:
         from g_agent.security.audit import run_security_audit
@@ -2001,9 +2117,13 @@ def doctor(
         security_warn = int(security_summary.get("warn", 0))
         add(
             "Security baseline audit",
-            "pass" if security_fail == 0 and security_warn == 0 else ("fail" if security_fail > 0 else "warn"),
+            "pass"
+            if security_fail == 0 and security_warn == 0
+            else ("fail" if security_fail > 0 else "warn"),
             f"pass={security_summary.get('pass', 0)}, warn={security_warn}, fail={security_fail}",
-            "" if security_fail == 0 and security_warn == 0 else "Run: g-agent security-fix --apply",
+            ""
+            if security_fail == 0 and security_warn == 0
+            else "Run: g-agent security-fix --apply",
         )
     except Exception as e:
         add(
@@ -2037,13 +2157,17 @@ def doctor(
         "Reasoning reflection",
         "pass" if config.agents.defaults.enable_reflection else "warn",
         f"enableReflection={str(config.agents.defaults.enable_reflection).lower()}",
-        "" if config.agents.defaults.enable_reflection else "Set agents.defaults.enableReflection=true",
+        ""
+        if config.agents.defaults.enable_reflection
+        else "Set agents.defaults.enableReflection=true",
     )
     add(
         "Session summaries",
         "pass" if config.agents.defaults.summary_interval >= 2 else "warn",
         f"summaryInterval={config.agents.defaults.summary_interval}",
-        "" if config.agents.defaults.summary_interval >= 2 else "Set agents.defaults.summaryInterval to >= 2",
+        ""
+        if config.agents.defaults.summary_interval >= 2
+        else "Set agents.defaults.summaryInterval to >= 2",
     )
 
     if config.integrations.slack.webhook_url:
@@ -2057,7 +2181,11 @@ def doctor(
         )
 
     if config.integrations.smtp.host:
-        add("SMTP integration", "pass", f"{config.integrations.smtp.host}:{config.integrations.smtp.port}")
+        add(
+            "SMTP integration",
+            "pass",
+            f"{config.integrations.smtp.host}:{config.integrations.smtp.port}",
+        )
     else:
         add(
             "SMTP integration",
@@ -2068,7 +2196,9 @@ def doctor(
 
     google_cfg = config.integrations.google
     has_google_token = bool(google_cfg.access_token)
-    has_google_refresh = bool(google_cfg.client_id and google_cfg.client_secret and google_cfg.refresh_token)
+    has_google_refresh = bool(
+        google_cfg.client_id and google_cfg.client_secret and google_cfg.refresh_token
+    )
     if has_google_token or has_google_refresh:
         mode = "access token" if has_google_token else "refresh token flow"
         add("Google Workspace", "pass", mode)
@@ -2110,24 +2240,29 @@ def doctor(
         "Tool approval mode",
         "pass" if config.tools.approval_mode in {"off", "confirm"} else "warn",
         config.tools.approval_mode,
-        "" if config.tools.approval_mode in {"off", "confirm"} else "Use tools.approvalMode = off|confirm",
+        ""
+        if config.tools.approval_mode in {"off", "confirm"}
+        else "Use tools.approvalMode = off|confirm",
     )
     add(
         "Tool policy rules",
         "pass" if config.tools.policy else "warn",
         f"{len(config.tools.policy)} rule(s)",
-        "" if config.tools.policy else "Set tools.policy (e.g. {\"exec\":\"ask\",\"send_email\":\"deny\"})",
+        "" if config.tools.policy else 'Set tools.policy (e.g. {"exec":"ask","send_email":"deny"})',
     )
     scoped_policy_count = sum(1 for key in config.tools.policy if ":" in key)
     add(
         "Scoped policy rules",
         "pass" if scoped_policy_count > 0 else "warn",
         f"{scoped_policy_count} scoped rule(s)",
-        "" if scoped_policy_count > 0 else "Use `g-agent policy apply ... --channel ... --sender ...` for guest boundaries",
+        ""
+        if scoped_policy_count > 0
+        else "Use `g-agent policy apply ... --channel ... --sender ...` for guest boundaries",
     )
 
     try:
         from g_agent.cron.service import CronService
+
         proactive_names = {"daily-digest", "weekly-lessons-distill", "calendar-watch"}
         cron_store_path = get_data_dir() / "cron" / "jobs.json"
         cron_service = CronService(cron_store_path)
@@ -2178,31 +2313,41 @@ def doctor(
         "Memory file",
         "pass" if memory_file.exists() else "warn",
         str(memory_file),
-        "" if memory_file.exists() else f"Run: mkdir -p {workspace / 'memory'} && printf '# Long-term Memory\\n' > {memory_file}",
+        ""
+        if memory_file.exists()
+        else f"Run: mkdir -p {workspace / 'memory'} && printf '# Long-term Memory\\n' > {memory_file}",
     )
     add(
         "Fact index",
         "pass" if facts_file.exists() else "warn",
         str(facts_file),
-        "" if facts_file.exists() else "Create by using remember tool once (or run g-agent onboard)",
+        ""
+        if facts_file.exists()
+        else "Create by using remember tool once (or run g-agent onboard)",
     )
     add(
         "Profile memory",
         "pass" if profile_file.exists() else "warn",
         str(profile_file),
-        "" if profile_file.exists() else "Create with: g-agent onboard (or create memory/PROFILE.md)",
+        ""
+        if profile_file.exists()
+        else "Create with: g-agent onboard (or create memory/PROFILE.md)",
     )
     add(
         "Relationships memory",
         "pass" if relationships_file.exists() else "warn",
         str(relationships_file),
-        "" if relationships_file.exists() else "Create with: g-agent onboard (or create memory/RELATIONSHIPS.md)",
+        ""
+        if relationships_file.exists()
+        else "Create with: g-agent onboard (or create memory/RELATIONSHIPS.md)",
     )
     add(
         "Projects memory",
         "pass" if projects_file.exists() else "warn",
         str(projects_file),
-        "" if projects_file.exists() else "Create with: g-agent onboard (or create memory/PROJECTS.md)",
+        ""
+        if projects_file.exists()
+        else "Create with: g-agent onboard (or create memory/PROJECTS.md)",
     )
     add(
         "Today memory note",
@@ -2214,7 +2359,7 @@ def doctor(
         "Lessons memory",
         "pass" if lessons_file.exists() else "warn",
         str(lessons_file),
-        "" if lessons_file.exists() else "Create with: g-agent feedback \"<lesson>\"",
+        "" if lessons_file.exists() else 'Create with: g-agent feedback "<lesson>"',
     )
     try:
         from g_agent.agent.memory import MemoryStore
@@ -2396,7 +2541,12 @@ def doctor(
     brave_key = config.tools.web.search.api_key
     if brave_key:
         if not network:
-            add("Brave Search API", "warn", "key set, skipped (--no-network)", "Run again with --network")
+            add(
+                "Brave Search API",
+                "warn",
+                "key set, skipped (--no-network)",
+                "Run again with --network",
+            )
         else:
             try:
                 with httpx.Client(timeout=timeout) as client:
@@ -2483,7 +2633,9 @@ def doctor(
     fail_count = sum(1 for _, level, _, _ in results if level == "fail")
     warn_count = sum(1 for _, level, _, _ in results if level == "warn")
     pass_count = len(results) - fail_count - warn_count
-    console.print(f"Summary: [green]{pass_count} pass[/green], [yellow]{warn_count} warn[/yellow], [red]{fail_count} fail[/red]")
+    console.print(
+        f"Summary: [green]{pass_count} pass[/green], [yellow]{warn_count} warn[/yellow], [red]{fail_count} fail[/red]"
+    )
 
     if strict and fail_count > 0:
         raise typer.Exit(1)

@@ -11,8 +11,8 @@ from typing import Any
 import httpx
 
 from g_agent.agent.memory import MemoryStore
-from g_agent.observability.metrics import MetricsStore
 from g_agent.agent.tools.base import Tool
+from g_agent.observability.metrics import MetricsStore
 from g_agent.utils.helpers import ensure_dir
 
 
@@ -32,7 +32,11 @@ class RememberTool(Tool):
         "properties": {
             "fact": {"type": "string", "description": "Durable fact to remember"},
             "category": {"type": "string", "description": "Fact category", "default": "general"},
-            "source": {"type": "string", "description": "Memory source label", "default": "remember_tool"},
+            "source": {
+                "type": "string",
+                "description": "Memory source label",
+                "default": "remember_tool",
+            },
             "confidence": {
                 "type": "number",
                 "description": "Fact confidence (0.0-1.0)",
@@ -86,14 +90,28 @@ class RecallTool(Tool):
         "type": "object",
         "properties": {
             "query": {"type": "string", "description": "What to recall"},
-            "maxItems": {"type": "integer", "description": "Maximum items", "minimum": 1, "maximum": 30},
-            "lookbackDays": {"type": "integer", "description": "Daily-memory lookback window", "minimum": 1, "maximum": 365},
+            "maxItems": {
+                "type": "integer",
+                "description": "Maximum items",
+                "minimum": 1,
+                "maximum": 30,
+            },
+            "lookbackDays": {
+                "type": "integer",
+                "description": "Daily-memory lookback window",
+                "minimum": 1,
+                "maximum": 365,
+            },
             "scopes": {
                 "type": "array",
                 "description": "Optional memory scopes",
                 "items": {"type": "string"},
             },
-            "explain": {"type": "boolean", "description": "Include score breakdown", "default": False},
+            "explain": {
+                "type": "boolean",
+                "description": "Include score breakdown",
+                "default": False,
+            },
         },
         "required": ["query"],
     }
@@ -155,7 +173,10 @@ class UpdateProfileTool(Tool):
     parameters = {
         "type": "object",
         "properties": {
-            "section": {"type": "string", "description": "Profile section (e.g. Identity, Preferences)"},
+            "section": {
+                "type": "string",
+                "description": "Profile section (e.g. Identity, Preferences)",
+            },
             "key": {"type": "string", "description": "Field name"},
             "value": {"type": "string", "description": "Field value"},
         },
@@ -231,7 +252,10 @@ class SlackWebhookTool(Tool):
         "type": "object",
         "properties": {
             "text": {"type": "string", "description": "Message text"},
-            "webhookUrl": {"type": "string", "description": "Slack webhook URL (optional if configured)"},
+            "webhookUrl": {
+                "type": "string",
+                "description": "Slack webhook URL (optional if configured)",
+            },
         },
         "required": ["text"],
     }
@@ -239,7 +263,9 @@ class SlackWebhookTool(Tool):
     def __init__(self, webhook_url: str | None = None):
         self.webhook_url = webhook_url or _env("SLACK_WEBHOOK_URL", "")
 
-    async def execute(self, text: str | None = None, webhookUrl: str | None = None, **kwargs: Any) -> str:
+    async def execute(
+        self, text: str | None = None, webhookUrl: str | None = None, **kwargs: Any
+    ) -> str:
         message_text = (text or "").strip()
         if not message_text:
             return "Error: text is required."
@@ -387,32 +413,39 @@ class CreateCalendarEventTool(Tool):
             if end_dt <= start_dt:
                 return "Error: end must be after start."
 
-            uid = f"{int(datetime.now(tz=timezone.utc).timestamp())}-{abs(hash(title_text))}@g-agent"
+            uid = (
+                f"{int(datetime.now(tz=timezone.utc).timestamp())}-{abs(hash(title_text))}@g-agent"
+            )
             stamp = self._fmt_ics(datetime.now(tz=timezone.utc))
-            ics = "\n".join([
-                "BEGIN:VCALENDAR",
-                "VERSION:2.0",
-                "PRODID:-//g-agent//EN",
-                "CALSCALE:GREGORIAN",
-                "BEGIN:VEVENT",
-                f"UID:{uid}",
-                f"DTSTAMP:{stamp}",
-                f"DTSTART:{self._fmt_ics(start_dt)}",
-                f"DTEND:{self._fmt_ics(end_dt)}",
-                f"SUMMARY:{title_text}",
-                f"DESCRIPTION:{description}",
-                f"LOCATION:{location}",
-                "END:VEVENT",
-                "END:VCALENDAR",
-                "",
-            ])
+            ics = "\n".join(
+                [
+                    "BEGIN:VCALENDAR",
+                    "VERSION:2.0",
+                    "PRODID:-//g-agent//EN",
+                    "CALSCALE:GREGORIAN",
+                    "BEGIN:VEVENT",
+                    f"UID:{uid}",
+                    f"DTSTAMP:{stamp}",
+                    f"DTSTART:{self._fmt_ics(start_dt)}",
+                    f"DTEND:{self._fmt_ics(end_dt)}",
+                    f"SUMMARY:{title_text}",
+                    f"DESCRIPTION:{description}",
+                    f"LOCATION:{location}",
+                    "END:VEVENT",
+                    "END:VCALENDAR",
+                    "",
+                ]
+            )
 
             if outputFile:
                 out = Path(outputFile).expanduser()
                 if not out.is_absolute():
                     out = self.workspace / outputFile
             else:
-                safe_name = "".join(ch if ch.isalnum() else "-" for ch in title_text.lower()).strip("-") or "event"
+                safe_name = (
+                    "".join(ch if ch.isalnum() else "-" for ch in title_text.lower()).strip("-")
+                    or "event"
+                )
                 out = self.calendar_dir / f"{safe_name}-{start_dt.strftime('%Y%m%dT%H%M%SZ')}.ics"
 
             out.parent.mkdir(parents=True, exist_ok=True)

@@ -52,7 +52,9 @@ def _parse_http(payload: bytes) -> tuple[int, str, str]:
 def test_metrics_http_server_handle_client_routes(tmp_path: Path):
     store = MetricsStore(tmp_path / "events.jsonl")
     store.record_llm_call(model="gemini-3-pro", success=True, latency_ms=300)
-    store.record_tool_call(tool='web_search"prod"', success=False, latency_ms=700, attempts=2, error="429")
+    store.record_tool_call(
+        tool='web_search"prod"', success=False, latency_ms=700, attempts=2, error="429"
+    )
     server = MetricsHttpServer(
         store=store,
         host="127.0.0.1",
@@ -70,9 +72,7 @@ def test_metrics_http_server_handle_client_routes(tmp_path: Path):
         assert writer.wait_closed_called is True
         return _parse_http(writer.payload)
 
-    status, headers, body = asyncio.run(
-        send("GET /metrics HTTP/1.1\r\nHost: localhost\r\n\r\n")
-    )
+    status, headers, body = asyncio.run(send("GET /metrics HTTP/1.1\r\nHost: localhost\r\n\r\n"))
     assert status == 200
     assert "text/plain" in headers.lower()
     assert "g_agent_llm_calls_total 1" in body
@@ -87,20 +87,14 @@ def test_metrics_http_server_handle_client_routes(tmp_path: Path):
     assert payload["tool_calls"] == 1
     assert payload["tool_errors"] == 1
 
-    status, _, body = asyncio.run(
-        send("GET /health HTTP/1.1\r\nHost: localhost\r\n\r\n")
-    )
+    status, _, body = asyncio.run(send("GET /health HTTP/1.1\r\nHost: localhost\r\n\r\n"))
     assert status == 200
     assert body.strip() == "ok"
 
-    status, _, _ = asyncio.run(
-        send("GET /missing HTTP/1.1\r\nHost: localhost\r\n\r\n")
-    )
+    status, _, _ = asyncio.run(send("GET /missing HTTP/1.1\r\nHost: localhost\r\n\r\n"))
     assert status == 404
 
-    status, _, _ = asyncio.run(
-        send("POST /metrics HTTP/1.1\r\nHost: localhost\r\n\r\n")
-    )
+    status, _, _ = asyncio.run(send("POST /metrics HTTP/1.1\r\nHost: localhost\r\n\r\n"))
     assert status == 405
 
 

@@ -13,18 +13,18 @@ from g_agent.agent.skills import SkillsLoader
 class ContextBuilder:
     """
     Builds the context (system prompt + messages) for the agent.
-    
+
     Assembles bootstrap files, memory, skills, and conversation history
     into a coherent prompt for the LLM.
     """
-    
+
     BOOTSTRAP_FILES = ["AGENTS.md", "SOUL.md", "USER.md", "TOOLS.md", "IDENTITY.md"]
-    
+
     def __init__(self, workspace: Path):
         self.workspace = workspace
         self.memory = MemoryStore(workspace)
         self.skills = SkillsLoader(workspace)
-    
+
     def build_system_prompt(
         self,
         skill_names: list[str] | None = None,
@@ -32,24 +32,24 @@ class ContextBuilder:
     ) -> str:
         """
         Build the system prompt from bootstrap files, memory, and skills.
-        
+
         Args:
             skill_names: Optional list of skills to include.
             current_message: Optional current user message for memory retrieval.
-        
+
         Returns:
             Complete system prompt.
         """
         parts = []
-        
+
         # Core identity
         parts.append(self._get_identity())
-        
+
         # Bootstrap files
         bootstrap = self._load_bootstrap_files()
         if bootstrap:
             parts.append(bootstrap)
-        
+
         # Memory context
         memory = self.memory.get_memory_context(
             query=current_message,
@@ -57,7 +57,7 @@ class ContextBuilder:
         )
         if memory:
             parts.append(f"# Memory\n\n{memory}")
-        
+
         # Skills - progressive loading
         # 1. Always-loaded skills: include full content
         always_skills = self.skills.get_always_skills()
@@ -65,7 +65,7 @@ class ContextBuilder:
             always_content = self.skills.load_skills_for_context(always_skills)
             if always_content:
                 parts.append(f"# Active Skills\n\n{always_content}")
-        
+
         # 2. Available skills: only show summary (agent uses read_file to load)
         skills_summary = self.skills.build_skills_summary()
         if skills_summary:
@@ -75,17 +75,18 @@ The following skills extend your capabilities. To use a skill, read its SKILL.md
 Skills with available="false" need dependencies installed first - you can try installing them with apt/brew.
 
 {skills_summary}""")
-        
+
         return "\n\n---\n\n".join(parts)
-    
+
     def _get_identity(self) -> str:
         """Get the core identity section."""
         from datetime import datetime
+
         now = datetime.now().strftime("%Y-%m-%d %H:%M (%A)")
         workspace_path = str(self.workspace.expanduser().resolve())
         system = platform.system()
         runtime = f"{'macOS' if system == 'Darwin' else system} {platform.machine()}, Python {platform.python_version()}"
-        
+
         return f"""# g-agent
 
 You are g-agent (Galyarder Agent), a pragmatic AI operator for this workspace.
@@ -133,19 +134,19 @@ Your workspace is at: {workspace_path}
 - Custom skills: {workspace_path}/skills/{{skill-name}}/SKILL.md
 
 When writing durable user/context facts, use `remember` and `update_profile` tools."""
-    
+
     def _load_bootstrap_files(self) -> str:
         """Load all bootstrap files from workspace."""
         parts = []
-        
+
         for filename in self.BOOTSTRAP_FILES:
             file_path = self.workspace / filename
             if file_path.exists():
                 content = file_path.read_text(encoding="utf-8")
                 parts.append(f"## {filename}\n\n{content}")
-        
+
         return "\n\n".join(parts) if parts else ""
-    
+
     def build_messages(
         self,
         history: list[dict[str, Any]],
@@ -209,25 +210,29 @@ When writing durable user/context facts, use `remember` and `update_profile` too
                 path = str(item.get("path") or "").strip()
                 if not path:
                     continue
-                attachments.append({
-                    "type": str(item.get("type") or "file"),
-                    "path": path,
-                    "mime": str(item.get("mime") or ""),
-                    "caption": str(item.get("caption") or ""),
-                    "sourceChannel": str(item.get("sourceChannel") or ""),
-                })
+                attachments.append(
+                    {
+                        "type": str(item.get("type") or "file"),
+                        "path": path,
+                        "mime": str(item.get("mime") or ""),
+                        "caption": str(item.get("caption") or ""),
+                        "sourceChannel": str(item.get("sourceChannel") or ""),
+                    }
+                )
 
         if not attachments and media:
             for path in media:
                 mime, _ = mimetypes.guess_type(path)
                 attachment_type = "image" if (mime and mime.startswith("image/")) else "file"
-                attachments.append({
-                    "type": attachment_type,
-                    "path": path,
-                    "mime": mime or "",
-                    "caption": "",
-                    "sourceChannel": "",
-                })
+                attachments.append(
+                    {
+                        "type": attachment_type,
+                        "path": path,
+                        "mime": mime or "",
+                        "caption": "",
+                        "sourceChannel": "",
+                    }
+                )
 
         if not attachments:
             return text_block
@@ -248,10 +253,12 @@ When writing durable user/context facts, use `remember` and `update_profile` too
                 try:
                     b64 = base64.b64encode(file_path.read_bytes()).decode()
                     effective_mime = mime or "image/jpeg"
-                    multimodal_parts.append({
-                        "type": "image_url",
-                        "image_url": {"url": f"data:{effective_mime};base64,{b64}"},
-                    })
+                    multimodal_parts.append(
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:{effective_mime};base64,{b64}"},
+                        }
+                    )
                     if attachment_type == "sticker":
                         note = f"sticker from {source or 'channel'} ({file_path.name})"
                         if caption:
@@ -259,7 +266,9 @@ When writing durable user/context facts, use `remember` and `update_profile` too
                         attachment_notes.append(note)
                     continue
                 except OSError:
-                    attachment_notes.append(f"type={attachment_type}, path={path}, note=image embed failed")
+                    attachment_notes.append(
+                        f"type={attachment_type}, path={path}, note=image embed failed"
+                    )
                     continue
 
             descriptor = f"type={attachment_type}, path={path}"
@@ -280,55 +289,48 @@ When writing durable user/context facts, use `remember` and `update_profile` too
 
         final_text = text_block or "See attached image(s)."
         return multimodal_parts + [{"type": "text", "text": final_text}]
-    
+
     def add_tool_result(
-        self,
-        messages: list[dict[str, Any]],
-        tool_call_id: str,
-        tool_name: str,
-        result: str
+        self, messages: list[dict[str, Any]], tool_call_id: str, tool_name: str, result: str
     ) -> list[dict[str, Any]]:
         """
         Add a tool result to the message list.
-        
+
         Args:
             messages: Current message list.
             tool_call_id: ID of the tool call.
             tool_name: Name of the tool.
             result: Tool execution result.
-        
+
         Returns:
             Updated message list.
         """
-        messages.append({
-            "role": "tool",
-            "tool_call_id": tool_call_id,
-            "name": tool_name,
-            "content": result
-        })
+        messages.append(
+            {"role": "tool", "tool_call_id": tool_call_id, "name": tool_name, "content": result}
+        )
         return messages
-    
+
     def add_assistant_message(
         self,
         messages: list[dict[str, Any]],
         content: str | None,
-        tool_calls: list[dict[str, Any]] | None = None
+        tool_calls: list[dict[str, Any]] | None = None,
     ) -> list[dict[str, Any]]:
         """
         Add an assistant message to the message list.
-        
+
         Args:
             messages: Current message list.
             content: Message content.
             tool_calls: Optional tool calls.
-        
+
         Returns:
             Updated message list.
         """
         msg: dict[str, Any] = {"role": "assistant", "content": content or ""}
-        
+
         if tool_calls:
             msg["tool_calls"] = tool_calls
-        
+
         messages.append(msg)
         return messages

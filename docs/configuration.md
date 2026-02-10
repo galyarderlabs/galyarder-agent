@@ -9,8 +9,8 @@ Primary config path:
 ## Core sections
 
 - `agents.defaults`: model, temperature, tool iterations, workspace path, routing policy
-- `channels`: Telegram/WhatsApp/Discord channel toggles and allowlists
-- `providers`: API base and key for model routing
+- `channels`: Telegram, WhatsApp, Email, Slack channel toggles and allowlists
+- `providers`: API base, key, and extra headers for model routing
 - `tools`: shell timeout, workspace restriction, web search settings
 - `google`: OAuth credentials for Gmail/Calendar/Docs/Sheets/Drive
 
@@ -95,3 +95,60 @@ g-agent doctor --network
   }
 }
 ```
+
+## Provider registry
+
+Provider-specific logic (environment variables, model prefixes, parameter overrides) is
+driven by a declarative registry in `providers/registry.py`. The registry auto-detects
+providers from model names or explicit configuration — no manual if-elif setup required.
+
+### Supported providers
+
+| Provider | Keywords | Env Key | Notes |
+| --- | --- | --- | --- |
+| Anthropic | `claude` | `ANTHROPIC_API_KEY` | Direct |
+| OpenAI | `gpt`, `o1`, `o3`, `o4` | `OPENAI_API_KEY` | Direct |
+| Gemini | `gemini` | `GEMINI_API_KEY` | Prefixed `gemini/` |
+| DeepSeek | `deepseek` | `DEEPSEEK_API_KEY` | Direct |
+| Groq | `groq` | `GROQ_API_KEY` | Direct |
+| Zhipu | `glm`, `zhipu` | `ZHIPUAI_API_KEY` | Prefixed `zai/` |
+| Moonshot | `moonshot`, `kimi` | `MOONSHOT_API_KEY` | Prefixed `moonshot/` |
+| DashScope | `dashscope`, `qwen` | `DASHSCOPE_API_KEY` | Direct |
+| OpenRouter | `openrouter` | `OPENROUTER_API_KEY` | Gateway, prefixed `openrouter/` |
+| AiHubMix | `aihubmix` | `AIHUBMIX_API_KEY` | Gateway |
+| Ollama | `ollama` | `OLLAMA_API_KEY` | Local |
+
+### Extra headers
+
+Some providers (e.g., AiHubMix) require custom HTTP headers. Configure via `extra_headers`:
+
+```json
+{
+  "providers": {
+    "aihubmix": {
+      "apiKey": "your-key",
+      "apiBase": "https://api.aihubmix.com/v1",
+      "extra_headers": {
+        "APP-Code": "your-app-code"
+      }
+    }
+  }
+}
+```
+
+### Gateway auto-detection
+
+Gateways (OpenRouter, AiHubMix) are auto-detected by:
+
+1. **`provider_name`** from config key (e.g., `"openrouter"`)
+2. **API key prefix** (e.g., `sk-or-` → OpenRouter)
+3. **API base URL** keyword (e.g., `aihubmix` in URL → AiHubMix)
+
+## Channel configuration
+
+See [Channels](channels.md) for full setup guides for:
+
+- **Email**: IMAP/SMTP with consent-gated access and sender allowlists
+- **Slack**: Socket Mode with group policies and DM controls
+- **Telegram**: Bot token with numeric user ID allowlists
+- **WhatsApp**: QR-paired bridge with sender ID allowlists
