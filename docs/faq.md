@@ -17,9 +17,9 @@
 
 Discord/Feishu paths may exist in code, but primary supported channels are the three above.
 
-## Can I use local model endpoints (OpenAI-compatible / vLLM proxy)?
+## Can I use local model endpoints (OpenAI-compatible proxy)?
 
-Yes. Configure your provider `apiBase` + `apiKey` in `~/.g-agent/config.json`.
+Yes. Set `routing.proxy_provider` to `"proxy"` and configure `providers.proxy` with your endpoint's `apiBase` + `apiKey` in `~/.g-agent/config.json`. This works with CLIProxyAPI, vLLM, LiteLLM, or any OpenAI-compatible endpoint. See [Configuration](configuration.md) for examples.
 
 ## Does memory persist across sessions?
 

@@ -33,26 +33,65 @@ g-agent doctor --network
 `agents.defaults.routing` supports:
 
 - `mode`: `auto` | `proxy` | `direct`
+- `proxy_provider`: which provider to use in proxy mode (default: `vllm`)
 - `fallbackModels`: ordered model list used when primary model fails
 
-Recommended with OpenAI-compatible local proxy:
+### OpenAI-compatible proxy (CLIProxyAPI, LiteLLM, etc.)
 
 ```json
 {
   "agents": {
     "defaults": {
-      "model": "gemini-3-pro-preview",
+      "model": "claude-opus-4-6-thinking",
       "routing": {
         "mode": "proxy",
-        "fallbackModels": ["gemini-3-flash-preview"]
+        "proxy_provider": "proxy",
+        "fallbackModels": ["gemini-3-pro-preview", "gpt-5.3-codex"]
+      }
+    }
+  },
+  "providers": {
+    "proxy": {
+      "apiKey": "your-proxy-key",
+      "apiBase": "http://127.0.0.1:8317/v1"
+    }
+  }
+}
+```
+
+### vLLM inference server (backward-compatible)
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "model": "meta-llama/Llama-3-70b",
+      "routing": {
+        "mode": "proxy"
       }
     }
   },
   "providers": {
     "vllm": {
       "apiKey": "sk-local-xxx",
-      "apiBase": "http://127.0.0.1:8317/v1"
+      "apiBase": "http://127.0.0.1:8000/v1"
     }
+  }
+}
+```
+
+### Direct provider keys
+
+```json
+{
+  "agents": {
+    "defaults": {
+      "model": "anthropic/claude-opus-4-5",
+      "routing": { "mode": "direct" }
+    }
+  },
+  "providers": {
+    "anthropic": { "apiKey": "sk-ant-xxx" }
   }
 }
 ```

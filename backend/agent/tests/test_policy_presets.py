@@ -19,7 +19,7 @@ def test_apply_guest_limited_scoped_replaces_scope_only():
     config = Config()
     config.tools.policy = {
         "exec": "ask",
-        "telegram:6218572023:exec": "allow",
+        "telegram:123456789:exec": "allow",
         "telegram:other:web_search": "allow",
     }
 
@@ -27,16 +27,16 @@ def test_apply_guest_limited_scoped_replaces_scope_only():
         config,
         "guest_limited",
         channel="telegram",
-        sender="6218572023",
+        sender="123456789",
         replace_scope=True,
     )
 
     assert config.tools.policy["exec"] == "ask"
     assert config.tools.policy["telegram:other:web_search"] == "allow"
-    assert "telegram:6218572023:exec" not in config.tools.policy
-    assert config.tools.policy["telegram:6218572023:*"] == "deny"
-    assert config.tools.policy["telegram:6218572023:web_search"] == "allow"
-    assert config.tools.policy["telegram:6218572023:browser_type"] == "allow"
+    assert "telegram:123456789:exec" not in config.tools.policy
+    assert config.tools.policy["telegram:123456789:*"] == "deny"
+    assert config.tools.policy["telegram:123456789:web_search"] == "allow"
+    assert config.tools.policy["telegram:123456789:browser_type"] == "allow"
 
 
 def test_policy_resolver_supports_scoped_wildcards():
@@ -44,11 +44,11 @@ def test_policy_resolver_supports_scoped_wildcards():
     loop.approval_mode = "off"
     loop.risky_tools = []
     loop.tool_policy = {
-        "telegram:6218572023:*": "deny",
+        "telegram:123456789:*": "deny",
         "telegram:*:*": "ask",
         "*": "allow",
     }
 
-    assert loop._resolve_tool_policy("web_search", "telegram", "6218572023") == "deny"
+    assert loop._resolve_tool_policy("web_search", "telegram", "123456789") == "deny"
     assert loop._resolve_tool_policy("web_search", "telegram", "somebody_else") == "ask"
-    assert loop._resolve_tool_policy("web_search", "whatsapp", "6218572023") == "allow"
+    assert loop._resolve_tool_policy("web_search", "whatsapp", "123456789") == "allow"

@@ -3,7 +3,6 @@
   <h1>Galyarder Agent</h1>
   <p><b>Sovereignty-first AI assistant runtime for real daily workflows.</b></p>
   <p>
-    <img src="https://img.shields.io/badge/PyPI-not%20published%20yet-6b7280" alt="PyPI not published">
     <img src="https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white" alt="Python 3.11+">
     <img src="https://img.shields.io/badge/CLI-g--agent-6f42c1" alt="g-agent CLI">
     <img src="https://img.shields.io/github/actions/workflow/status/galyarderlabs/galyarder-agent/ci.yml?branch=main&label=CI" alt="CI">
@@ -56,7 +55,7 @@ If your assistant cannot run reliably on your own machine, it is not your assist
 ## What You Can Do Today
 
 - Chat through **CLI**, **Telegram**, or **WhatsApp**.
-- Run **local/OpenAI-compatible models** through LiteLLM routing.
+- Run models through **configurable OpenAI-compatible proxies** (CLIProxyAPI, vLLM, LiteLLM, etc.) via LiteLLM routing.
 - Keep durable memory across sessions (`MEMORY.md`, `PROFILE.md`, `PROJECTS.md`, `LESSONS.md`).
 - Schedule recurring jobs and proactive reminders.
 - Run workflow packs like `daily_brief`, `meeting_prep`, and `inbox_zero_batch`.
@@ -202,7 +201,7 @@ Supported channels and typical setup effort:
     "telegram": {
       "enabled": true,
       "token": "BOTFATHER_TOKEN",
-      "allowFrom": ["6218572023"]
+      "allowFrom": ["123456789"]
     }
   }
 }

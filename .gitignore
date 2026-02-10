@@ -34,3 +34,6 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
+
+# personal agent config
+.g-agent/

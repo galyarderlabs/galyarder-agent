@@ -43,10 +43,10 @@ def test_format_person_line_compact() -> None:
         "resourceName": "people/c123",
         "names": [{"displayName": "Galih"}],
         "emailAddresses": [{"value": "mhmdgalih@example.com"}],
-        "phoneNumbers": [{"value": "+6281388649050"}],
+        "phoneNumbers": [{"value": "+628123456789"}],
     }
     line = _format_person_line(person)
     assert "Galih" in line
     assert "mhmdgalih@example.com" in line
-    assert "+6281388649050" in line
+    assert "+628123456789" in line
     assert "people/c123" in line

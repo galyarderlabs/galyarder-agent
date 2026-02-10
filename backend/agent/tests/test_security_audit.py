@@ -54,7 +54,7 @@ def test_security_audit_secure_baseline(tmp_path: Path):
         restrict_to_workspace=True,
         approval_mode="confirm",
         telegram_enabled=True,
-        telegram_allow=["6218572023"],
+        telegram_allow=["123456789"],
         whatsapp_enabled=True,
         whatsapp_allow=["6281234567890"],
     )

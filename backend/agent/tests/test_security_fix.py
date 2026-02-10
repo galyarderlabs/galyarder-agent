@@ -54,7 +54,7 @@ def test_security_fix_dry_run_only_plans(tmp_path: Path):
         restrict_to_workspace=False,
         approval_mode="off",
         telegram_enabled=True,
-        telegram_allow=["6218572023"],
+        telegram_allow=["123456789"],
         whatsapp_enabled=True,
         whatsapp_allow=["628111111111"],
     )
@@ -108,7 +108,7 @@ def test_security_fix_apply_changes_config_permissions_and_memory(tmp_path: Path
         restrict_to_workspace=False,
         approval_mode="off",
         telegram_enabled=True,
-        telegram_allow=["6218572023"],
+        telegram_allow=["123456789"],
         whatsapp_enabled=True,
         whatsapp_allow=["628111111111"],
     )

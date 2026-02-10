@@ -5,7 +5,15 @@ All notable changes to this project are documented in this file.
 ## [Unreleased]
 
 ### Added
-- Placeholder section for upcoming changes.
+- Configurable `proxy_provider` in `RoutingConfig` (default: `vllm` for backward compatibility).
+- Generic `proxy` provider in `ProvidersConfig` for CLIProxyAPI and similar OpenAI-compatible proxies.
+- Provider-agnostic proxy routing via `_resolve_proxy_route()` helper.
+- Tests for backward-compatible vLLM proxy, generic proxy provider, and explicit `proxy/` prefix in auto mode.
+
+### Changed
+- `resolve_model_route()` now uses `proxy_provider` instead of hardcoding `vllm`.
+- `_resolve_direct_provider()` dynamically skips configured proxy providers.
+- README routing docs updated with CLIProxyAPI, vLLM, and direct provider examples.
 
 ## [0.1.4] - 2026-02-09
 
