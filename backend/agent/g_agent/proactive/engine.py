@@ -6,7 +6,6 @@ import json
 from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
 from typing import Any
-
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 

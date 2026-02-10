@@ -74,7 +74,9 @@ def test_workflow_pack_resolver_and_prompt():
     resolved = resolve_workflow_pack_request("/pack daily")
     assert resolved == ("daily_brief", "")
 
-    resolved_with_context = resolve_workflow_pack_request("run workflow pack meeting_prep investor sync")
+    resolved_with_context = resolve_workflow_pack_request(
+        "run workflow pack meeting_prep investor sync"
+    )
     assert resolved_with_context == ("meeting_prep", "investor sync")
 
     prompt = build_workflow_pack_prompt("inbox", "focus on urgent clients")

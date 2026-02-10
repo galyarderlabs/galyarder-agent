@@ -138,11 +138,13 @@ def build_workflow_pack_prompt(pack_name: str, user_context: str = "") -> str:
                 "- Silent mode requested (`--silent`): avoid extra narrative text once media delivery succeeds."
             )
     elif "silent" in flags:
-        lines.extend([
-            "",
-            "Delivery mode:",
-            "- `--silent` was requested without media mode; ignore silent mode and return normal text brief.",
-        ])
+        lines.extend(
+            [
+                "",
+                "Delivery mode:",
+                "- `--silent` was requested without media mode; ignore silent mode and return normal text brief.",
+            ]
+        )
     if cleaned_context:
         lines.extend(["", f"User context: {cleaned_context}"])
     lines.extend(["", "Return a final brief with clear next actions."])

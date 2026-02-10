@@ -4,7 +4,7 @@
 
 `g-agent` is a self-hosted personal assistant runtime for execution workflows:
 
-- chat ops (CLI, Telegram, WhatsApp)
+- chat ops (CLI, Telegram, WhatsApp, Email, Slack)
 - memory and context persistence
 - scheduled reminders/jobs
 - controlled tool execution under local policies
@@ -14,12 +14,24 @@
 - CLI
 - Telegram
 - WhatsApp
+- Email (IMAP/SMTP with consent gate)
+- Slack (Socket Mode)
 
-Discord/Feishu paths may exist in code, but primary supported channels are the three above.
+Discord/Feishu paths may exist in code, but primary supported channels are the five above.
 
 ## Can I use local model endpoints (OpenAI-compatible proxy)?
 
 Yes. Set `routing.proxy_provider` to `"proxy"` and configure `providers.proxy` with your endpoint's `apiBase` + `apiKey` in `~/.g-agent/config.json`. This works with CLIProxyAPI, vLLM, LiteLLM, or any OpenAI-compatible endpoint. See [Configuration](configuration.md) for examples.
+
+**Note:** The provider registry does not interfere with proxy mode. Custom model names pass through without modification.
+
+## Which LLM providers are supported out of the box?
+
+Anthropic, OpenAI, Gemini, DeepSeek, Groq, Zhipu, Moonshot, DashScope, OpenRouter, AiHubMix, and Ollama. Provider-specific logic (env vars, model prefixes, parameter overrides) is handled automatically by the declarative provider registry.
+
+## What is the provider registry?
+
+A declarative system that replaces hardcoded if-elif chains for provider configuration. It auto-detects providers from model names, sets environment variables, applies correct LiteLLM prefixes, and handles model-specific parameter overrides. See [Configuration → Provider registry](configuration.md#provider-registry).
 
 ## Does memory persist across sessions?
 
@@ -41,6 +53,7 @@ Minimum baseline:
 - keep strict `allowFrom` lists per channel
 - use separate data profiles for personal vs guest workloads
 - scope integration credentials to least privilege
+- for Email: ensure `consent_granted` is only `true` when you explicitly approve mailbox access
 
 ## Can I isolate guest users from personal data?
 

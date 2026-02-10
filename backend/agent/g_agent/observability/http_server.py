@@ -44,7 +44,9 @@ class MetricsHttpServer:
     async def start(self) -> None:
         if self._server:
             return
-        self._server = await asyncio.start_server(self._handle_client, host=self.host, port=self.port)
+        self._server = await asyncio.start_server(
+            self._handle_client, host=self.host, port=self.port
+        )
 
     async def stop(self) -> None:
         if not self._server:
@@ -65,14 +67,22 @@ class MetricsHttpServer:
 
     def _render_payload(self, *, hours: int, output_format: str) -> tuple[str, str]:
         if output_format == "prometheus":
-            return self.store.prometheus_text(hours=hours), "text/plain; version=0.0.4; charset=utf-8"
+            return self.store.prometheus_text(
+                hours=hours
+            ), "text/plain; version=0.0.4; charset=utf-8"
         if output_format == "dashboard_json":
             payload = self.store.dashboard_summary(hours=hours)
-            return json.dumps(payload, ensure_ascii=False, indent=2) + "\n", "application/json; charset=utf-8"
+            return json.dumps(
+                payload, ensure_ascii=False, indent=2
+            ) + "\n", "application/json; charset=utf-8"
         payload = self.store.snapshot(hours=hours)
-        return json.dumps(payload, ensure_ascii=False, indent=2) + "\n", "application/json; charset=utf-8"
+        return json.dumps(
+            payload, ensure_ascii=False, indent=2
+        ) + "\n", "application/json; charset=utf-8"
 
-    def _http_response(self, status: int, body: str, content_type: str = "text/plain; charset=utf-8") -> bytes:
+    def _http_response(
+        self, status: int, body: str, content_type: str = "text/plain; charset=utf-8"
+    ) -> bytes:
         reason = {
             200: "OK",
             400: "Bad Request",

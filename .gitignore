@@ -37,3 +37,6 @@ yarn-error.log*
 
 # personal agent config
 .g-agent/
+
+# reference repos (cloned for porting, not committed)
+.nanobot-ref/

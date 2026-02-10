@@ -10,7 +10,6 @@ import httpx
 
 from g_agent.agent.tools.base import Tool
 
-
 SENSITIVE_QUERY_KEYS = {
     "token",
     "api_key",
@@ -138,7 +137,7 @@ class BrowserSession:
         end = lower.find("</title>")
         if start == -1 or end == -1 or end <= start:
             return ""
-        return html[start + 7:end].strip()
+        return html[start + 7 : end].strip()
 
     @staticmethod
     def _extract_links(html: str, base_url: str, max_links: int = 200) -> list[dict[str, str]]:
@@ -155,10 +154,10 @@ class BrowserSession:
             end_tag = lower.find(">", a_idx)
             if end_tag == -1:
                 break
-            chunk = html[a_idx:end_tag + 1]
+            chunk = html[a_idx : end_tag + 1]
 
             href = ""
-            for quote in ("\"", "'"):
+            for quote in ('"', "'"):
                 marker = f"href={quote}"
                 marker_pos = chunk.lower().find(marker)
                 if marker_pos != -1:
@@ -171,7 +170,7 @@ class BrowserSession:
             text_end = lower.find("</a>", end_tag)
             text = ""
             if text_end != -1:
-                text = html[end_tag + 1:text_end].strip()
+                text = html[end_tag + 1 : text_end].strip()
 
             pos = end_tag + 1 if text_end == -1 else text_end + 4
 
@@ -271,7 +270,9 @@ class BrowserClickTool(Tool):
     def __init__(self, session: BrowserSession):
         self.session = session
 
-    async def execute(self, linkId: str | None = None, url: str | None = None, **kwargs: Any) -> str:
+    async def execute(
+        self, linkId: str | None = None, url: str | None = None, **kwargs: Any
+    ) -> str:
         target = (url or "").strip()
         if not target and linkId:
             for item in self.session.links:
@@ -423,7 +424,10 @@ class BrowserScreenshotTool(Tool):
         else:
             try:
                 resolved = out.resolve()
-                if self.session.workspace.resolve() not in resolved.parents and resolved != self.session.workspace.resolve():
+                if (
+                    self.session.workspace.resolve() not in resolved.parents
+                    and resolved != self.session.workspace.resolve()
+                ):
                     return "Error: absolute screenshot path must stay inside workspace."
             except (OSError, RuntimeError, ValueError):
                 return "Error: invalid output path."

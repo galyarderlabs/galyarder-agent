@@ -7,7 +7,6 @@ from typing import Iterable
 
 from g_agent.config.schema import Config
 
-
 GUEST_SAFE_TOOLS = {
     "recall",
     "web_search",

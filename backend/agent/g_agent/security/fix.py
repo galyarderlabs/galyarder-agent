@@ -104,18 +104,28 @@ def run_security_fix(
     config_needs_write = False
 
     if config.tools.restrict_to_workspace:
-        actions.append(_action("Enforce tools.restrictToWorkspace=true", "unchanged", "already enabled"))
+        actions.append(
+            _action("Enforce tools.restrictToWorkspace=true", "unchanged", "already enabled")
+        )
     elif apply:
         config.tools.restrict_to_workspace = True
         config_needs_write = True
         changed_total += 1
-        actions.append(_action("Enforce tools.restrictToWorkspace=true", "applied", "set to true", changed=True))
+        actions.append(
+            _action(
+                "Enforce tools.restrictToWorkspace=true", "applied", "set to true", changed=True
+            )
+        )
     else:
         config_needs_write = True
-        actions.append(_action("Enforce tools.restrictToWorkspace=true", "planned", "will set to true"))
+        actions.append(
+            _action("Enforce tools.restrictToWorkspace=true", "planned", "will set to true")
+        )
 
     if config.tools.approval_mode == "confirm":
-        actions.append(_action("Enforce tools.approvalMode=confirm", "unchanged", "already confirm"))
+        actions.append(
+            _action("Enforce tools.approvalMode=confirm", "unchanged", "already confirm")
+        )
     elif apply:
         before_mode = str(config.tools.approval_mode)
         config.tools.approval_mode = "confirm"
@@ -188,7 +198,9 @@ def run_security_fix(
         if wa_action.get("changed"):
             changed_total += 1
     else:
-        actions.append(_action("Harden WhatsApp auth permissions", "skipped", "whatsapp channel disabled"))
+        actions.append(
+            _action("Harden WhatsApp auth permissions", "skipped", "whatsapp channel disabled")
+        )
 
     memory_dir = workspace_path / "memory"
     memory_file = memory_dir / "MEMORY.md"
@@ -211,7 +223,9 @@ def run_security_fix(
             )
             changed_total += 1
         except OSError as exc:
-            actions.append(_action("Ensure workspace memory directory", "failed", f"{memory_dir}: {exc}"))
+            actions.append(
+                _action("Ensure workspace memory directory", "failed", f"{memory_dir}: {exc}")
+            )
 
     after = run_security_audit(
         config=config,

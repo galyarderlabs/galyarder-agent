@@ -135,4 +135,3 @@ def test_google_request_reports_scope_drift_with_guidance(monkeypatch):
     assert "auth-url" in data.get("error", "")
     assert len(factory.post_calls) == 1
     assert len(factory.request_calls) == 1
-

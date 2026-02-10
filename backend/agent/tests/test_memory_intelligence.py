@@ -85,11 +85,7 @@ def test_recall_explain_hides_superseded_fact(tmp_path: Path):
 
 
 def test_bootstrap_fact_index_from_fixture_resolves_conflicts(tmp_path: Path):
-    fixture = (
-        Path(__file__).resolve().parent
-        / "fixtures"
-        / "memory_conflicts.md"
-    )
+    fixture = Path(__file__).resolve().parent / "fixtures" / "memory_conflicts.md"
     store = MemoryStore(tmp_path)
     store.write_long_term(fixture.read_text(encoding="utf-8"))
 
@@ -97,18 +93,9 @@ def test_bootstrap_fact_index_from_fixture_resolves_conflicts(tmp_path: Path):
     active = [entry for entry in records if entry.get("status") == "active"]
     superseded = [entry for entry in records if entry.get("status") == "superseded"]
 
-    timezone_active = [
-        entry for entry in active
-        if entry.get("fact_key") == "timezone"
-    ]
-    editor_active = [
-        entry for entry in active
-        if entry.get("fact_key") == "editor"
-    ]
-    focus_active = [
-        entry for entry in active
-        if entry.get("fact_key") == "focus"
-    ]
+    timezone_active = [entry for entry in active if entry.get("fact_key") == "timezone"]
+    editor_active = [entry for entry in active if entry.get("fact_key") == "editor"]
+    focus_active = [entry for entry in active if entry.get("fact_key") == "focus"]
 
     assert len(records) == 7
     assert len(active) == 3
@@ -155,11 +142,7 @@ def test_recall_ranking_deterministic_for_score_ties(tmp_path: Path, monkeypatch
 
 
 def test_multilingual_fixture_overlap_ranking(tmp_path: Path):
-    fixture = (
-        Path(__file__).resolve().parent
-        / "fixtures"
-        / "memory_multilingual.md"
-    )
+    fixture = Path(__file__).resolve().parent / "fixtures" / "memory_multilingual.md"
     store = MemoryStore(tmp_path)
     store.write_long_term(fixture.read_text(encoding="utf-8"))
     store._load_fact_index()
