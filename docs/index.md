@@ -12,7 +12,7 @@ Galyarder Agent (`g-agent`) is a practical, self-hosted personal assistant runti
 ## What you get
 
 - Multi-channel assistant: CLI, Telegram, WhatsApp
-- LLM routing through OpenAI-compatible endpoints (including local proxy/vLLM)
+- LLM routing through configurable OpenAI-compatible proxies (CLIProxyAPI, vLLM, LiteLLM, etc.)
 - Persistent memory in local Markdown files
 - Proactive scheduling, cron-based reminders, workflow packs
 - Policy controls for workspace access, approvals, and guest limits

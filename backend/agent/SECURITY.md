@@ -68,7 +68,7 @@ Baseline example:
   },
   "channels": {
     "telegram": {
-      "allowFrom": ["6218572023"]
+      "allowFrom": ["123456789"]
     },
     "whatsapp": {
       "allowFrom": ["6281234567890"]

@@ -1,6 +1,7 @@
 """Configuration schema using Pydantic."""
 
 from pathlib import Path
+
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -58,6 +59,7 @@ class RoutingConfig(BaseModel):
     """Model routing policy."""
 
     mode: str = "auto"  # auto | proxy | direct
+    proxy_provider: str = "vllm"  # provider slot used in proxy mode
     fallback_models: list[str] = Field(default_factory=list)
 
 
@@ -106,6 +108,7 @@ class ProvidersConfig(BaseModel):
     vllm: ProviderConfig = Field(default_factory=ProviderConfig)
     gemini: ProviderConfig = Field(default_factory=ProviderConfig)
     moonshot: ProviderConfig = Field(default_factory=ProviderConfig)
+    proxy: ProviderConfig = Field(default_factory=ProviderConfig)
 
 
 class SlackConfig(BaseModel):
@@ -217,7 +220,7 @@ class Config(BaseSettings):
     proactive: ProactiveConfig = Field(default_factory=ProactiveConfig)
     gateway: GatewayConfig = Field(default_factory=GatewayConfig)
     tools: ToolsConfig = Field(default_factory=ToolsConfig)
-    
+
     @property
     def workspace_path(self) -> Path:
         """Get expanded workspace path."""
@@ -235,6 +238,7 @@ class Config(BaseSettings):
             "groq": self.providers.groq,
             "moonshot": self.providers.moonshot,
             "vllm": self.providers.vllm,
+            "proxy": self.providers.proxy,
         }
 
     def _routing_mode(self) -> str:
@@ -283,6 +287,7 @@ class Config(BaseSettings):
             "kimi": "moonshot",
             "vllm": "vllm",
             "hosted_vllm": "vllm",
+            "proxy": "proxy",
         }
         for keyword, provider_name in keyword_hints.items():
             if keyword in lowered and provider_name not in hints:
@@ -305,6 +310,7 @@ class Config(BaseSettings):
             ("moonshot/", "moonshot"),
             ("vllm/", "vllm"),
             ("hosted_vllm/", "vllm"),
+            ("proxy/", "proxy"),
         )
         for prefix, provider_name in explicit_prefixes:
             if lowered.startswith(prefix):
@@ -326,9 +332,15 @@ class Config(BaseSettings):
             cleaned.append(model)
         return cleaned
 
-    def _resolve_direct_provider(self, model: str) -> str | None:
+    def _proxy_provider_names(self) -> set[str]:
+        """Provider names treated as proxy (not direct)."""
+        configured = self.agents.defaults.routing.proxy_provider.strip().lower()
+        return {"vllm", "proxy"} | ({configured} if configured else set())
+
+    def _resolve_direct_provider(self, model: str | None = None) -> str | None:
         """Resolve direct provider from explicit hints and configured keys."""
         providers = self._provider_map()
+        proxy_names = self._proxy_provider_names()
         direct_order = (
             "openrouter",
             "deepseek",
@@ -339,9 +351,9 @@ class Config(BaseSettings):
             "moonshot",
             "groq",
         )
-        hints = self._model_provider_hints(model)
+        hints = self._model_provider_hints(model) if model else ()
         for provider_name in hints:
-            if provider_name == "vllm":
+            if provider_name in proxy_names:
                 continue
             provider_cfg = providers.get(provider_name)
             if provider_cfg and provider_cfg.api_key:
@@ -358,12 +370,29 @@ class Config(BaseSettings):
             return provider_cfg.api_base or "https://openrouter.ai/api/v1"
         return provider_cfg.api_base
 
+    def _resolve_proxy_route(
+        self, selected_model: str, fallback_models: list[str],
+    ) -> LLMRoute:
+        """Build LLMRoute for the configured proxy provider."""
+        providers = self._provider_map()
+        proxy_name = self.agents.defaults.routing.proxy_provider.strip().lower() or "vllm"
+        proxy_cfg = providers.get(proxy_name, ProviderConfig())
+        return LLMRoute(
+            model=selected_model,
+            mode="proxy",
+            provider=proxy_name,
+            api_key=proxy_cfg.api_key or None,
+            api_base=proxy_cfg.api_base,
+            fallback_models=fallback_models,
+        )
+
     def resolve_model_route(self, model: str | None = None) -> LLMRoute:
         """Resolve model provider route using routing mode + provider availability."""
         selected_model = (model or self.agents.defaults.model).strip()
         lowered = selected_model.lower()
         mode = self._routing_mode()
         fallback_models = self._sanitize_fallback_models(selected_model)
+        proxy_names = self._proxy_provider_names()
 
         if lowered.startswith("bedrock/"):
             return LLMRoute(
@@ -377,17 +406,11 @@ class Config(BaseSettings):
 
         providers = self._provider_map()
 
+        # ── Explicit proxy mode ─────────────────────────────────────
         if mode == "proxy":
-            vllm_cfg = providers["vllm"]
-            return LLMRoute(
-                model=selected_model,
-                mode="proxy",
-                provider="vllm",
-                api_key=vllm_cfg.api_key or None,
-                api_base=vllm_cfg.api_base,
-                fallback_models=fallback_models,
-            )
+            return self._resolve_proxy_route(selected_model, fallback_models)
 
+        # ── Explicit direct mode ────────────────────────────────────
         if mode == "direct":
             provider_name = self._resolve_direct_provider(selected_model) or "unresolved"
             provider_cfg = providers.get(provider_name, ProviderConfig())
@@ -402,17 +425,20 @@ class Config(BaseSettings):
                 fallback_models=fallback_models,
             )
 
+        # ── Auto mode ───────────────────────────────────────────────
+        # 1. Explicit prefix pointing to a proxy provider?
         explicit_provider = self._explicit_provider_from_model(selected_model)
-        if explicit_provider == "vllm":
-            vllm_cfg = providers["vllm"]
+        if explicit_provider in proxy_names:
+            proxy_cfg = providers.get(explicit_provider, ProviderConfig())
             return LLMRoute(
                 model=selected_model,
                 mode="proxy",
-                provider="vllm",
-                api_key=vllm_cfg.api_key or None,
-                api_base=vllm_cfg.api_base,
+                provider=explicit_provider,
+                api_key=proxy_cfg.api_key or None,
+                api_base=proxy_cfg.api_base,
                 fallback_models=fallback_models,
             )
+        # 2. Explicit prefix pointing to a direct provider with key?
         if explicit_provider and providers[explicit_provider].api_key:
             provider_cfg = providers[explicit_provider]
             return LLMRoute(
@@ -424,17 +450,20 @@ class Config(BaseSettings):
                 fallback_models=fallback_models,
             )
 
-        if providers["vllm"].api_base:
-            vllm_cfg = providers["vllm"]
+        # 3. Configured proxy provider has api_base? Use it.
+        proxy_name = self.agents.defaults.routing.proxy_provider.strip().lower() or "vllm"
+        proxy_cfg = providers.get(proxy_name, ProviderConfig())
+        if proxy_cfg.api_base:
             return LLMRoute(
                 model=selected_model,
                 mode="proxy",
-                provider="vllm",
-                api_key=vllm_cfg.api_key or None,
-                api_base=vllm_cfg.api_base,
+                provider=proxy_name,
+                api_key=proxy_cfg.api_key or None,
+                api_base=proxy_cfg.api_base,
                 fallback_models=fallback_models,
             )
 
+        # 4. Fall back to any direct provider with a key.
         provider_name = self._resolve_direct_provider(selected_model) or "unresolved"
         provider_cfg = providers.get(provider_name, ProviderConfig())
         return LLMRoute(
@@ -464,12 +493,12 @@ class Config(BaseSettings):
             if provider.api_key:
                 return provider.api_key
         return None
-    
+
     def get_api_base(self, model: str | None = None) -> str | None:
         """Get API base URL based on model name."""
         route = self.resolve_model_route(model)
         return route.api_base
-    
+
     model_config = SettingsConfigDict(
         env_prefix="G_AGENT_",
         env_nested_delimiter="__",

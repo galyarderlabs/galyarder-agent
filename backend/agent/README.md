@@ -76,12 +76,14 @@ If the runtime is not operationally controllable, it is not truly personal.
 
 Edit `~/.g-agent/config.json`:
 
+**CLIProxyAPI / generic OpenAI-compatible proxy:**
+
 ```json
 {
   "providers": {
-    "vllm": {
-      "apiKey": "sk-local-xxx",
-      "apiBase": "http://127.0.0.1:8317/v1"
+    "proxy": {
+      "api_key": "your-cliproxy-key",
+      "api_base": "http://localhost:8317/v1"
     }
   },
   "agents": {
@@ -89,16 +91,47 @@ Edit `~/.g-agent/config.json`:
       "model": "gemini-3-pro-preview",
       "routing": {
         "mode": "proxy",
-        "fallbackModels": ["gemini-3-flash-preview"]
+        "proxy_provider": "proxy",
+        "fallback_models": ["gemini-3-flash-preview"]
       }
     }
+  }
+}
+```
+
+**vLLM / legacy proxy setup (backward-compatible):**
+
+```json
+{
+  "providers": {
+    "vllm": {
+      "api_key": "sk-local-xxx",
+      "api_base": "http://127.0.0.1:8000/v1"
+    }
   },
-  "tools": {
-    "restrictToWorkspace": true,
-    "web": {
-      "search": {
-        "apiKey": "BSA-xxx"
+  "agents": {
+    "defaults": {
+      "model": "meta-llama/Llama-3-70b",
+      "routing": {
+        "mode": "proxy"
       }
+    }
+  }
+}
+```
+
+**Direct provider keys:**
+
+```json
+{
+  "providers": {
+    "anthropic": { "api_key": "sk-ant-xxx" },
+    "gemini": { "api_key": "gsk-xxx" }
+  },
+  "agents": {
+    "defaults": {
+      "model": "anthropic/claude-opus-4-5",
+      "routing": { "mode": "direct" }
     }
   }
 }
@@ -106,9 +139,9 @@ Edit `~/.g-agent/config.json`:
 
 Routing modes:
 
-- `proxy`: always use `providers.vllm` (recommended for OpenAI-compatible multi-provider proxy).
+- `proxy`: use the provider configured in `routing.proxy_provider` (default: `vllm`). Set `proxy_provider: "proxy"` for CLIProxyAPI.
 - `direct`: resolve by provider keys (OpenAI/Anthropic/Gemini/etc) without proxy fallback.
-- `auto`: explicit provider prefixes win (`gemini/...`, `openai/...`); otherwise prefer proxy when `providers.vllm.apiBase` is set.
+- `auto`: explicit provider prefixes win (`gemini/...`, `openai/...`); otherwise prefer the configured proxy provider when its `api_base` is set.
 
 ### 2) Configure channels with allowlists
 
@@ -120,7 +153,7 @@ Telegram:
     "telegram": {
       "enabled": true,
       "token": "BOTFATHER_TOKEN",
-      "allowFrom": ["6218572023"]
+      "allowFrom": ["123456789"]
     }
   }
 }

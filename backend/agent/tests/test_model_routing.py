@@ -29,7 +29,11 @@ class RouteTestProvider(LLMProvider):
         return "primary-model"
 
 
+# ── Backward-compatible: proxy mode defaults to vllm ───────────────────────
+
+
 def test_auto_mode_prefers_proxy_for_unprefixed_model():
+    """BC: vllm proxy_provider default works when proxy_provider is omitted."""
     cfg = Config.model_validate(
         {
             "agents": {
@@ -60,6 +64,120 @@ def test_auto_mode_prefers_proxy_for_unprefixed_model():
     assert route.provider == "vllm"
     assert route.api_base == "http://127.0.0.1:8317/v1"
     assert route.fallback_models == ["gemini-3-flash-preview", "qwen3-coder-plus"]
+
+
+def test_proxy_mode_uses_vllm_by_default():
+    """BC: explicit proxy mode without proxy_provider still uses vllm."""
+    cfg = Config.model_validate(
+        {
+            "agents": {
+                "defaults": {
+                    "model": "claude-sonnet-4-5",
+                    "routing": {"mode": "proxy"},
+                }
+            },
+            "providers": {
+                "vllm": {
+                    "api_key": "sk-vllm",
+                    "api_base": "http://localhost:8317/v1",
+                },
+            },
+        }
+    )
+    route = cfg.resolve_model_route()
+    assert route.mode == "proxy"
+    assert route.provider == "vllm"
+    assert route.api_key == "sk-vllm"
+    assert route.api_base == "http://localhost:8317/v1"
+
+
+# ── Generic proxy provider (CLIProxyAPI) ───────────────────────────────────
+
+
+def test_proxy_mode_uses_configured_proxy_provider():
+    """proxy_provider=proxy routes through the generic 'proxy' slot."""
+    cfg = Config.model_validate(
+        {
+            "agents": {
+                "defaults": {
+                    "model": "gemini-3-pro-preview",
+                    "routing": {
+                        "mode": "proxy",
+                        "proxy_provider": "proxy",
+                    },
+                }
+            },
+            "providers": {
+                "proxy": {
+                    "api_key": "cliproxy-key-123",
+                    "api_base": "http://localhost:8317/v1",
+                },
+                "vllm": {
+                    "api_key": "sk-vllm-should-not-be-used",
+                    "api_base": "http://vllm.internal:8000/v1",
+                },
+            },
+        }
+    )
+    route = cfg.resolve_model_route()
+    assert route.mode == "proxy"
+    assert route.provider == "proxy"
+    assert route.api_key == "cliproxy-key-123"
+    assert route.api_base == "http://localhost:8317/v1"
+
+
+def test_auto_mode_uses_proxy_provider_api_base():
+    """Auto mode falls back to configured proxy_provider when it has api_base."""
+    cfg = Config.model_validate(
+        {
+            "agents": {
+                "defaults": {
+                    "model": "gemini-3-flash-preview",
+                    "routing": {
+                        "mode": "auto",
+                        "proxy_provider": "proxy",
+                    },
+                }
+            },
+            "providers": {
+                "proxy": {
+                    "api_key": "cliproxy-key",
+                    "api_base": "http://localhost:8317/v1",
+                },
+            },
+        }
+    )
+    route = cfg.resolve_model_route()
+    assert route.mode == "proxy"
+    assert route.provider == "proxy"
+    assert route.api_base == "http://localhost:8317/v1"
+
+
+def test_explicit_proxy_prefix_in_auto_mode():
+    """Model prefixed with proxy/ routes via the proxy provider in auto mode."""
+    cfg = Config.model_validate(
+        {
+            "agents": {
+                "defaults": {
+                    "model": "proxy/gemini-3-pro-preview",
+                    "routing": {"mode": "auto"},
+                }
+            },
+            "providers": {
+                "proxy": {
+                    "api_key": "cliproxy-key",
+                    "api_base": "http://localhost:8317/v1",
+                },
+                "gemini": {"api_key": "gsk-live"},
+            },
+        }
+    )
+    route = cfg.resolve_model_route()
+    assert route.mode == "proxy"
+    assert route.provider == "proxy"
+
+
+# ── Direct mode (unchanged behavior) ──────────────────────────────────────
 
 
 def test_direct_mode_forces_direct_provider():
@@ -107,6 +225,9 @@ def test_auto_mode_honors_explicit_model_prefix():
     route = cfg.resolve_model_route()
     assert route.mode == "direct"
     assert route.provider == "gemini"
+
+
+# ── Failover tests (unchanged) ────────────────────────────────────────────
 
 
 def test_agent_loop_falls_back_to_next_model_on_retryable_error(tmp_path, monkeypatch):
