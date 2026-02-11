@@ -272,7 +272,6 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         env_extras=("MINIMAX_GROUP_ID",),
         is_gateway=True,
         default_api_base="https://api.minimax.chat/v1",
-        detect_model=lambda m: m.startswith("minimax/") or "minimax" in m,
     ),
 )
 
