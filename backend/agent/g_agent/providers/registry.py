@@ -261,6 +261,19 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         strip_model_prefix=False,
         model_overrides=(),
     ),
+    # MiniMax: Requires "minimax/" prefix.
+    ProviderSpec(
+        name="minimax",
+        keywords=("minimax",),
+        env_key="MINIMAX_API_KEY",
+        display_name="MiniMax",
+        litellm_prefix="minimax",
+        skip_prefixes=("minimax/",),
+        env_extras=("MINIMAX_GROUP_ID",),
+        is_gateway=True,
+        default_api_base="https://api.minimax.chat/v1",
+        detect_model=lambda m: m.startswith("minimax/") or "minimax" in m,
+    ),
 )
 
 

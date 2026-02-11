@@ -178,6 +178,7 @@ class ProvidersConfig(BaseModel):
     vllm: ProviderConfig = Field(default_factory=ProviderConfig)
     gemini: ProviderConfig = Field(default_factory=ProviderConfig)
     moonshot: ProviderConfig = Field(default_factory=ProviderConfig)
+    minimax: ProviderConfig = Field(default_factory=ProviderConfig)
     dashscope: ProviderConfig = Field(
         default_factory=ProviderConfig
     )  # Alibaba Cloud Tongyi Qianwen
@@ -330,6 +331,7 @@ class Config(BaseSettings):
             "zhipu": self.providers.zhipu,
             "groq": self.providers.groq,
             "moonshot": self.providers.moonshot,
+            "minimax": self.providers.minimax,
             "dashscope": self.providers.dashscope,
             "aihubmix": self.providers.aihubmix,
             "vllm": self.providers.vllm,
@@ -394,6 +396,8 @@ class Config(BaseSettings):
             hints.append("groq")
         if lowered.startswith(("moonshot/",)):
             hints.append("moonshot")
+        if lowered.startswith(("minimax/",)):
+            hints.append("minimax")
         if lowered.startswith(("dashscope/", "qwen/")):
             hints.append("dashscope")
         if lowered.startswith(("aihubmix/",)):
@@ -415,6 +419,8 @@ class Config(BaseSettings):
             "groq": "groq",
             "moonshot": "moonshot",
             "kimi": "moonshot",
+            "minimax": "minimax",
+            "abab": "minimax",
             "dashscope": "dashscope",
             "qwen": "dashscope",
             "tongyi": "dashscope",
@@ -442,6 +448,7 @@ class Config(BaseSettings):
             ("zai/", "zhipu"),
             ("groq/", "groq"),
             ("moonshot/", "moonshot"),
+            ("minimax/", "minimax"),
             ("dashscope/", "dashscope"),
             ("qwen/", "dashscope"),
             ("aihubmix/", "aihubmix"),
@@ -486,6 +493,7 @@ class Config(BaseSettings):
             "gemini",
             "zhipu",
             "moonshot",
+            "minimax",
             "dashscope",
             "aihubmix",
             "groq",
@@ -632,6 +640,7 @@ class Config(BaseSettings):
             self.providers.gemini,
             self.providers.zhipu,
             self.providers.moonshot,
+            self.providers.minimax,
             self.providers.vllm,
             self.providers.groq,
         ]:
