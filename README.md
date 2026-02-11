@@ -54,8 +54,8 @@ If your assistant cannot run reliably on your own machine, it is not your assist
 
 ## What You Can Do Today
 
-- Chat through **CLI**, **Telegram**, or **WhatsApp**.
-- Run models through **configurable OpenAI-compatible proxies** (CLIProxyAPI, vLLM, LiteLLM, etc.) via LiteLLM routing.
+- Chat through **CLI**, **Telegram**, or **WhatsApp** with persistent history and enhanced editing.
+- Run models through **configurable OpenAI-compatible proxies** (MiniMax, CLIProxyAPI, vLLM, LiteLLM, etc.) via LiteLLM routing.
 - Keep durable memory across sessions (`MEMORY.md`, `PROFILE.md`, `PROJECTS.md`, `LESSONS.md`).
 - Schedule recurring jobs and proactive reminders.
 - Run workflow packs like `daily_brief`, `meeting_prep`, and `inbox_zero_batch`.

@@ -128,6 +128,11 @@ Information about the user goes here.
     # Create memory directory and MEMORY.md
     memory_dir = workspace / "memory"
     memory_dir.mkdir(exist_ok=True)
+    
+    # Create skills directory for custom user skills
+    skills_dir = workspace / "skills"
+    skills_dir.mkdir(exist_ok=True)
+
     memory_file = memory_dir / "MEMORY.md"
     if not memory_file.exists():
         memory_file.write_text("""# Long-term Memory
@@ -589,18 +594,29 @@ def agent(
         asyncio.run(run_once())
     else:
         # Interactive mode
+        from prompt_toolkit import PromptSession
+        from prompt_toolkit.history import FileHistory
+        from prompt_toolkit.styles import Style
+
+        history_dir = config.workspace_path / "state"
+        history_dir.mkdir(parents=True, exist_ok=True)
+        history_file = history_dir / "cli_history"
+
+        session = PromptSession(history=FileHistory(str(history_file)))
+        style = Style.from_dict({"prompt": "bold blue"})
+
         console.print(f"{__logo__} Interactive mode (Ctrl+C to exit)\n")
 
         async def run_interactive():
             while True:
                 try:
-                    user_input = console.input("[bold blue]You:[/bold blue] ")
+                    user_input = await session.prompt_async("You: ", style=style)
                     if not user_input.strip():
                         continue
 
                     response = await agent_loop.process_direct(user_input, session_id)
                     console.print(f"\n{__logo__} {response}\n")
-                except KeyboardInterrupt:
+                except (KeyboardInterrupt, EOFError):
                     console.print("\nGoodbye!")
                     break
 
