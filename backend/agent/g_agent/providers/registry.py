@@ -269,7 +269,7 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         display_name="MiniMax",
         litellm_prefix="minimax",
         skip_prefixes=("minimax/",),
-        env_extras=("MINIMAX_GROUP_ID",),
+        env_extras=(),
         is_gateway=True,
         default_api_base="https://api.minimax.chat/v1",
     ),
