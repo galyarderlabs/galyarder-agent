@@ -29,3 +29,35 @@ bash deploy/optimize-images.sh --dry-run
 git config core.hooksPath .githooks
 chmod +x .githooks/pre-commit .githooks/pre-push
 ```
+
+## Maintainer release checklist
+
+Before tagging a release (`vX.Y.Z`):
+
+1. Update version metadata:
+   - `backend/agent/pyproject.toml`
+   - `backend/agent/g_agent/__init__.py`
+   - `backend/agent/uv.lock`
+2. Update release docs:
+   - `CHANGELOG.md`
+   - `docs/release-notes/vX.Y.Z.md` (must exist and be non-empty)
+3. Run validation:
+
+```bash
+cd backend/agent
+python -m compileall -q g_agent
+ruff check g_agent tests --select F
+pytest -q
+```
+
+4. Open PR, merge to `main`, then push tag:
+
+```bash
+git tag -a vX.Y.Z -m "Release vX.Y.Z"
+git push origin vX.Y.Z
+```
+
+Notes:
+
+- CI blocks version-bump PRs without non-empty `docs/release-notes/vX.Y.Z.md`.
+- Release workflow publishes GitHub release notes from that file.
