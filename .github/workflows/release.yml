@@ -80,28 +80,31 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Extract release notes from CHANGELOG.md
+      - name: Load release notes from docs/release-notes
         id: notes
         run: |
           python - <<'PY'
           import os
           import pathlib
-          import re
 
           tag = os.environ.get("GITHUB_REF_NAME", "").strip()
+          if not tag.startswith("v"):
+              raise SystemExit(f"Expected tag format vX.Y.Z, got: {tag!r}")
           version = tag[1:] if tag.startswith("v") else tag
-          changelog = pathlib.Path("CHANGELOG.md")
-          text = changelog.read_text(encoding="utf-8") if changelog.exists() else ""
-
-          pattern = rf"^## \[{re.escape(version)}\][^\n]*\n(.*?)(?=^## \[|\Z)"
-          match = re.search(pattern, text, flags=re.MULTILINE | re.DOTALL)
-          notes = (match.group(1).strip() if match else "").strip()
+          notes_path = pathlib.Path("docs") / "release-notes" / f"v{version}.md"
+          if not notes_path.exists():
+              raise SystemExit(
+                  f"Missing release notes file: {notes_path}. "
+                  "Create it before pushing the release tag."
+              )
+          notes = notes_path.read_text(encoding="utf-8").strip()
           if not notes:
-              notes = "See CHANGELOG.md for details."
+              raise SystemExit(f"Release notes file is empty: {notes_path}")
 
           out = pathlib.Path(os.environ["GITHUB_OUTPUT"])
           with out.open("a", encoding="utf-8") as f:
               f.write(f"version={version}\n")
+              f.write(f"notes_path={notes_path.as_posix()}\n")
               f.write("notes<<EOF\n")
               f.write(notes + "\n")
               f.write("EOF\n")

@@ -26,6 +26,7 @@ All notable changes to this project are documented in this file.
 - README routing docs updated with CLIProxyAPI, vLLM, and direct provider examples.
 - Default model updated to `claude-opus-4-6-thinking` for proxy-based setups.
 - Group commands (`channels`, `google`, `cron`, `policy`) now show help when called without subcommand.
+- Release workflow now loads GitHub release body from `docs/release-notes/vX.Y.Z.md` and fails tag publish when that file is missing or empty.
 
 ### Fixed
 - Deprecated `opus 4.5` model aliases are now migrated to `claude-opus-4-6-thinking` during config load.
