@@ -304,6 +304,27 @@ class _CrashOnceChannel(BaseChannel):
         self.sent.append(msg)
 
 
+class _AlwaysCrashChannel(BaseChannel):
+    name = "always-crash"
+
+    def __init__(self, *, bus: MessageBus):
+        super().__init__(config=type("Cfg", (), {"allow_from": []})(), bus=bus)
+        self.start_attempts = 0
+        self.stop_attempts = 0
+
+    async def start(self) -> None:
+        self.start_attempts += 1
+        self._running = False
+        raise RuntimeError("simulated persistent crash")
+
+    async def stop(self) -> None:
+        self.stop_attempts += 1
+        self._running = False
+
+    async def send(self, msg: OutboundMessage) -> None:
+        raise RuntimeError("not implemented")
+
+
 def test_channel_manager_integration_reconnect_harness_dispatches_after_recovery():
     async def run_case() -> None:
         bus = MessageBus()
@@ -382,5 +403,38 @@ def test_channel_manager_restarts_channel_after_crash():
 
         assert unstable_channel.start_attempts >= 2
         assert unstable_channel.is_running is False
+
+    asyncio.run(run_case())
+
+
+def test_channel_manager_applies_cooldown_on_restart_burst(monkeypatch):
+    async def run_case() -> None:
+        bus = MessageBus()
+        config = Config()
+        manager = ChannelManager(config, bus)
+        unstable_channel = _AlwaysCrashChannel(bus=bus)
+        manager.channels = {"telegram": unstable_channel}
+        manager._channel_restart_delay_s = 0.01
+        manager._channel_restart_backoff_max_s = 0.02
+        manager._channel_restart_window_s = 10.0
+        manager._channel_restart_max_attempts_window = 2
+        manager._channel_restart_cooldown_s = 0.2
+        manager._channel_stable_reset_s = 0.1
+
+        sleep_calls: list[float] = []
+
+        async def fake_sleep(seconds: float) -> None:
+            sleep_calls.append(seconds)
+            if seconds >= manager._channel_restart_cooldown_s:
+                manager._running = False
+
+        monkeypatch.setattr("g_agent.channels.manager.asyncio.sleep", fake_sleep)
+
+        manager._running = True
+        await manager._run_channel_supervisor("telegram", unstable_channel)
+
+        assert unstable_channel.start_attempts >= 3
+        assert unstable_channel.stop_attempts >= unstable_channel.start_attempts
+        assert manager._channel_restart_cooldown_s in sleep_calls
 
     asyncio.run(run_case())

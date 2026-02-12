@@ -40,6 +40,11 @@ class ChannelManager:
         self._running = False
         self._channel_restart_delay_s = 5.0
         self._channel_restart_backoff_max_s = 60.0
+        self._channel_restart_window_s = 120.0
+        self._channel_restart_max_attempts_window = 8
+        self._channel_restart_cooldown_s = 180.0
+        self._channel_stable_reset_s = 180.0
+        self._channel_restart_history: dict[str, list[float]] = {}
         self._outbound_retry_base_delay_s = 1.0
         self._outbound_retry_backoff_max_s = 30.0
         self._outbound_retry_max_attempts = 3
@@ -187,24 +192,62 @@ class ChannelManager:
             await asyncio.gather(*list(self._outbound_retry_tasks), return_exceptions=True)
             self._outbound_retry_tasks.clear()
 
+        self._channel_restart_history.clear()
+
     async def _run_channel_supervisor(self, name: str, channel: BaseChannel) -> None:
         """Run one channel with restart-on-failure supervision."""
         backoff = self._channel_restart_delay_s
+        restart_history = self._channel_restart_history.setdefault(name, [])
         while self._running:
+            started_at = time.monotonic()
             try:
                 await channel.start()
                 if not self._running:
                     break
-                logger.warning(f"{name} channel stopped unexpectedly; restarting in {backoff:.1f}s")
+                runtime_s = time.monotonic() - started_at
+                if runtime_s >= self._channel_stable_reset_s:
+                    backoff = self._channel_restart_delay_s
+                logger.warning(
+                    f"{name} channel stopped unexpectedly after {runtime_s:.1f}s; "
+                    f"restarting in {backoff:.1f}s"
+                )
             except asyncio.CancelledError:
                 break
             except Exception as exc:
                 if not self._running:
                     break
-                logger.error(f"{name} channel crashed: {exc}; restarting in {backoff:.1f}s")
+                runtime_s = time.monotonic() - started_at
+                if runtime_s >= self._channel_stable_reset_s:
+                    backoff = self._channel_restart_delay_s
+                logger.error(
+                    f"{name} channel crashed after {runtime_s:.1f}s: {exc}; "
+                    f"restarting in {backoff:.1f}s"
+                )
+            finally:
+                if self._running:
+                    try:
+                        await channel.stop()
+                    except Exception as stop_exc:
+                        logger.debug(f"{name} channel stop hook failed during restart: {stop_exc}")
 
             if not self._running:
                 break
+
+            now = time.monotonic()
+            window_floor = now - self._channel_restart_window_s
+            restart_history[:] = [stamp for stamp in restart_history if stamp >= window_floor]
+            restart_history.append(now)
+
+            if len(restart_history) > self._channel_restart_max_attempts_window:
+                logger.error(
+                    f"{name} channel restart burst detected "
+                    f"({len(restart_history)} restarts / {self._channel_restart_window_s:.0f}s); "
+                    f"cooldown {self._channel_restart_cooldown_s:.1f}s"
+                )
+                await asyncio.sleep(self._channel_restart_cooldown_s)
+                backoff = self._channel_restart_delay_s
+                continue
+
             await asyncio.sleep(backoff)
             backoff = min(backoff * 2, self._channel_restart_backoff_max_s)
 
