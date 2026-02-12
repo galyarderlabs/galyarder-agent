@@ -38,7 +38,7 @@ This project is for builders who want:
 
 - Backend runtime: `backend/agent`
 - Docs source: `docs/`
-- Project roadmap: `docs/roadmap/openclaw-delta.md`
+- Project roadmap: `docs/roadmap/runtime-roadmap.md`
 
 ## Open-source navigation
 

@@ -73,4 +73,4 @@ Read:
 
 1. [Contributing](contributing.md)
 2. [Security](security.md)
-3. [OpenClaw Delta Roadmap](roadmap/openclaw-delta.md)
+3. [Runtime Roadmap](roadmap/runtime-roadmap.md)

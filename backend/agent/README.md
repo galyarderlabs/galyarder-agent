@@ -447,23 +447,13 @@ Before tagging, update both `../../CHANGELOG.md` and `../../docs/release-notes/v
 
 ---
 
-## OpenClaw Delta Roadmap
+## Runtime Roadmap
 
-The focused delta roadmap is tracked at:
+The focused roadmap is tracked at:
 
-- `../../docs/roadmap/openclaw-delta.md`
+- `../../docs/roadmap/runtime-roadmap.md`
 
 The goal is to keep the runtime lean while adding high-value capabilities deliberately.
-
----
-
-## Acknowledgements
-
-This runtime is built with respect for upstream inspiration:
-
-- [`openclaw/openclaw`](https://github.com/openclaw/openclaw)
-
-This project keeps that spirit while prioritizing personal ownership and operational discipline.
 
 ---
 

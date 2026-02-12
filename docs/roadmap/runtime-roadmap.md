@@ -1,8 +1,8 @@
-# OpenClaw Delta Roadmap — Lean `g-agent` Runtime
+# Runtime Roadmap — Lean `g-agent` Runtime
 
 Last updated: 2026-02-12
 
-This roadmap tracks what we deliberately adopted from OpenClaw direction, while keeping `g-agent` lightweight, cross-platform, and operator-controlled.
+This roadmap tracks runtime priorities for `g-agent`, while keeping it lightweight, cross-platform, and operator-controlled.
 
 ---
 
@@ -19,8 +19,7 @@ Build a personal assistant that is:
 
 ## Scope Boundaries
 
-This roadmap is **delta-only**.  
-We are not trying to reproduce OpenClaw’s full platform surface.
+This roadmap is **focused-scope**.
 
 In scope:
 
@@ -261,4 +260,4 @@ Delta phase is considered complete when:
 - backend setup and operations: `backend/agent/README.md`
 - security posture and hardening: `backend/agent/SECURITY.md`
 
-This roadmap only tracks the remaining OpenClaw-derived delta work.
+This roadmap only tracks the remaining `g-agent` runtime work.
