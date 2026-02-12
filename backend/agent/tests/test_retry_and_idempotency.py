@@ -69,6 +69,27 @@ class StubChannel(BaseChannel):
         self.sent.append(msg)
 
 
+class FlakySendChannel(BaseChannel):
+    name = "flaky-send"
+
+    def __init__(self, bus: MessageBus):
+        super().__init__(config=type("StubConfig", (), {"allow_from": []})(), bus=bus)
+        self.sent: list[OutboundMessage] = []
+        self.calls = 0
+
+    async def start(self) -> None:
+        self._running = True
+
+    async def stop(self) -> None:
+        self._running = False
+
+    async def send(self, msg: OutboundMessage) -> None:
+        self.calls += 1
+        if self.calls == 1:
+            raise RuntimeError("temporary send failure")
+        self.sent.append(msg)
+
+
 def test_retry_network_error(tmp_path, monkeypatch):
     monkeypatch.setenv("G_AGENT_DATA_DIR", str(tmp_path / "data"))
     loop = AgentLoop(
@@ -283,3 +304,41 @@ def test_outbound_without_idempotency_key_not_deduped():
 
     asyncio.run(run_case())
     assert len(stub.sent) == 2
+
+
+def test_outbound_retry_preserves_idempotency_after_transient_send_error():
+    config = Config()
+    bus = MessageBus()
+    manager = ChannelManager(config, bus)
+    flaky = FlakySendChannel(bus)
+    manager.channels = {"flaky-send": flaky}
+    manager._outbound_retry_base_delay_s = 0.01
+    manager._outbound_retry_backoff_max_s = 0.02
+    manager._outbound_retry_max_attempts = 2
+
+    async def run_case() -> None:
+        dispatch_task = asyncio.create_task(manager._dispatch_outbound())
+        await bus.publish_outbound(
+            OutboundMessage(
+                channel="flaky-send",
+                chat_id="1",
+                content="retry-me",
+                metadata={"idempotency_key": "k-retry"},
+            )
+        )
+        await asyncio.sleep(0.2)
+        dispatch_task.cancel()
+        try:
+            await dispatch_task
+        except asyncio.CancelledError:
+            pass
+        if manager._outbound_retry_tasks:
+            for task in list(manager._outbound_retry_tasks):
+                task.cancel()
+            await asyncio.gather(*list(manager._outbound_retry_tasks), return_exceptions=True)
+            manager._outbound_retry_tasks.clear()
+
+    asyncio.run(run_case())
+    assert flaky.calls >= 2
+    assert len(flaky.sent) == 1
+    assert flaky.sent[0].content == "retry-me"

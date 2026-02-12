@@ -214,6 +214,9 @@ Code:
 - Channel manager long-running supervisor restarts for unexpected channel crashes:
   - `backend/agent/g_agent/channels/manager.py`
   - `backend/agent/tests/test_channel_reconnect.py`
+- Outbound dispatch retries with capped exponential backoff for transient channel-send failures:
+  - `backend/agent/g_agent/channels/manager.py`
+  - `backend/agent/tests/test_retry_and_idempotency.py`
 
 ### P0 — Reliability Gaps (next)
 

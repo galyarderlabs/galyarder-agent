@@ -197,8 +197,7 @@ class TelegramChannel(BaseChannel):
     async def send(self, msg: OutboundMessage) -> None:
         """Send a message through Telegram."""
         if not self._app:
-            logger.warning("Telegram bot not running")
-            return
+            raise RuntimeError("Telegram bot not running")
 
         try:
             # chat_id should be the Telegram chat ID (integer)
