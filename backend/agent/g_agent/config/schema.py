@@ -284,12 +284,21 @@ class ExecToolConfig(BaseModel):
     timeout: int = 60
 
 
+class PluginsConfig(BaseModel):
+    """Plugin runtime policy."""
+
+    enabled: bool = True
+    allow: list[str] = Field(default_factory=list)
+    deny: list[str] = Field(default_factory=list)
+
+
 class ToolsConfig(BaseModel):
     """Tools configuration."""
 
     web: WebToolsConfig = Field(default_factory=WebToolsConfig)
     browser: BrowserToolsConfig = Field(default_factory=BrowserToolsConfig)
     exec: ExecToolConfig = Field(default_factory=ExecToolConfig)
+    plugins: PluginsConfig = Field(default_factory=PluginsConfig)
     restrict_to_workspace: bool = False  # If true, restrict all tool access to workspace directory
     policy: dict[str, str] = Field(default_factory=dict)  # tool_name -> allow|ask|deny
     risky_tools: list[str] = Field(

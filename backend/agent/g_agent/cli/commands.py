@@ -299,7 +299,7 @@ def gateway(
     from g_agent.heartbeat.service import HeartbeatService
     from g_agent.observability.http_server import MetricsHttpServer
     from g_agent.observability.metrics import MetricsStore
-    from g_agent.plugins.loader import load_installed_plugins, plugin_label
+    from g_agent.plugins.loader import filter_plugins, load_installed_plugins, plugin_label
     from g_agent.proactive.engine import (
         ProactiveStateStore,
         compute_due_calendar_reminders,
@@ -316,7 +316,12 @@ def gateway(
     console.print(f"{__logo__} Starting {__brand__} gateway on port {port}...")
 
     config = load_config()
-    plugins = load_installed_plugins()
+    plugins = filter_plugins(
+        load_installed_plugins(),
+        enabled=config.tools.plugins.enabled,
+        allow=config.tools.plugins.allow,
+        deny=config.tools.plugins.deny,
+    )
     if plugins:
         console.print(f"[green]✓[/green] Plugins loaded: {', '.join(plugin_label(p) for p in plugins)}")
 
@@ -601,6 +606,7 @@ def agent(
     from g_agent.agent.loop import AgentLoop
     from g_agent.bus.queue import MessageBus
     from g_agent.config.loader import get_config_path, load_config
+    from g_agent.plugins.loader import filter_plugins, load_installed_plugins
     from g_agent.providers.litellm_provider import LiteLLMProvider
 
     config = load_config()
@@ -621,6 +627,12 @@ def agent(
         )
 
     bus = MessageBus()
+    plugins = filter_plugins(
+        load_installed_plugins(),
+        enabled=config.tools.plugins.enabled,
+        allow=config.tools.plugins.allow,
+        deny=config.tools.plugins.deny,
+    )
     provider_cfg = config.get_provider(route.model)
     provider = LiteLLMProvider(
         api_key=api_key,
@@ -648,6 +660,7 @@ def agent(
         enable_reflection=config.agents.defaults.enable_reflection,
         summary_interval=config.agents.defaults.summary_interval,
         fallback_models=route.fallback_models,
+        plugins=plugins,
     )
 
     if message:
@@ -1442,6 +1455,7 @@ def digest(
     from g_agent.agent.loop import AgentLoop
     from g_agent.bus.queue import MessageBus
     from g_agent.config.loader import get_config_path, load_config
+    from g_agent.plugins.loader import filter_plugins, load_installed_plugins
     from g_agent.providers.litellm_provider import LiteLLMProvider
 
     config = load_config()
@@ -1459,6 +1473,12 @@ def digest(
         )
 
     provider_cfg = config.get_provider(route.model)
+    plugins = filter_plugins(
+        load_installed_plugins(),
+        enabled=config.tools.plugins.enabled,
+        allow=config.tools.plugins.allow,
+        deny=config.tools.plugins.deny,
+    )
     provider = LiteLLMProvider(
         api_key=api_key,
         api_base=route.api_base,
@@ -1486,6 +1506,7 @@ def digest(
         enable_reflection=config.agents.defaults.enable_reflection,
         summary_interval=config.agents.defaults.summary_interval,
         fallback_models=route.fallback_models,
+        plugins=plugins,
     )
 
     async def run_digest() -> str:

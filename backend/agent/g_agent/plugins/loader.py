@@ -89,6 +89,33 @@ def load_installed_plugins(
     return loaded_plugins
 
 
+def filter_plugins(
+    plugins: list[Any],
+    *,
+    enabled: bool = True,
+    allow: list[str] | None = None,
+    deny: list[str] | None = None,
+) -> list[Any]:
+    """Filter loaded plugins using enabled/allow/deny policy."""
+    if not enabled:
+        return []
+
+    allow_set = {item.strip().lower() for item in (allow or []) if item and item.strip()}
+    deny_set = {item.strip().lower() for item in (deny or []) if item and item.strip()}
+    selected: list[Any] = []
+    for plugin in plugins:
+        label = plugin_label(plugin)
+        key = label.lower()
+        if allow_set and key not in allow_set:
+            logger.debug(f"Skipping plugin '{label}' (not in allow list)")
+            continue
+        if key in deny_set:
+            logger.debug(f"Skipping plugin '{label}' (deny list)")
+            continue
+        selected.append(plugin)
+    return selected
+
+
 def register_tool_plugins(
     plugins: list[Any],
     context: PluginContext,

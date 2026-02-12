@@ -1,4 +1,4 @@
-# Plugins (Phase 1)
+# Plugins
 
 `g-agent` now supports runtime extension plugins via Python entry points.
 
@@ -49,6 +49,26 @@ class MyPlugin(PluginBase):
 - duplicate plugin names are skipped
 - invalid channel objects from plugins are rejected
 
+## Plugin policy in config
+
+You can control plugin activation from `~/.g-agent/config.json`:
+
+```json
+{
+  "tools": {
+    "plugins": {
+      "enabled": true,
+      "allow": ["my-plugin"],
+      "deny": ["experimental-plugin"]
+    }
+  }
+}
+```
+
+- `enabled: false` disables all plugins
+- `allow` (optional) limits to named plugins only
+- `deny` (optional) blocks named plugins (takes precedence)
+
 ## Verification
 
 Run gateway and confirm plugin load logs:
@@ -61,4 +81,3 @@ You should see:
 
 - `Loaded plugin ...` in logs
 - `Plugins loaded: ...` in CLI startup output
-
