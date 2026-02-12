@@ -69,7 +69,8 @@ If your assistant cannot run reliably on your own machine, it is not your assist
 - Linux, macOS, or Windows
 - Python `3.11+`
 - Node.js `20+` (for WhatsApp bridge)
-- Optional: `ffmpeg` + `espeak-ng` (voice output quality)
+- Optional: `espeak-ng` + `ffmpeg` (generated voice-note output)
+- Optional: `GROQ_API_KEY` (voice-note transcription via Whisper)
 
 ---
 

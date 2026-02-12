@@ -27,6 +27,21 @@ def _infer_media_type(media_path: str, explicit_type: str | None = None) -> str:
     return "document"
 
 
+def _infer_audio_mime(media_path: str, media_type: str) -> str:
+    suffix = Path(media_path).suffix.lower()
+    if suffix in {".ogg", ".opus"}:
+        return "audio/ogg"
+    if suffix == ".mp3":
+        return "audio/mpeg"
+    if suffix == ".m4a":
+        return "audio/mp4"
+    if suffix == ".flac":
+        return "audio/flac"
+    if suffix == ".wav":
+        return "audio/wav"
+    return "audio/ogg" if media_type == "voice" else "audio/wav"
+
+
 class MessageTool(Tool):
     """Tool to send messages to users on chat channels."""
 
@@ -126,13 +141,15 @@ class MessageTool(Tool):
                 generated = self._synthesize_speech(content_text, requested_media_type)
                 if generated:
                     media_path_text = generated
-                    resolved_media_type = requested_media_type
+                    resolved_media_type = _infer_media_type(generated)
+                    if requested_media_type == "voice" and resolved_media_type != "voice":
+                        resolved_media_type = "audio"
                     if not mime_text:
-                        mime_text = "audio/ogg" if requested_media_type == "voice" else "audio/wav"
+                        mime_text = _infer_audio_mime(media_path_text, resolved_media_type)
                 else:
                     return (
                         "Error: voice synthesis unavailable. Install espeak-ng/espeak "
-                        "or provide media_path explicitly."
+                        "(plus ffmpeg for voice-note OGG) or provide media_path explicitly."
                     )
             elif requested_media_type == "image" and content_text:
                 generated = self._render_image_card(content_text)

@@ -17,6 +17,9 @@ class GroqTranscriptionProvider:
     def __init__(self, api_key: str | None = None):
         self.api_key = api_key or os.environ.get("GROQ_API_KEY")
         self.api_url = "https://api.groq.com/openai/v1/audio/transcriptions"
+        self.model = os.environ.get("GROQ_TRANSCRIPTION_MODEL", "whisper-large-v3-turbo")
+        self.temperature = os.environ.get("GROQ_TRANSCRIPTION_TEMPERATURE", "0")
+        self.response_format = os.environ.get("GROQ_TRANSCRIPTION_RESPONSE_FORMAT", "verbose_json")
 
     async def transcribe(self, file_path: str | Path) -> str:
         """
@@ -42,7 +45,9 @@ class GroqTranscriptionProvider:
                 with open(path, "rb") as f:
                     files = {
                         "file": (path.name, f),
-                        "model": (None, "whisper-large-v3"),
+                        "model": (None, self.model),
+                        "temperature": (None, self.temperature),
+                        "response_format": (None, self.response_format),
                     }
                     headers = {
                         "Authorization": f"Bearer {self.api_key}",
@@ -54,7 +59,9 @@ class GroqTranscriptionProvider:
 
                     response.raise_for_status()
                     data = response.json()
-                    return data.get("text", "")
+                    if isinstance(data, dict):
+                        return str(data.get("text", "") or "")
+                    return ""
 
         except Exception as e:
             logger.error(f"Groq transcription error: {e}")
