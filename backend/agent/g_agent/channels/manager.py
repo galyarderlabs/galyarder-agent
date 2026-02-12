@@ -35,6 +35,10 @@ class ChannelManager:
             deny=self.config.tools.plugins.deny,
         )
         self._dispatch_task: asyncio.Task | None = None
+        self._channel_tasks: dict[str, asyncio.Task[None]] = {}
+        self._running = False
+        self._channel_restart_delay_s = 5.0
+        self._channel_restart_backoff_max_s = 60.0
         self._outbound_idempotency_ttl_s = 120.0
         self._outbound_seen: dict[str, float] = {}
 
@@ -120,31 +124,35 @@ class ChannelManager:
             register_channel_plugins(self.plugins, context, channels=self.channels)
 
     async def start_all(self) -> None:
-        """Start WhatsApp channel and the outbound dispatcher."""
+        """Start all channels and the outbound dispatcher."""
         if not self.channels:
             logger.warning("No channels enabled")
             return
 
+        if self._running:
+            logger.warning("Channel manager already running")
+            return
+
+        self._running = True
+
         # Start outbound dispatcher
         self._dispatch_task = asyncio.create_task(self._dispatch_outbound())
 
-        # Start WhatsApp channel
+        # Start channel supervisors
         tasks = []
-        names = []
         for name, channel in self.channels.items():
             logger.info(f"Starting {name} channel...")
-            tasks.append(asyncio.create_task(channel.start()))
-            names.append(name)
+            task = asyncio.create_task(self._run_channel_supervisor(name, channel))
+            self._channel_tasks[name] = task
+            tasks.append(task)
 
-        # Wait for all to complete (they should run forever)
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        for name, result in zip(names, results):
-            if isinstance(result, Exception):
-                logger.error(f"{name} channel stopped with error: {result}")
+        # Wait for all supervisors to complete (normally on stop_all)
+        await asyncio.gather(*tasks, return_exceptions=True)
 
     async def stop_all(self) -> None:
         """Stop all channels and the dispatcher."""
         logger.info("Stopping all channels...")
+        self._running = False
 
         # Stop dispatcher
         if self._dispatch_task:
@@ -153,6 +161,7 @@ class ChannelManager:
                 await self._dispatch_task
             except asyncio.CancelledError:
                 logger.debug("Outbound dispatcher task cancelled")
+            self._dispatch_task = None
 
         # Stop all channels
         for name, channel in self.channels.items():
@@ -161,6 +170,33 @@ class ChannelManager:
                 logger.info(f"Stopped {name} channel")
             except Exception as e:
                 logger.error(f"Error stopping {name}: {e}")
+
+        if self._channel_tasks:
+            for task in self._channel_tasks.values():
+                task.cancel()
+            await asyncio.gather(*self._channel_tasks.values(), return_exceptions=True)
+            self._channel_tasks.clear()
+
+    async def _run_channel_supervisor(self, name: str, channel: BaseChannel) -> None:
+        """Run one channel with restart-on-failure supervision."""
+        backoff = self._channel_restart_delay_s
+        while self._running:
+            try:
+                await channel.start()
+                if not self._running:
+                    break
+                logger.warning(f"{name} channel stopped unexpectedly; restarting in {backoff:.1f}s")
+            except asyncio.CancelledError:
+                break
+            except Exception as exc:
+                if not self._running:
+                    break
+                logger.error(f"{name} channel crashed: {exc}; restarting in {backoff:.1f}s")
+
+            if not self._running:
+                break
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, self._channel_restart_backoff_max_s)
 
     async def _dispatch_outbound(self) -> None:
         """Dispatch outbound messages to the appropriate channel."""

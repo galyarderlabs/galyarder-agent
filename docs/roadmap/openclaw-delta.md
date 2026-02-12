@@ -211,6 +211,9 @@ Code:
   - `backend/agent/g_agent/security/fix.py`
   - `backend/agent/g_agent/cli/commands.py`
   - `backend/agent/tests/test_security_fix.py`
+- Channel manager long-running supervisor restarts for unexpected channel crashes:
+  - `backend/agent/g_agent/channels/manager.py`
+  - `backend/agent/tests/test_channel_reconnect.py`
 
 ### P0 — Reliability Gaps (next)
 

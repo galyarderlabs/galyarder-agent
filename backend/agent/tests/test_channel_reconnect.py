@@ -278,6 +278,32 @@ class _HarnessChannel(BaseChannel):
         self.sent.append(msg)
 
 
+class _CrashOnceChannel(BaseChannel):
+    name = "crash-once"
+
+    def __init__(self, *, bus: MessageBus):
+        super().__init__(config=type("Cfg", (), {"allow_from": []})(), bus=bus)
+        self.start_attempts = 0
+        self.sent: list[OutboundMessage] = []
+
+    async def start(self) -> None:
+        self.start_attempts += 1
+        if self.start_attempts == 1:
+            self._running = False
+            raise RuntimeError("simulated startup crash")
+        self._running = True
+        while self._running:
+            await asyncio.sleep(0.01)
+
+    async def stop(self) -> None:
+        self._running = False
+
+    async def send(self, msg: OutboundMessage) -> None:
+        if not self._running:
+            raise RuntimeError("channel not running")
+        self.sent.append(msg)
+
+
 def test_channel_manager_integration_reconnect_harness_dispatches_after_recovery():
     async def run_case() -> None:
         bus = MessageBus()
@@ -328,5 +354,33 @@ def test_channel_manager_integration_reconnect_harness_dispatches_after_recovery
         assert whatsapp_channel.is_running is False
         assert telegram_channel.connected is False
         assert whatsapp_channel.connected is False
+
+    asyncio.run(run_case())
+
+
+def test_channel_manager_restarts_channel_after_crash():
+    async def run_case() -> None:
+        bus = MessageBus()
+        config = Config()
+        manager = ChannelManager(config, bus)
+        unstable_channel = _CrashOnceChannel(bus=bus)
+        manager.channels = {"telegram": unstable_channel}
+        manager._channel_restart_delay_s = 0.01
+        manager._channel_restart_backoff_max_s = 0.02
+
+        start_task = asyncio.create_task(manager.start_all())
+        await _wait_until(lambda: unstable_channel.start_attempts >= 2, timeout_s=1.0)
+        await _wait_until(lambda: unstable_channel.is_running, timeout_s=1.0)
+
+        await bus.publish_outbound(
+            OutboundMessage(channel="telegram", chat_id="tg-1", content="ping-restart")
+        )
+        await _wait_until(lambda: len(unstable_channel.sent) == 1, timeout_s=1.0)
+
+        await manager.stop_all()
+        await asyncio.wait_for(start_task, timeout=1.0)
+
+        assert unstable_channel.start_attempts >= 2
+        assert unstable_channel.is_running is False
 
     asyncio.run(run_case())
