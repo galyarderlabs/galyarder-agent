@@ -936,6 +936,36 @@ def _bridge_port_pids(port: int) -> list[str]:
     return sorted(set(pids))
 
 
+def _stop_bridge_processes(port: int, pids: list[str], *, timeout_seconds: float = 3.0) -> list[str]:
+    """Send SIGTERM to listed PIDs and return still-listening bridge PIDs."""
+    import os
+    import signal
+    import time
+
+    normalized = sorted({pid.strip() for pid in pids if pid and pid.strip().isdigit()})
+    for pid in normalized:
+        try:
+            os.kill(int(pid), signal.SIGTERM)
+        except ProcessLookupError:
+            continue
+        except OSError:
+            continue
+
+    if not normalized:
+        return _bridge_port_pids(port)
+
+    deadline = time.monotonic() + max(0.1, float(timeout_seconds))
+    while time.monotonic() < deadline:
+        active = set(_bridge_port_pids(port))
+        survivors = sorted(active.intersection(normalized))
+        if not survivors:
+            return []
+        time.sleep(0.1)
+
+    active = set(_bridge_port_pids(port))
+    return sorted(active.intersection(normalized))
+
+
 def _bridge_bind_error(port: int) -> OSError | None:
     """Return bind error for 127.0.0.1:<port>, or None when bind is allowed."""
     import socket
@@ -962,6 +992,11 @@ def channels_login(
         "--rebuild",
         help="Force rebuild local WhatsApp bridge before login",
     ),
+    restart_existing: bool = typer.Option(
+        False,
+        "--restart-existing",
+        help="Stop process already listening on bridge port before login",
+    ),
 ):
     """Link device via QR code."""
     import errno
@@ -984,6 +1019,19 @@ def channels_login(
     port = parsed.port or (443 if parsed.scheme == "wss" else 80)
 
     pids = _bridge_port_pids(port)
+    if pids and restart_existing:
+        console.print(
+            f"[yellow]Stopping existing bridge process on port {port}: "
+            f"{', '.join(pids)}[/yellow]"
+        )
+        survivors = _stop_bridge_processes(port, pids)
+        if survivors:
+            _cli_fail(
+                f"Could not stop existing bridge process on port {port}: {', '.join(survivors)}",
+                f"Stop manually with: kill {' '.join(survivors)}",
+            )
+        pids = _bridge_port_pids(port)
+
     if pids:
         console.print(
             f"[yellow]Bridge already running at {bridge_url} "
@@ -994,6 +1042,11 @@ def channels_login(
         raise typer.Exit(0)
 
     if _is_bridge_port_in_use(host, port):
+        if restart_existing:
+            _cli_fail(
+                f"Bridge port {port} is still in use after restart attempt.",
+                f"Check listener with `lsof -i :{port} -n -P`, then stop the blocking process.",
+            )
         console.print(
             f"[yellow]Bridge already running at {bridge_url} "
             f"(port {port} is in use).[/yellow]"
