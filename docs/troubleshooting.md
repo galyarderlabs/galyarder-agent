@@ -9,6 +9,7 @@ Use this matrix for common runtime and ops failures.
 | Telegram bot connected but no response | sender ID not in `allowFrom` | `g-agent status` and gateway logs | add numeric Telegram ID to `channels.telegram.allowFrom` |
 | WhatsApp access denied | WA sender ID mismatch | gateway warning shows rejected sender | add exact sender ID to `channels.whatsapp.allowFrom` |
 | WhatsApp bridge reconnect loop | stale session or unstable bridge runtime | `journalctl --user -u g-agent-wa-bridge.service` | re-login via `g-agent channels login`, restart bridge |
+| Channel silently stops after runtime error | transient channel crash | gateway logs show `channel crashed`/`restarting` | upgrade to latest build; supervisor now auto-restarts channels with backoff |
 | LLM auth error | wrong provider key/base/model route | `g-agent status`, provider section in config | correct `providers.*` fields and restart gateway |
 | Google tool unavailable | OAuth missing/expired | `g-agent status` Google OAuth parts | refresh OAuth token flow in CLI |
 | Cron jobs not firing | jobs disabled/misconfigured timezone | startup logs + cron service lines | verify proactive config and schedule definitions |
