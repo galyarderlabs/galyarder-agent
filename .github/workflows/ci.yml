@@ -50,6 +50,60 @@ jobs:
           cache: pip
           cache-dependency-path: backend/agent/pyproject.toml
 
+      - name: Enforce release notes on version bump
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          python - <<'PY'
+          import os
+          import pathlib
+          import subprocess
+          import tomllib
+
+          base_ref = os.environ.get("BASE_REF", "").strip()
+          if not base_ref:
+              print("No base ref; skip release-notes guard.")
+              raise SystemExit(0)
+
+          subprocess.run(
+              ["git", "fetch", "--no-tags", "--depth=1", "origin", base_ref],
+              check=True,
+          )
+
+          base_spec = f"origin/{base_ref}:backend/agent/pyproject.toml"
+          try:
+              base_raw = subprocess.check_output(["git", "show", base_spec], text=True)
+          except subprocess.CalledProcessError as exc:
+              raise SystemExit(f"Failed to read base pyproject from {base_spec}: {exc}") from exc
+
+          head_raw = pathlib.Path("pyproject.toml").read_text(encoding="utf-8")
+          base_version = tomllib.loads(base_raw)["project"]["version"]
+          head_version = tomllib.loads(head_raw)["project"]["version"]
+
+          if head_version == base_version:
+              print(f"Version unchanged ({head_version}); release-notes guard skipped.")
+              raise SystemExit(0)
+
+          notes_path = pathlib.Path("..", "..", "docs", "release-notes", f"v{head_version}.md")
+          if not notes_path.exists():
+              raise SystemExit(
+                  f"Version bump detected ({base_version} -> {head_version}) but missing "
+                  f"release notes file: {notes_path.as_posix()}"
+              )
+
+          notes = notes_path.read_text(encoding="utf-8").strip()
+          if not notes:
+              raise SystemExit(
+                  f"Release notes file is empty for version {head_version}: {notes_path.as_posix()}"
+              )
+
+          print(
+              f"Version bump {base_version} -> {head_version} with notes file "
+              f"{notes_path.as_posix()}"
+          )
+          PY
+
       - name: Upgrade pip
         run: python -m pip install --upgrade pip
 
