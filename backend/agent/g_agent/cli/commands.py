@@ -965,10 +965,11 @@ def channels_login(
 ):
     """Link device via QR code."""
     import errno
+    import os
     import subprocess
     from urllib.parse import urlparse
 
-    from g_agent.config.loader import load_config
+    from g_agent.config.loader import get_data_dir, load_config
 
     config = load_config()
     bridge_url = config.channels.whatsapp.bridge_url
@@ -1030,8 +1031,12 @@ def channels_login(
     console.print("[dim]Tip: keep this process running after connected.[/dim]")
     console.print("[dim]Run `g-agent gateway` in another terminal.[/dim]\n")
 
+    bridge_env = os.environ.copy()
+    bridge_env["BRIDGE_PORT"] = str(port)
+    bridge_env["AUTH_DIR"] = str(get_data_dir() / "whatsapp-auth")
+
     try:
-        subprocess.run(["npm", "start"], cwd=bridge_dir, check=True)
+        subprocess.run(["npm", "start"], cwd=bridge_dir, check=True, env=bridge_env)
     except subprocess.CalledProcessError as e:
         _cli_fail(
             f"Bridge failed (exit {e.returncode}).",
