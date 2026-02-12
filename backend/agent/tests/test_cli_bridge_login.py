@@ -25,7 +25,7 @@ def test_channels_login_passes_bridge_env_from_config(tmp_path: Path, monkeypatc
 
     monkeypatch.setattr("g_agent.cli.commands._bridge_port_pids", lambda _port: [])
     monkeypatch.setattr("g_agent.cli.commands._is_bridge_port_in_use", lambda *_args, **_kwargs: False)
-    monkeypatch.setattr("g_agent.cli.commands._bridge_bind_error", lambda _port: None)
+    monkeypatch.setattr("g_agent.cli.commands._bridge_bind_error", lambda _host, _port: None)
     monkeypatch.setattr("g_agent.cli.commands._get_bridge_dir", lambda force_rebuild=False: fake_bridge_dir)
 
     calls: list[dict[str, object]] = []
@@ -55,6 +55,7 @@ def test_channels_login_passes_bridge_env_from_config(tmp_path: Path, monkeypatc
     assert calls[0]["cwd"] == fake_bridge_dir
     assert calls[0]["check"] is True
     env = calls[0]["env"]
+    assert env["BRIDGE_HOST"] == "127.0.0.1"
     assert env["BRIDGE_PORT"] == "3456"
     assert env["AUTH_DIR"] == str(data_dir / "whatsapp-auth")
 
@@ -87,7 +88,7 @@ def test_channels_login_restart_existing_stops_listener_then_starts(tmp_path: Pa
     monkeypatch.setattr("g_agent.cli.commands._bridge_port_pids", fake_bridge_port_pids)
     monkeypatch.setattr("g_agent.cli.commands._stop_bridge_processes", fake_stop_bridge_processes)
     monkeypatch.setattr("g_agent.cli.commands._is_bridge_port_in_use", lambda *_args, **_kwargs: False)
-    monkeypatch.setattr("g_agent.cli.commands._bridge_bind_error", lambda _port: None)
+    monkeypatch.setattr("g_agent.cli.commands._bridge_bind_error", lambda _host, _port: None)
     monkeypatch.setattr("g_agent.cli.commands._get_bridge_dir", lambda force_rebuild=False: fake_bridge_dir)
 
     run_calls: list[dict[str, object]] = []
@@ -124,7 +125,7 @@ def test_channels_login_restart_existing_fails_when_stop_does_not_clear_port(tmp
         lambda _port, _pids, *, timeout_seconds=3.0: ["2222"],
     )
     monkeypatch.setattr("g_agent.cli.commands._is_bridge_port_in_use", lambda *_args, **_kwargs: False)
-    monkeypatch.setattr("g_agent.cli.commands._bridge_bind_error", lambda _port: None)
+    monkeypatch.setattr("g_agent.cli.commands._bridge_bind_error", lambda _host, _port: None)
     monkeypatch.setattr(
         "g_agent.cli.commands._get_bridge_dir",
         lambda force_rebuild=False: (_ for _ in ()).throw(AssertionError("should not build bridge")),
@@ -190,7 +191,7 @@ def test_channels_login_force_kill_escalates_after_term_failure(tmp_path: Path, 
     monkeypatch.setattr("g_agent.cli.commands._stop_bridge_processes", fake_stop_bridge_processes)
     monkeypatch.setattr("g_agent.cli.commands._force_kill_bridge_processes", fake_force_kill_bridge_processes)
     monkeypatch.setattr("g_agent.cli.commands._is_bridge_port_in_use", lambda *_args, **_kwargs: False)
-    monkeypatch.setattr("g_agent.cli.commands._bridge_bind_error", lambda _port: None)
+    monkeypatch.setattr("g_agent.cli.commands._bridge_bind_error", lambda _host, _port: None)
     monkeypatch.setattr("g_agent.cli.commands._get_bridge_dir", lambda force_rebuild=False: fake_bridge_dir)
 
     run_calls: list[dict[str, object]] = []
