@@ -1001,23 +1001,38 @@ def _force_kill_bridge_processes(
     return sorted(active.intersection(normalized))
 
 
-def _bridge_bind_error(port: int) -> OSError | None:
-    """Return bind error for 127.0.0.1:<port>, or None when bind is allowed."""
+def _bridge_bind_error(host: str, port: int) -> OSError | None:
+    """Return bind error for host:port, or None when bind is allowed."""
     import socket
 
     try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
     except OSError as exc:
         return exc
 
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    try:
-        sock.bind(("127.0.0.1", port))
-        return None
-    except OSError as exc:
-        return exc
-    finally:
-        sock.close()
+    seen: set[tuple[int, str, int]] = set()
+    for family, socktype, proto, _canonname, sockaddr in infos:
+        bind_host = str(sockaddr[0]) if isinstance(sockaddr, tuple) and sockaddr else host
+        bind_port = int(sockaddr[1]) if isinstance(sockaddr, tuple) and len(sockaddr) > 1 else port
+        key = (family, bind_host, bind_port)
+        if key in seen:
+            continue
+        seen.add(key)
+
+        try:
+            sock = socket.socket(family, socktype, proto)
+        except OSError as exc:
+            return exc
+
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            sock.bind(sockaddr)
+        except OSError as exc:
+            return exc
+        finally:
+            sock.close()
+
+    return None
 
 
 @channels_app.command("login")
@@ -1113,7 +1128,7 @@ def channels_login(
         console.print("[dim]Then kill the PID and run `g-agent channels login` again.[/dim]")
         raise typer.Exit(0)
 
-    bind_error = _bridge_bind_error(port)
+    bind_error = _bridge_bind_error(host, port)
     if bind_error:
         if bind_error.errno in {errno.EPERM, errno.EACCES}:
             _cli_fail(
@@ -1140,6 +1155,7 @@ def channels_login(
     console.print("[dim]Run `g-agent gateway` in another terminal.[/dim]\n")
 
     bridge_env = os.environ.copy()
+    bridge_env["BRIDGE_HOST"] = host
     bridge_env["BRIDGE_PORT"] = str(port)
     bridge_env["AUTH_DIR"] = str(get_data_dir() / "whatsapp-auth")
 

@@ -24,12 +24,13 @@ import { homedir } from 'os';
 import { join } from 'path';
 
 const PORT = parseInt(process.env.BRIDGE_PORT || '3001', 10);
+const HOST = process.env.BRIDGE_HOST || '127.0.0.1';
 const AUTH_DIR = process.env.AUTH_DIR || join(homedir(), '.g-agent', 'whatsapp-auth');
 
 console.log('🗿 g-agent WhatsApp Bridge');
 console.log('========================\n');
 
-const server = new BridgeServer(PORT, AUTH_DIR);
+const server = new BridgeServer(HOST, PORT, AUTH_DIR);
 
 // Handle graceful shutdown
 process.on('SIGINT', async () => {
