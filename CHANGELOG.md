@@ -9,11 +9,22 @@ All notable changes to this project are documented in this file.
 - Generic `proxy` provider in `ProvidersConfig` for CLIProxyAPI and similar OpenAI-compatible proxies.
 - Provider-agnostic proxy routing via `_resolve_proxy_route()` helper.
 - Tests for backward-compatible vLLM proxy, generic proxy provider, and explicit `proxy/` prefix in auto mode.
+- `g-agent help`, `g-agent version`, and `g-agent login` command aliases for better CLI discoverability.
+- Auto-generated command reference page at `docs/cli-commands.md` via `backend/agent/scripts/generate_cli_docs.py`.
+- Local pre-commit guard (`.githooks/pre-commit`) and CI/release checks to keep CLI docs synchronized.
+- CLI error-style guideline doc at `docs/cli-error-style.md`.
 
 ### Changed
 - `resolve_model_route()` now uses `proxy_provider` instead of hardcoding `vllm`.
 - `_resolve_direct_provider()` dynamically skips configured proxy providers.
 - README routing docs updated with CLIProxyAPI, vLLM, and direct provider examples.
+- Default model updated to `claude-opus-4-6-thinking` for proxy-based setups.
+- Group commands (`channels`, `google`, `cron`, `policy`) now show help when called without subcommand.
+
+### Fixed
+- Deprecated `opus 4.5` model aliases are now migrated to `claude-opus-4-6-thinking` during config load.
+- `channels login` now performs bridge preflight checks and reports clearer causes/fixes for port bind failures.
+- Missing API key failures now include provider-aware remediation hints.
 
 ## [0.1.4] - 2026-02-09
 
