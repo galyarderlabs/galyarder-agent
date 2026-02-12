@@ -31,9 +31,13 @@ All notable changes to this project are documented in this file.
 - Deprecated `opus 4.5` model aliases are now migrated to `claude-opus-4-6-thinking` during config load.
 - `channels login` now performs bridge preflight checks and reports clearer causes/fixes for port bind failures.
 - Missing API key failures now include provider-aware remediation hints.
+
+## [0.1.8] - 2026-02-12
+
+### Fixed
 - `channels login` now auto-rebuilds local bridge assets when bundled bridge source changes, preventing stale bridge runtime mismatches.
-- `channels login` now passes bridge runtime env (`BRIDGE_PORT`, `AUTH_DIR`) from config/data-dir so npm bridge start matches configured URL and auth storage path.
-- `channels login` now passes `BRIDGE_HOST` from config and validates bindability against resolved host-family addresses, reducing false-negative preflight checks before bridge startup.
+- `channels login` now passes bridge runtime env (`BRIDGE_HOST`, `BRIDGE_PORT`, `AUTH_DIR`) from config/data-dir so npm bridge start matches configured URL and auth storage path.
+- `channels login` now validates bridge bindability against resolved host-family addresses, reducing false-negative preflight checks before bridge startup.
 - `channels login --restart-existing` can now stop stale bridge listeners on configured port before starting a fresh QR login.
 - `channels login --restart-existing --force-kill` now supports SIGKILL escalation when stale listeners ignore SIGTERM.
 - WhatsApp bridge startup now waits for the real WebSocket `listening` event and handles startup bind errors without unhandled Node `error` crashes.
