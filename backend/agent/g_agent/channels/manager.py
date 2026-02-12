@@ -11,7 +11,7 @@ from g_agent.bus.queue import MessageBus
 from g_agent.channels.base import BaseChannel
 from g_agent.config.schema import Config
 from g_agent.plugins.base import PluginContext
-from g_agent.plugins.loader import load_installed_plugins, register_channel_plugins
+from g_agent.plugins.loader import filter_plugins, load_installed_plugins, register_channel_plugins
 
 
 class ChannelManager:
@@ -28,7 +28,12 @@ class ChannelManager:
         self.config = config
         self.bus = bus
         self.channels: dict[str, BaseChannel] = {}
-        self.plugins = plugins if plugins is not None else load_installed_plugins()
+        self.plugins = plugins if plugins is not None else filter_plugins(
+            load_installed_plugins(),
+            enabled=self.config.tools.plugins.enabled,
+            allow=self.config.tools.plugins.allow,
+            deny=self.config.tools.plugins.deny,
+        )
         self._dispatch_task: asyncio.Task | None = None
         self._outbound_idempotency_ttl_s = 120.0
         self._outbound_seen: dict[str, float] = {}

@@ -20,6 +20,7 @@ theme:
 nav:
   - Home: index.md
   - Getting Started: getting-started.md
+  - Embedding: embedding.md
   - Install Matrix: install-matrix.md
   - Configuration: configuration.md
   - Plugins: plugins.md

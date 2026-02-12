@@ -9,7 +9,7 @@ from g_agent.channels.base import BaseChannel
 from g_agent.channels.manager import ChannelManager
 from g_agent.config.schema import Config
 from g_agent.plugins.base import PluginBase, PluginContext
-from g_agent.plugins.loader import load_installed_plugins
+from g_agent.plugins.loader import filter_plugins, load_installed_plugins
 from g_agent.providers.base import LLMProvider, LLMResponse
 
 
@@ -108,6 +108,19 @@ def test_load_installed_plugins_supports_class_and_factory():
     assert len(plugins) == 2
 
 
+def test_filter_plugins_respects_enabled_allow_deny():
+    raw_plugins = [ToolPlugin(), ChannelPlugin()]
+
+    selected = filter_plugins(raw_plugins, enabled=False)
+    assert selected == []
+
+    selected = filter_plugins(raw_plugins, allow=["tool-plugin"])
+    assert [plugin.name for plugin in selected] == ["tool-plugin"]
+
+    selected = filter_plugins(raw_plugins, allow=["tool-plugin"], deny=["tool-plugin"])
+    assert selected == []
+
+
 def test_agent_loop_registers_plugin_tools(tmp_path, monkeypatch):
     monkeypatch.setenv("G_AGENT_DATA_DIR", str(tmp_path / "data"))
     loop = AgentLoop(
@@ -130,3 +143,17 @@ def test_channel_manager_registers_plugin_channels():
     assert "plugin-test" in manager.channels
     assert isinstance(manager.channels["plugin-test"], PluginTestChannel)
 
+
+def test_channel_manager_respects_plugin_deny_policy(monkeypatch):
+    config = Config()
+    config.tools.plugins.allow = []
+    config.tools.plugins.deny = ["channel-plugin"]
+    bus = MessageBus()
+
+    monkeypatch.setattr(
+        "g_agent.channels.manager.load_installed_plugins",
+        lambda: [ChannelPlugin()],
+    )
+
+    manager = ChannelManager(config, bus)
+    assert "plugin-test" not in manager.channels

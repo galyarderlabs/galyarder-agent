@@ -157,4 +157,10 @@ See [Channels](channels.md) for full setup guides for:
 
 `g-agent` can load extension plugins from Python entry points (`g_agent.plugins`).
 
-See [Plugins](plugins.md) for plugin SDK, registration format, and verification steps.
+Policy fields under `tools.plugins`:
+
+- `enabled`: disable/enable plugin loading globally
+- `allow`: optional plugin name allowlist
+- `deny`: optional plugin name denylist (overrides allow)
+
+See [Plugins](plugins.md) for plugin SDK, policy examples, and verification steps.
