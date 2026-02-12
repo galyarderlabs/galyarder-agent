@@ -39,7 +39,7 @@ nav:
       - v0.1.6: release-notes/v0.1.6.md
       - v0.1.5: release-notes/v0.1.5.md
   - Roadmap:
-      - OpenClaw Delta Plan: roadmap/openclaw-delta.md
+      - Runtime Roadmap: roadmap/runtime-roadmap.md
 
 markdown_extensions:
   - admonition

@@ -8,10 +8,9 @@ Each skill is a directory containing a `SKILL.md` file with:
 - YAML frontmatter (name, description, metadata)
 - Markdown instructions for the agent
 
-## Attribution
+## Compatibility Notes
 
-These skills are adapted from [OpenClaw](https://github.com/openclaw/openclaw)'s skill system.
-The skill format and metadata structure follow OpenClaw's conventions to maintain compatibility.
+Skill files follow a stable `SKILL.md` + frontmatter structure so custom skills remain predictable across local runtime updates.
 
 ## Available Skills
 

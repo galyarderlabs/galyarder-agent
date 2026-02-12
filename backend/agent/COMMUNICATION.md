@@ -55,13 +55,7 @@ For vulnerabilities, follow private disclosure:
 
 ---
 
-## Community & Upstream Credits
-
-This project is inspired by and acknowledges:
-
-- `openclaw/openclaw`: https://github.com/openclaw/openclaw
-
-Legacy community channels from upstream ecosystems may still be useful:
+## Community Channels
 
 - Discord: https://discord.gg/MnCvHqpUGB
 

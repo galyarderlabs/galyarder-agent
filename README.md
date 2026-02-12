@@ -401,19 +401,17 @@ systemctl --user restart g-agent-gateway.service
 
 ## FAQ
 
-### Why not just use OpenClaw?
+### Why choose `g-agent`?
 
-Use OpenClaw if you want a broader platform surface and larger built-in ecosystem.  
-Use `g-agent` if you want a leaner runtime with faster auditability and simpler day-to-day ops.
+Choose `g-agent` if you want a lean runtime with faster auditability and simpler day-to-day operations.
 
-### How is this different from Nanobot?
+### What makes `g-agent` practical for daily use?
 
-Nanobot provides a lightweight and practical base.  
-`g-agent` builds on similar principles but adds stronger opinionated flow for sovereignty, policy presets, workflow packs, cross-platform installers, and richer operational docs.
+It emphasizes focused workflows, policy presets, workflow packs, and operational docs that stay close to real runtime usage.
 
-### Is this trying to replace OpenClaw or Nanobot?
+### Is this suitable for production personal use?
 
-No. This project is a focused fork-direction for operators who prefer tight control, simple operations, and practical personal-assistant behavior.
+Yes, with proper allowlists, workspace restrictions, approval settings, and credential hygiene.
 
 ### Can I use this as my always-on personal assistant?
 
@@ -426,11 +424,11 @@ You still need to review your configuration and keep tokens scoped/rotated.
 
 ---
 
-## OpenClaw Delta Roadmap
+## Runtime Roadmap
 
 Roadmap and implementation status:
 
-- `docs/roadmap/openclaw-delta.md`
+- `docs/roadmap/runtime-roadmap.md`
 
 ---
 
@@ -445,7 +443,7 @@ Roadmap and implementation status:
 - Troubleshooting: `docs/troubleshooting.md`
 - FAQ: `docs/faq.md`
 - Backend docs: `backend/agent/README.md`
-- Roadmap: `docs/roadmap/openclaw-delta.md`
+- Roadmap: `docs/roadmap/runtime-roadmap.md`
 - Changelog: `CHANGELOG.md`
 
 ---
@@ -460,15 +458,6 @@ We welcome focused contributions:
 - documentation clarity.
 
 Please read `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md` before opening a PR.
-
----
-
-## Acknowledgements
-
-With respect to projects that inspired this direction:
-
-- [`HKUDS/nanobot`](https://github.com/HKUDS/nanobot)
-- [`openclaw/openclaw`](https://github.com/openclaw/openclaw)
 
 ---
 
