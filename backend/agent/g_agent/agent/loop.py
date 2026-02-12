@@ -138,13 +138,13 @@ class AgentLoop:
         self.google_config = google_config or GoogleWorkspaceConfig()
         self.browser_config = browser_config or BrowserToolsConfig()
         self.tool_policy = {
-            (k or "").strip(): (v or "").strip().lower()
+            (k or "").strip().lower(): (v or "").strip().lower()
             for k, v in (tool_policy or {}).items()
             if (k or "").strip() and (v or "").strip().lower() in {"allow", "ask", "deny"}
         }
         default_risky = {"exec", "send_email", "slack_webhook_send", "message", "gmail_send"}
         source_risky = risky_tools if risky_tools is not None else list(default_risky)
-        self.risky_tools = {name.strip() for name in source_risky if name and name.strip()}
+        self.risky_tools = {name.strip().lower() for name in source_risky if name and name.strip()}
         self.approval_mode = (approval_mode or "off").strip().lower()
         if self.approval_mode not in {"off", "confirm"}:
             self.approval_mode = "off"
@@ -1151,24 +1151,64 @@ class AgentLoop:
         sender_id: str,
     ) -> str:
         """Resolve tool policy in order: specific -> wildcard -> default."""
+        tool_key = (tool_name or "").strip().lower()
+        channel_key = (channel or "").strip().lower()
+        sender_keys = self._policy_sender_variants(sender_id)
         default = "allow"
-        if self.approval_mode == "confirm" and tool_name in self.risky_tools:
+        if self.approval_mode == "confirm" and tool_key in self.risky_tools:
             default = "ask"
 
-        keys = [
-            f"{channel}:{sender_id}:{tool_name}",
-            f"{channel}:{sender_id}:*",
-            f"{channel}:*:{tool_name}",
-            f"{channel}:*:*",
-            f"{channel}:{tool_name}",
-            tool_name,
-            "*",
-        ]
+        keys: list[str] = []
+        for sender_key in sender_keys:
+            keys.append(f"{channel_key}:{sender_key}:{tool_key}")
+            keys.append(f"{channel_key}:{sender_key}:*")
+        keys.extend(
+            [
+                f"{channel_key}:*:{tool_key}",
+                f"{channel_key}:*:*",
+                f"{channel_key}:{tool_key}",
+                tool_key,
+                "*",
+            ]
+        )
         for key in keys:
             decision = self.tool_policy.get(key)
             if decision in {"allow", "ask", "deny"}:
                 return decision
         return default
+
+    def _policy_sender_variants(self, sender_id: str) -> list[str]:
+        """Build sender-id variants for scoped policy matching."""
+        text = str(sender_id or "").strip().lower()
+        if not text:
+            return [""]
+
+        candidates: list[str] = [text]
+        if "|" in text:
+            candidates.extend(part.strip() for part in text.split("|") if part.strip())
+        if "@" in text:
+            local = text.split("@", 1)[0].strip()
+            if local:
+                candidates.append(local)
+        digits = re.sub(r"\D+", "", text)
+        if digits:
+            candidates.append(digits)
+            if digits.startswith("0") and len(digits) > 5:
+                candidates.append(f"62{digits[1:]}")
+            if digits.startswith("62") and len(digits) > 5:
+                candidates.append(f"0{digits[2:]}")
+            stripped = digits.lstrip("0")
+            if stripped:
+                candidates.append(stripped)
+
+        variants: list[str] = []
+        seen: set[str] = set()
+        for value in candidates:
+            item = value.strip().lower()
+            if item and item not in seen:
+                seen.add(item)
+                variants.append(item)
+        return variants
 
     async def _execute_tool_with_policy(
         self,
