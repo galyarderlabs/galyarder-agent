@@ -41,7 +41,6 @@ Before tagging a release (`vX.Y.Z`):
 2. Update release docs:
    - `CHANGELOG.md`
    - `docs/release-notes/vX.Y.Z.md` (must exist and be non-empty)
-   - If release closes/changes roadmap commitments, update `docs/roadmap/openclaw-delta.md` status mapping
 3. Run validation:
 
 ```bash

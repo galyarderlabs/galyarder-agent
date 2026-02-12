@@ -59,14 +59,11 @@ For vulnerabilities, follow private disclosure:
 
 This project is inspired by and acknowledges:
 
-- `HKUDS/nanobot`: https://github.com/HKUDS/nanobot
 - `openclaw/openclaw`: https://github.com/openclaw/openclaw
 
 Legacy community channels from upstream ecosystems may still be useful:
 
 - Discord: https://discord.gg/MnCvHqpUGB
-- HKUDS WeChat/Feishu QR (upstream):  
-  <img src="https://github.com/HKUDS/.github/blob/main/profile/QR.png" alt="HKUDS WeChat/Feishu QR" width="320"/>
 
 ---
 
