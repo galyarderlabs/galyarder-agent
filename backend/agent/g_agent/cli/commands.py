@@ -820,7 +820,7 @@ def _bridge_port_pids(port: int) -> list[str]:
 
 
 def _bridge_bind_error(port: int) -> OSError | None:
-    """Return bind error for 0.0.0.0:<port>, or None when bind is allowed."""
+    """Return bind error for 127.0.0.1:<port>, or None when bind is allowed."""
     import socket
 
     try:
@@ -830,7 +830,7 @@ def _bridge_bind_error(port: int) -> OSError | None:
 
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     try:
-        sock.bind(("0.0.0.0", port))
+        sock.bind(("127.0.0.1", port))
         return None
     except OSError as exc:
         return exc
