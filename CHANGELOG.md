@@ -30,6 +30,7 @@ All notable changes to this project are documented in this file.
 - Deprecated `opus 4.5` model aliases are now migrated to `claude-opus-4-6-thinking` during config load.
 - `channels login` now performs bridge preflight checks and reports clearer causes/fixes for port bind failures.
 - Missing API key failures now include provider-aware remediation hints.
+- `channels login` now auto-rebuilds local bridge assets when bundled bridge source changes, preventing stale bridge runtime mismatches.
 
 ## [0.1.4] - 2026-02-09
 
