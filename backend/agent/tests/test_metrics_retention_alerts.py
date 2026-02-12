@@ -73,6 +73,8 @@ def test_alert_summary_and_dashboard_alert_fields(tmp_path: Path):
     assert dashboard["alerts_overall"] in {"ok", "warn", "na"}
     assert isinstance(dashboard["alerts_warn_count"], int)
     assert isinstance(dashboard["alerts_triggered_checks"], list)
+    assert isinstance(dashboard["alerts_top_warn_checks"], list)
+    assert isinstance(dashboard["alerts_brief"], str)
 
 
 def test_alert_summary_empty_window_is_na(tmp_path: Path):
@@ -83,3 +85,30 @@ def test_alert_summary_empty_window_is_na(tmp_path: Path):
     assert alerts["warn_count"] == 0
     assert alerts["ok_count"] == 0
     assert alerts["na_count"] > 0
+
+
+def test_alert_compact_and_prometheus_expose_alert_gauges(tmp_path: Path):
+    store = MetricsStore(tmp_path / "events.jsonl")
+    store.record_llm_call(model="gemini", success=False, latency_ms=300, error="timeout")
+    store.record_tool_call(tool="web_search", success=True, latency_ms=200)
+    store.record_recall(query="timezone", hits=0)
+    store.record_cron_run(
+        name="calendar-watch",
+        payload_kind="system_event",
+        success=False,
+        latency_ms=15000,
+        delivered=False,
+        proactive=True,
+        error="timeout",
+    )
+
+    compact = store.alert_compact(hours=24)
+    assert compact["overall"] == "warn"
+    assert "warn" in compact["brief"]
+    assert isinstance(compact["top_warn_checks"], list)
+    assert compact["top_warn_checks"]
+
+    text = store.prometheus_text(hours=24)
+    assert "g_agent_alerts_warn_count" in text
+    assert 'g_agent_alerts_overall{state="warn"} 1' in text
+    assert 'g_agent_alert_check_warn{check="llm_success_rate"} 1' in text

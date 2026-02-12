@@ -299,6 +299,7 @@ class MetricsStore:
             summary[f"top_tool_{index}_calls"] = int(item.get("calls", 0))
             summary[f"top_tool_{index}_errors"] = int(item.get("errors", 0))
         alerts = self.alert_summary(hours=hours, snapshot=snapshot)
+        alert_compact = self.alert_compact(hours=hours, snapshot=snapshot)
         summary["alerts_overall"] = alerts["overall"]
         summary["alerts_warn_count"] = alerts["warn_count"]
         summary["alerts_ok_count"] = alerts["ok_count"]
@@ -306,6 +307,8 @@ class MetricsStore:
         summary["alerts_triggered_checks"] = [
             item.get("key", "") for item in alerts.get("checks", []) if item.get("status") == "warn"
         ]
+        summary["alerts_top_warn_checks"] = alert_compact["top_warn_checks"]
+        summary["alerts_brief"] = alert_compact["brief"]
         return summary
 
     def prometheus_text(self, hours: int = 24) -> str:
@@ -316,6 +319,7 @@ class MetricsStore:
         recall = snapshot["recall"]
         cron = snapshot["cron"]
         totals = snapshot["totals"]
+        alerts = self.alert_summary(hours=hours, snapshot=snapshot)
 
         lines = [
             "# HELP g_agent_events_total Total recorded events in snapshot window",
@@ -345,7 +349,20 @@ class MetricsStore:
             f"g_agent_cron_success_rate_pct {cron['success_rate']}",
             f"g_agent_cron_latency_p95_ms {cron['latency_ms_p95']}",
             f"g_agent_cron_proactive_runs_total {cron['proactive_runs']}",
+            f"g_agent_alerts_warn_count {alerts['warn_count']}",
+            f"g_agent_alerts_ok_count {alerts['ok_count']}",
+            f"g_agent_alerts_na_count {alerts['na_count']}",
         ]
+        overall = str(alerts.get("overall", "na")).strip().lower()
+        for state in ("ok", "warn", "na"):
+            value = 1 if overall == state else 0
+            lines.append(f'g_agent_alerts_overall{{state="{state}"}} {value}')
+        for item in alerts.get("checks", []):
+            check = _escape_label(str(item.get("key", "")))
+            status = str(item.get("status", "")).strip().lower()
+            warn_value = 1 if status == "warn" else 0
+            lines.append(f'g_agent_alert_check_warn{{check="{check}"}} {warn_value}')
+
         for item in tools.get("top_tools", []):
             tool = _escape_label(str(item.get("tool", "")))
             calls = int(item.get("calls", 0))
@@ -476,6 +493,41 @@ class MetricsStore:
             "na_count": na_count,
             "checks": checks,
             "thresholds": merged_thresholds,
+        }
+
+    def alert_compact(
+        self,
+        *,
+        hours: int = 24,
+        snapshot: dict[str, Any] | None = None,
+        thresholds: dict[str, float] | None = None,
+        max_checks: int = 3,
+    ) -> dict[str, Any]:
+        """Build compact alert summary for status/doctor output."""
+        alerts = self.alert_summary(hours=hours, snapshot=snapshot, thresholds=thresholds)
+        warned_checks = [
+            str(item.get("key", ""))
+            for item in alerts.get("checks", [])
+            if item.get("status") == "warn"
+        ]
+        top_warn_checks = warned_checks[: max(0, int(max_checks))]
+        if alerts["overall"] == "warn":
+            listed = ", ".join(top_warn_checks) if top_warn_checks else "threshold breach"
+            remaining = max(0, int(alerts["warn_count"]) - len(top_warn_checks))
+            suffix = f" (+{remaining} more)" if remaining > 0 else ""
+            brief = f"warn ({alerts['warn_count']}): {listed}{suffix}"
+        elif alerts["overall"] == "ok":
+            brief = f"ok ({alerts['ok_count']} checks)"
+        else:
+            brief = "na (no metric samples)"
+        return {
+            "overall": alerts["overall"],
+            "warn_count": alerts["warn_count"],
+            "ok_count": alerts["ok_count"],
+            "na_count": alerts["na_count"],
+            "top_warn_checks": top_warn_checks,
+            "brief": brief,
+            "alerts": alerts,
         }
 
     def prune_events(

@@ -217,6 +217,10 @@ Code:
 - Outbound dispatch retries with capped exponential backoff for transient channel-send failures:
   - `backend/agent/g_agent/channels/manager.py`
   - `backend/agent/tests/test_retry_and_idempotency.py`
+- Metrics alert compact summaries surfaced in `status`/`doctor` plus Prometheus alert gauges:
+  - `backend/agent/g_agent/observability/metrics.py`
+  - `backend/agent/g_agent/cli/commands.py`
+  - `backend/agent/tests/test_metrics_retention_alerts.py`
 
 ### P0 — Reliability Gaps (next)
 
