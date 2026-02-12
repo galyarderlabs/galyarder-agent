@@ -77,8 +77,7 @@ class WhatsAppChannel(BaseChannel):
     async def send(self, msg: OutboundMessage) -> None:
         """Send a message through WhatsApp."""
         if not self._ws or not self._connected:
-            logger.warning("WhatsApp bridge not connected")
-            return
+            raise RuntimeError("WhatsApp bridge not connected")
 
         try:
             metadata = msg.metadata if isinstance(msg.metadata, dict) else {}

@@ -16,6 +16,7 @@ All notable changes to this project are documented in this file.
 - Embeddable `Agent` lifecycle API (`close`, `aclose`, async context manager) plus safe closed-state guards.
 - `g-agent plugins list` and `g-agent plugins doctor` commands for plugin policy diagnostics.
 - Channel manager supervisor restart loop for long-running channel crash recovery.
+- Outbound dispatch retries with capped backoff for transient channel send failures.
 
 ### Changed
 - `resolve_model_route()` now uses `proxy_provider` instead of hardcoding `vllm`.

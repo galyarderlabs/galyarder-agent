@@ -36,9 +36,13 @@ class ChannelManager:
         )
         self._dispatch_task: asyncio.Task | None = None
         self._channel_tasks: dict[str, asyncio.Task[None]] = {}
+        self._outbound_retry_tasks: set[asyncio.Task[None]] = set()
         self._running = False
         self._channel_restart_delay_s = 5.0
         self._channel_restart_backoff_max_s = 60.0
+        self._outbound_retry_base_delay_s = 1.0
+        self._outbound_retry_backoff_max_s = 30.0
+        self._outbound_retry_max_attempts = 3
         self._outbound_idempotency_ttl_s = 120.0
         self._outbound_seen: dict[str, float] = {}
 
@@ -177,6 +181,12 @@ class ChannelManager:
             await asyncio.gather(*self._channel_tasks.values(), return_exceptions=True)
             self._channel_tasks.clear()
 
+        if self._outbound_retry_tasks:
+            for task in list(self._outbound_retry_tasks):
+                task.cancel()
+            await asyncio.gather(*list(self._outbound_retry_tasks), return_exceptions=True)
+            self._outbound_retry_tasks.clear()
+
     async def _run_channel_supervisor(self, name: str, channel: BaseChannel) -> None:
         """Run one channel with restart-on-failure supervision."""
         backoff = self._channel_restart_delay_s
@@ -212,8 +222,10 @@ class ChannelManager:
                 if channel:
                     try:
                         await channel.send(msg)
+                        self._record_outbound_seen(msg)
                     except Exception as e:
                         logger.error(f"Error sending to {msg.channel}: {e}")
+                        self._schedule_outbound_retry(msg, str(e))
                 else:
                     logger.warning(f"Unknown channel: {msg.channel}")
 
@@ -247,8 +259,68 @@ class ChannelManager:
             logger.warning(f"Skipping duplicate outbound message (key={key})")
             return True
 
-        self._outbound_seen[key] = now
         return False
+
+    def _record_outbound_seen(self, msg: OutboundMessage) -> None:
+        """Record successful outbound idempotency key."""
+        key = self._extract_idempotency_key(msg)
+        if not key:
+            return
+        self._outbound_seen[key] = time.time()
+
+    @staticmethod
+    def _outbound_attempt(msg: OutboundMessage) -> int:
+        """Extract internal dispatch attempt counter from metadata."""
+        metadata = msg.metadata if isinstance(msg.metadata, dict) else {}
+        raw = metadata.get("_dispatch_attempt", 0)
+        try:
+            return max(0, int(raw))
+        except (TypeError, ValueError):
+            return 0
+
+    def _schedule_outbound_retry(self, msg: OutboundMessage, reason: str) -> None:
+        """Schedule best-effort outbound retry with capped exponential backoff."""
+        attempt = self._outbound_attempt(msg)
+        if attempt >= self._outbound_retry_max_attempts:
+            logger.error(
+                "Dropping outbound message after retries: "
+                f"channel={msg.channel}, chat_id={msg.chat_id}, reason={reason}"
+            )
+            return
+
+        next_attempt = attempt + 1
+        delay = min(
+            self._outbound_retry_base_delay_s * (2**attempt),
+            self._outbound_retry_backoff_max_s,
+        )
+        metadata = dict(msg.metadata if isinstance(msg.metadata, dict) else {})
+        metadata["_dispatch_attempt"] = next_attempt
+        retry_msg = OutboundMessage(
+            channel=msg.channel,
+            chat_id=msg.chat_id,
+            content=msg.content,
+            reply_to=msg.reply_to,
+            media=list(msg.media),
+            metadata=metadata,
+        )
+
+        async def _requeue() -> None:
+            try:
+                await asyncio.sleep(delay)
+                await self.bus.publish_outbound(retry_msg)
+            except asyncio.CancelledError:
+                return
+            except Exception as exc:
+                logger.debug(f"Outbound retry scheduling failed: {exc}")
+
+        task = asyncio.create_task(_requeue())
+        self._outbound_retry_tasks.add(task)
+        task.add_done_callback(lambda done_task: self._outbound_retry_tasks.discard(done_task))
+        logger.warning(
+            "Retrying outbound message: "
+            f"channel={msg.channel}, chat_id={msg.chat_id}, attempt={next_attempt}, "
+            f"delay={delay:.1f}s, reason={reason}"
+        )
 
     def get_channel(self, name: str) -> BaseChannel | None:
         """Get a channel by name."""

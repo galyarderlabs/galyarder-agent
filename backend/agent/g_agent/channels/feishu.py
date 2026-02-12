@@ -173,8 +173,7 @@ class FeishuChannel(BaseChannel):
     async def send(self, msg: OutboundMessage) -> None:
         """Send a message through Feishu."""
         if not self._client:
-            logger.warning("Feishu client not initialized")
-            return
+            raise RuntimeError("Feishu client not initialized")
 
         try:
             # Determine receive_id_type based on chat_id format
