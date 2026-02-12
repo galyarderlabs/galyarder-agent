@@ -1,6 +1,6 @@
 # OpenClaw Delta Roadmap — Lean `g-agent` Runtime
 
-Last updated: 2026-02-09
+Last updated: 2026-02-12
 
 This roadmap tracks what we deliberately adopted from OpenClaw direction, while keeping `g-agent` lightweight, cross-platform, and operator-controlled.
 
@@ -221,6 +221,14 @@ Code:
   - `backend/agent/g_agent/observability/metrics.py`
   - `backend/agent/g_agent/cli/commands.py`
   - `backend/agent/tests/test_metrics_retention_alerts.py`
+- Scoped tool-policy identity normalization + guardrail audit checks:
+  - `backend/agent/g_agent/agent/loop.py`
+  - `backend/agent/g_agent/security/audit.py`
+  - `backend/agent/tests/test_policy_presets.py`
+  - `backend/agent/tests/test_security_audit.py`
+- Channel supervisor restart-burst cooldown guard for long crash loops:
+  - `backend/agent/g_agent/channels/manager.py`
+  - `backend/agent/tests/test_channel_reconnect.py`
 
 ### P0 — Reliability Gaps (next)
 
