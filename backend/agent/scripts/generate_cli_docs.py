@@ -129,6 +129,8 @@ def render_markdown() -> str:
             "g-agent version",
             "g-agent channels --help",
             "g-agent channels login",
+            "g-agent plugins --help",
+            "g-agent plugins list",
             "g-agent google --help",
             "g-agent cron --help",
             "g-agent policy --help",

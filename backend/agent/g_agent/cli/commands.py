@@ -47,6 +47,56 @@ def _missing_api_key_fix(provider: str, config_path: Path) -> str:
     return f"Set providers.{provider}.apiKey in {config_path}"
 
 
+def _normalize_name_set(values: list[str]) -> set[str]:
+    """Normalize plugin names from policy lists."""
+    return {value.strip().lower() for value in values if value and value.strip()}
+
+
+def _plugin_policy_state(config: Any) -> tuple[bool, set[str], set[str]]:
+    """Return enabled flag and normalized allow/deny sets."""
+    plugin_cfg = config.tools.plugins
+    return (
+        bool(plugin_cfg.enabled),
+        _normalize_name_set(plugin_cfg.allow),
+        _normalize_name_set(plugin_cfg.deny),
+    )
+
+
+def _plugin_status(
+    name: str,
+    *,
+    enabled: bool,
+    allow_set: set[str],
+    deny_set: set[str],
+    active_set: set[str],
+) -> tuple[str, str]:
+    """Resolve plugin status label and reason."""
+    key = name.strip().lower()
+    if not enabled:
+        return "[yellow]disabled[/yellow]", "plugins disabled globally"
+    if key in deny_set:
+        return "[red]blocked[/red]", "matched deny list"
+    if allow_set and key not in allow_set:
+        return "[yellow]blocked[/yellow]", "not in allow list"
+    if key in active_set:
+        return "[green]active[/green]", "loaded"
+    return "[yellow]inactive[/yellow]", "not selected by policy"
+
+
+def _plugin_hooks(plugin: Any) -> str:
+    """Human-readable hook summary for plugin list."""
+    from g_agent.plugins.base import PluginBase
+
+    hooks: list[str] = []
+    register_tools = getattr(type(plugin), "register_tools", None)
+    register_channels = getattr(type(plugin), "register_channels", None)
+    if register_tools is not PluginBase.register_tools:
+        hooks.append("tools")
+    if register_channels is not PluginBase.register_channels:
+        hooks.append("channels")
+    return ", ".join(hooks) if hooks else "-"
+
+
 def version_callback(value: bool):
     if value:
         console.print(f"{__logo__} {__brand__} v{__version__}")
@@ -581,7 +631,7 @@ def gateway(
         finally:
             heartbeat.stop()
             cron.stop()
-            agent.stop()
+            await agent.shutdown()
             await channels.stop_all()
             if metrics_server:
                 await metrics_server.stop()
@@ -941,6 +991,207 @@ def channels_login(
         )
     except FileNotFoundError:
         _cli_fail("npm not found.", "Install Node.js >= 18 and retry.")
+
+
+# ============================================================================
+# Plugin Commands
+# ============================================================================
+
+
+plugins_app = typer.Typer(help="Inspect runtime plugins")
+app.add_typer(plugins_app, name="plugins")
+
+
+@plugins_app.callback(invoke_without_command=True)
+def plugins_main(ctx: typer.Context):
+    """Inspect runtime plugin loading and policy."""
+    if ctx.invoked_subcommand is None:
+        console.print(ctx.get_help())
+        raise typer.Exit(0)
+
+
+@plugins_app.command("list")
+def plugins_list():
+    """List discovered plugins and effective policy status."""
+    from g_agent.config.loader import load_config
+    from g_agent.plugins.loader import filter_plugins, load_installed_plugins, plugin_label
+
+    config = load_config()
+    enabled, allow_set, deny_set = _plugin_policy_state(config)
+    discovered = sorted(load_installed_plugins(), key=lambda plugin: plugin_label(plugin).lower())
+    active = filter_plugins(
+        discovered,
+        enabled=enabled,
+        allow=sorted(allow_set),
+        deny=sorted(deny_set),
+    )
+    active_set = {plugin_label(plugin).strip().lower() for plugin in active}
+
+    allow_text = ", ".join(sorted(allow_set)) if allow_set else "all"
+    deny_text = ", ".join(sorted(deny_set)) if deny_set else "none"
+    console.print(
+        "Policy: "
+        f"enabled={str(enabled).lower()}, allow={allow_text}, deny={deny_text}"
+    )
+
+    if not discovered:
+        console.print(
+            "[yellow]No plugins discovered from entry point group `g_agent.plugins`.[/yellow]"
+        )
+        return
+
+    table = Table(title="Runtime Plugins")
+    table.add_column("Plugin", style="cyan")
+    table.add_column("Status")
+    table.add_column("Hooks")
+    table.add_column("Reason", style="yellow")
+
+    for plugin in discovered:
+        name = plugin_label(plugin)
+        status, reason = _plugin_status(
+            name,
+            enabled=enabled,
+            allow_set=allow_set,
+            deny_set=deny_set,
+            active_set=active_set,
+        )
+        table.add_row(name, status, _plugin_hooks(plugin), reason)
+
+    console.print(table)
+    console.print(f"Discovered: {len(discovered)} | Active: {len(active)}")
+
+
+@plugins_app.command("doctor")
+def plugins_doctor(
+    strict: bool = typer.Option(False, "--strict", help="Exit with code 1 if checks fail"),
+):
+    """Run diagnostics for plugin discovery and policy configuration."""
+    from g_agent.config.loader import load_config
+    from g_agent.plugins.loader import filter_plugins, load_installed_plugins, plugin_label
+
+    def _mark(level: str) -> str:
+        if level == "pass":
+            return "[green]PASS[/green]"
+        if level == "warn":
+            return "[yellow]WARN[/yellow]"
+        return "[red]FAIL[/red]"
+
+    results: list[tuple[str, str, str, str]] = []
+
+    def add(check: str, level: str, detail: str, fix: str = "") -> None:
+        results.append((check, level, detail, fix))
+
+    config = load_config()
+    enabled, allow_set, deny_set = _plugin_policy_state(config)
+    discovered = load_installed_plugins()
+    discovered_names = {plugin_label(plugin).strip().lower() for plugin in discovered}
+    active = filter_plugins(
+        discovered,
+        enabled=enabled,
+        allow=sorted(allow_set),
+        deny=sorted(deny_set),
+    )
+
+    allow_unknown = sorted(name for name in allow_set if name not in discovered_names)
+    deny_unknown = sorted(name for name in deny_set if name not in discovered_names)
+    overlap = sorted(allow_set & deny_set)
+
+    add(
+        "Plugin discovery",
+        "pass" if discovered else "warn",
+        f"{len(discovered)} discovered",
+        ""
+        if discovered
+        else "Install plugin package(s) exposing `g_agent.plugins` entry points",
+    )
+    add(
+        "Plugin switch",
+        "pass" if enabled else "warn",
+        f"enabled={str(enabled).lower()}",
+        "" if enabled else "Set tools.plugins.enabled=true to activate plugins",
+    )
+    if allow_set:
+        add(
+            "Allow list names",
+            "warn" if allow_unknown else "pass",
+            (
+                f"unknown: {', '.join(allow_unknown)}"
+                if allow_unknown
+                else f"{len(allow_set)} configured"
+            ),
+            (
+                "Run `g-agent plugins list` and update tools.plugins.allow"
+                if allow_unknown
+                else ""
+            ),
+        )
+    else:
+        add("Allow list names", "pass", "not configured (all discovered allowed)")
+
+    if deny_set:
+        add(
+            "Deny list names",
+            "warn" if deny_unknown else "pass",
+            (
+                f"unknown: {', '.join(deny_unknown)}"
+                if deny_unknown
+                else f"{len(deny_set)} configured"
+            ),
+            "Remove stale names from tools.plugins.deny" if deny_unknown else "",
+        )
+    else:
+        add("Deny list names", "pass", "not configured")
+
+    add(
+        "Allow/Deny overlap",
+        "warn" if overlap else "pass",
+        ", ".join(overlap) if overlap else "none",
+        "Deny wins; remove overlaps to avoid confusion" if overlap else "",
+    )
+
+    if enabled and active:
+        add("Active plugins", "pass", f"{len(active)} active")
+    elif enabled and discovered:
+        add(
+            "Active plugins",
+            "fail",
+            f"0 active from {len(discovered)} discovered",
+            "Adjust tools.plugins.allow/deny (or disable plugins explicitly)",
+        )
+    elif enabled:
+        add(
+            "Active plugins",
+            "warn",
+            "0 active (none discovered)",
+            "Install plugins or keep tools.plugins.enabled=false",
+        )
+    else:
+        add(
+            "Active plugins",
+            "warn",
+            "plugins disabled",
+            "Set tools.plugins.enabled=true to enable plugin loading",
+        )
+
+    table = Table(title="Plugin Doctor")
+    table.add_column("Check", style="cyan")
+    table.add_column("Status")
+    table.add_column("Details", style="yellow")
+    table.add_column("Fix Hint", style="magenta")
+
+    for check, level, detail, fix in results:
+        table.add_row(check, _mark(level), detail, fix or "-")
+    console.print(table)
+
+    fail_count = sum(1 for _, level, _, _ in results if level == "fail")
+    warn_count = sum(1 for _, level, _, _ in results if level == "warn")
+    pass_count = len(results) - fail_count - warn_count
+    console.print(
+        f"Summary: [green]{pass_count} pass[/green], [yellow]{warn_count} warn[/yellow], [red]{fail_count} fail[/red]"
+    )
+
+    if strict and fail_count > 0:
+        raise typer.Exit(1)
 
 
 # ============================================================================

@@ -173,6 +173,7 @@ From Telegram/WhatsApp:
 | `g-agent agent -m "..."` | One-shot chat from CLI |
 | `g-agent channels login` | Pair WhatsApp via QR |
 | `g-agent channels status` | Show channel config status |
+| `g-agent plugins list/doctor` | Inspect plugin loading and policy health |
 | `g-agent google configure/auth-url/exchange/verify` | Google OAuth flow |
 | `g-agent doctor --network` | Connectivity diagnostics |
 | `g-agent proactive-enable` | Enable default proactive jobs |

@@ -42,6 +42,7 @@ g-agent [OPTIONS] COMMAND [ARGS]...
 | `status` | Show g-agent status. |
 | `doctor` | Run diagnostics for model, channels, memory, and tool configuration. |
 | `channels` | Manage channels. |
+| `plugins` | Inspect runtime plugins. |
 | `google` | Manage Google Workspace integration. |
 | `cron` | Manage scheduled tasks. |
 | `policy` | Manage tool policy presets. |
@@ -54,6 +55,15 @@ g-agent channels [COMMAND] --help
 
 - `status`: Show channel status.
 - `login`: Link device via QR code.
+
+## `plugins` subcommands
+
+```bash
+g-agent plugins [COMMAND] --help
+```
+
+- `list`: List discovered plugins and effective policy status.
+- `doctor`: Run diagnostics for plugin discovery and policy configuration.
 
 ## `google` subcommands
 
@@ -98,6 +108,8 @@ g-agent help
 g-agent version
 g-agent channels --help
 g-agent channels login
+g-agent plugins --help
+g-agent plugins list
 g-agent google --help
 g-agent cron --help
 g-agent policy --help

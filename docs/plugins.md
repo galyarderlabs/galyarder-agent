@@ -81,3 +81,16 @@ You should see:
 
 - `Loaded plugin ...` in logs
 - `Plugins loaded: ...` in CLI startup output
+
+## CLI inspection
+
+Use plugin diagnostics directly from CLI:
+
+```bash
+g-agent plugins list
+g-agent plugins doctor
+g-agent plugins doctor --strict
+```
+
+- `list`: shows discovered plugins, hooks, and policy status
+- `doctor`: validates policy (`enabled/allow/deny`) against discovered plugins
