@@ -13,6 +13,7 @@ All notable changes to this project are documented in this file.
 - Auto-generated command reference page at `docs/cli-commands.md` via `backend/agent/scripts/generate_cli_docs.py`.
 - Local pre-commit guard (`.githooks/pre-commit`) and CI/release checks to keep CLI docs synchronized.
 - CLI error-style guideline doc at `docs/cli-error-style.md`.
+- CLI command-surface regression tests for help/version/login aliases and no-subcommand group help behavior.
 - Embeddable `Agent` lifecycle API (`close`, `aclose`, async context manager) plus safe closed-state guards.
 - `g-agent plugins list` and `g-agent plugins doctor` commands for plugin policy diagnostics.
 - Channel manager supervisor restart loop for long-running channel crash recovery.
