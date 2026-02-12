@@ -52,3 +52,20 @@ def test_policy_resolver_supports_scoped_wildcards():
     assert loop._resolve_tool_policy("web_search", "telegram", "123456789") == "deny"
     assert loop._resolve_tool_policy("web_search", "telegram", "somebody_else") == "ask"
     assert loop._resolve_tool_policy("web_search", "whatsapp", "123456789") == "allow"
+
+
+def test_policy_resolver_matches_sender_identity_variants():
+    loop = AgentLoop.__new__(AgentLoop)
+    loop.approval_mode = "off"
+    loop.risky_tools = []
+    loop.tool_policy = {
+        "telegram:123456789:web_search": "deny",
+        "whatsapp:6281234567890:web_search": "ask",
+        "*": "allow",
+    }
+
+    assert loop._resolve_tool_policy("web_search", "telegram", "123456789|galyarder") == "deny"
+    assert (
+        loop._resolve_tool_policy("web_search", "whatsapp", "081234567890@s.whatsapp.net")
+        == "ask"
+    )

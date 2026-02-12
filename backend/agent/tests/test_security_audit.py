@@ -17,6 +17,8 @@ def _build_config(
     telegram_allow: list[str],
     whatsapp_enabled: bool,
     whatsapp_allow: list[str],
+    policy: dict[str, str] | None = None,
+    risky_tools: list[str] | None = None,
 ) -> SimpleNamespace:
     def channel(enabled: bool, allow: list[str]) -> SimpleNamespace:
         return SimpleNamespace(enabled=enabled, allow_from=list(allow))
@@ -25,6 +27,8 @@ def _build_config(
         tools=SimpleNamespace(
             restrict_to_workspace=restrict_to_workspace,
             approval_mode=approval_mode,
+            policy=dict(policy or {}),
+            risky_tools=list(risky_tools or []),
         ),
         channels=SimpleNamespace(
             telegram=channel(telegram_enabled, telegram_allow),
@@ -117,3 +121,44 @@ def test_security_audit_flags_unsafe_baseline(tmp_path: Path):
     assert check_by_name["Runtime user"]["level"] == "fail"
     assert check_by_name["Data directory permissions"]["level"] == "warn"
     assert check_by_name["Config file permissions"]["level"] == "warn"
+
+
+def test_security_audit_flags_policy_guardrail_issues(tmp_path: Path):
+    data_dir = tmp_path / ".g-agent-policy"
+    workspace = data_dir / "workspace"
+    config_path = data_dir / "config.json"
+
+    workspace.mkdir(parents=True, exist_ok=True)
+    _touch(config_path)
+    data_dir.chmod(0o700)
+    config_path.chmod(0o600)
+
+    config = _build_config(
+        restrict_to_workspace=True,
+        approval_mode="confirm",
+        telegram_enabled=True,
+        telegram_allow=["123456789"],
+        whatsapp_enabled=False,
+        whatsapp_allow=[],
+        policy={
+            "*": "allow",
+            "exec": "allow",
+            "telegram:123456789:web_search": "allow",
+            "telegram:123456789:message": "sometimes",
+        },
+        risky_tools=["exec", "message"],
+    )
+
+    report = run_security_audit(
+        config=config,
+        data_dir=data_dir,
+        config_path=config_path,
+        workspace_path=workspace,
+        is_root=False,
+    )
+
+    check_by_name = {item["name"]: item for item in report["checks"]}
+    assert check_by_name["Tool policy decisions"]["level"] == "fail"
+    assert check_by_name["Policy default guardrail"]["level"] == "fail"
+    assert check_by_name["Scoped policy guardrails"]["level"] == "pass"
+    assert check_by_name["Risky tool overrides"]["level"] == "warn"

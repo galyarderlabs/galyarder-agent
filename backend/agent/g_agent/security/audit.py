@@ -93,6 +93,156 @@ def _channel_allowlist_checks(config: Any) -> list[dict[str, str]]:
     return checks
 
 
+def _policy_guardrail_checks(config: Any) -> list[dict[str, str]]:
+    checks: list[dict[str, str]] = []
+    valid_decisions = {"allow", "ask", "deny"}
+    tools_cfg = getattr(config, "tools", None)
+
+    raw_policy = getattr(tools_cfg, "policy", {}) if tools_cfg else {}
+    policy: dict[str, str] = {}
+    if isinstance(raw_policy, dict):
+        for raw_key, raw_value in raw_policy.items():
+            key = str(raw_key or "").strip().lower()
+            if not key:
+                continue
+            policy[key] = str(raw_value or "").strip().lower()
+
+    invalid_rules = sorted(key for key, value in policy.items() if value not in valid_decisions)
+    if invalid_rules:
+        listed = ", ".join(invalid_rules[:3])
+        if len(invalid_rules) > 3:
+            listed = f"{listed} (+{len(invalid_rules) - 3} more)"
+        checks.append(
+            _make_check(
+                "Tool policy decisions",
+                "fail",
+                f"{len(invalid_rules)} invalid rule(s): {listed}",
+                "Use only allow|ask|deny for tools.policy values",
+            )
+        )
+    else:
+        checks.append(
+            _make_check(
+                "Tool policy decisions",
+                "pass",
+                f"{len(policy)} rule(s) use allow|ask|deny",
+            )
+        )
+
+    wildcard = policy.get("*")
+    if wildcard == "deny":
+        checks.append(
+            _make_check(
+                "Policy default guardrail",
+                "pass",
+                "tools.policy[*]=deny",
+            )
+        )
+    elif wildcard == "allow":
+        checks.append(
+            _make_check(
+                "Policy default guardrail",
+                "fail",
+                "tools.policy[*]=allow",
+                'Set tools.policy["*"] to "deny" then explicitly allow safe tools',
+            )
+        )
+    elif wildcard == "ask":
+        checks.append(
+            _make_check(
+                "Policy default guardrail",
+                "warn",
+                "tools.policy[*]=ask",
+                'Prefer tools.policy["*"]="deny" for stricter baseline',
+            )
+        )
+    elif wildcard:
+        checks.append(
+            _make_check(
+                "Policy default guardrail",
+                "fail",
+                f"tools.policy[*]={wildcard}",
+                "Use allow|ask|deny decisions only",
+            )
+        )
+    else:
+        checks.append(
+            _make_check(
+                "Policy default guardrail",
+                "warn",
+                "tools.policy missing '*' fallback",
+                'Set tools.policy["*"] to "deny"',
+            )
+        )
+
+    channels_cfg = getattr(config, "channels", None)
+    candidate_channels = ("telegram", "whatsapp", "discord", "feishu", "email", "slack_channel")
+    enabled_channels: list[str] = []
+    if channels_cfg:
+        for name in candidate_channels:
+            channel_cfg = getattr(channels_cfg, name, None)
+            if bool(getattr(channel_cfg, "enabled", False)):
+                enabled_channels.append(name)
+
+    if enabled_channels:
+        missing = sorted(
+            name
+            for name in enabled_channels
+            if not any(rule_key.startswith(f"{name}:") for rule_key in policy)
+        )
+        if missing:
+            checks.append(
+                _make_check(
+                    "Scoped policy guardrails",
+                    "warn",
+                    f"missing scoped rules for: {', '.join(missing)}",
+                    "Add channel-scoped tools.policy rules (channel:*:tool or channel:sender:tool)",
+                )
+            )
+        else:
+            checks.append(
+                _make_check(
+                    "Scoped policy guardrails",
+                    "pass",
+                    f"scoped rules found for {len(enabled_channels)} enabled channel(s)",
+                )
+            )
+    else:
+        checks.append(
+            _make_check(
+                "Scoped policy guardrails",
+                "pass",
+                "no external channels enabled",
+            )
+        )
+
+    raw_risky = getattr(tools_cfg, "risky_tools", []) if tools_cfg else []
+    risky_tools = {str(item or "").strip().lower() for item in raw_risky if str(item or "").strip()}
+    risky_allow = sorted(tool for tool in risky_tools if policy.get(tool) == "allow")
+    if risky_allow:
+        listed = ", ".join(risky_allow[:3])
+        if len(risky_allow) > 3:
+            listed = f"{listed} (+{len(risky_allow) - 3} more)"
+        checks.append(
+            _make_check(
+                "Risky tool overrides",
+                "warn",
+                f"global allow on risky tools: {listed}",
+                "Prefer ask/deny for risky tools, then scope exceptions by channel/sender",
+            )
+        )
+    else:
+        checks.append(
+            _make_check(
+                "Risky tool overrides",
+                "pass",
+                "no global allow on risky tools",
+            )
+        )
+
+    return checks
+
+
 def run_security_audit(
     *,
     config: Any,
@@ -142,6 +292,8 @@ def run_security_audit(
                 'Set tools.approvalMode to "confirm" (or stricter)',
             )
         )
+
+    checks.extend(_policy_guardrail_checks(config))
 
     checks.extend(_channel_allowlist_checks(config))
 
