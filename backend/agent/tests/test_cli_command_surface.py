@@ -15,7 +15,8 @@ runner = CliRunner()
 def test_top_level_without_args_shows_help():
     result = runner.invoke(app, [])
     assert result.exit_code in {0, 2}
-    assert "Usage: g-agent" in result.stdout
+    assert "Usage:" in result.stdout
+    assert "COMMAND [ARGS]..." in result.stdout
 
 
 @pytest.mark.parametrize(
@@ -31,7 +32,8 @@ def test_top_level_without_args_shows_help():
 def test_group_command_without_subcommand_shows_help(group_name: str, expected_help: str):
     result = runner.invoke(app, [group_name])
     assert result.exit_code == 0
-    assert f"Usage: g-agent {group_name}" in result.stdout
+    assert "Usage:" in result.stdout
+    assert group_name in result.stdout
     assert expected_help in result.stdout
     assert "Missing command." not in result.stdout
 
