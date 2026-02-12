@@ -183,7 +183,7 @@ Information about the user goes here.
     # Create memory directory and MEMORY.md
     memory_dir = workspace / "memory"
     memory_dir.mkdir(exist_ok=True)
-    
+
     # Create skills directory for custom user skills
     skills_dir = workspace / "skills"
     skills_dir.mkdir(exist_ok=True)
@@ -299,6 +299,7 @@ def gateway(
     from g_agent.heartbeat.service import HeartbeatService
     from g_agent.observability.http_server import MetricsHttpServer
     from g_agent.observability.metrics import MetricsStore
+    from g_agent.plugins.loader import load_installed_plugins, plugin_label
     from g_agent.proactive.engine import (
         ProactiveStateStore,
         compute_due_calendar_reminders,
@@ -315,6 +316,9 @@ def gateway(
     console.print(f"{__logo__} Starting {__brand__} gateway on port {port}...")
 
     config = load_config()
+    plugins = load_installed_plugins()
+    if plugins:
+        console.print(f"[green]✓[/green] Plugins loaded: {', '.join(plugin_label(p) for p in plugins)}")
 
     # Create components
     bus = MessageBus()
@@ -369,6 +373,7 @@ def gateway(
         enable_reflection=config.agents.defaults.enable_reflection,
         summary_interval=config.agents.defaults.summary_interval,
         fallback_models=route.fallback_models,
+        plugins=plugins,
     )
 
     data_dir = get_data_dir()
@@ -526,7 +531,7 @@ def gateway(
     )
 
     # Create channel manager
-    channels = ChannelManager(config, bus)
+    channels = ChannelManager(config, bus, plugins=plugins)
 
     if channels.enabled_channels:
         console.print(f"[green]✓[/green] Channels enabled: {', '.join(channels.enabled_channels)}")

@@ -66,6 +66,8 @@ from g_agent.agent.workflow_packs import (
 from g_agent.bus.events import InboundMessage, OutboundMessage
 from g_agent.bus.queue import MessageBus
 from g_agent.observability.metrics import MetricsStore
+from g_agent.plugins.base import PluginContext
+from g_agent.plugins.loader import load_installed_plugins, register_tool_plugins
 from g_agent.providers.base import LLMProvider
 from g_agent.session.manager import SessionManager
 
@@ -113,6 +115,7 @@ class AgentLoop:
         enable_reflection: bool = True,
         summary_interval: int = 6,
         fallback_models: list[str] | None = None,
+        plugins: list[Any] | None = None,
     ):
         from g_agent.config.schema import (
             BrowserToolsConfig,
@@ -166,6 +169,7 @@ class AgentLoop:
         self.runtime = TaskCheckpointStore(workspace)
         self.metrics = MetricsStore(workspace / "state" / "metrics" / "events.jsonl")
         self.tools = ToolRegistry()
+        self.plugins = plugins if plugins is not None else load_installed_plugins()
         self.subagents = SubagentManager(
             provider=provider,
             workspace=workspace,
@@ -178,6 +182,7 @@ class AgentLoop:
 
         self._running = False
         self._register_default_tools()
+        self._register_plugin_tools()
 
     def _register_default_tools(self) -> None:
         """Register the default set of tools."""
@@ -265,6 +270,19 @@ class AgentLoop:
         # Cron tool (for scheduling)
         if self.cron_service:
             self.tools.register(CronTool(self.cron_service))
+
+    def _register_plugin_tools(self) -> None:
+        """Allow external plugins to register custom tools."""
+        if not self.plugins:
+            return
+
+        context = PluginContext(
+            workspace=self.workspace,
+            bus=self.bus,
+            provider=self.provider,
+            extras={"model": self.model},
+        )
+        register_tool_plugins(self.plugins, context, registry=self.tools)
 
     async def run(self) -> None:
         """Run the agent loop, processing messages from the bus."""
