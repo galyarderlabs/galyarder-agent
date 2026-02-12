@@ -6,6 +6,7 @@
 
 - register custom tools
 - register custom channels
+- register custom provider factories
 
 ## Entry point group
 
@@ -40,7 +41,17 @@ class MyPlugin(PluginBase):
     def register_channels(self, channels, context: PluginContext) -> None:
         # channels["my-channel"] = MyChannel(...)
         pass
+
+    def register_providers(self, providers, context: PluginContext) -> None:
+        # providers["my-provider"] = lambda route, config: MyProvider(...)
+        # providers["default"] = lambda route, config: FallbackProvider(...)
+        pass
 ```
+
+Provider factory keys:
+
+- exact route provider name (`"anthropic"`, `"openai"`, `"proxy"`, etc.) for targeted override
+- `"default"` for fallback when no exact key matches
 
 ## Runtime behavior
 
@@ -48,6 +59,7 @@ class MyPlugin(PluginBase):
 - load failures are logged and skipped (non-fatal)
 - duplicate plugin names are skipped
 - invalid channel objects from plugins are rejected
+- invalid provider factories from plugins are rejected
 
 ## Plugin policy in config
 

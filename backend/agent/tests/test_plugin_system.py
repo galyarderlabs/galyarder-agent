@@ -11,6 +11,7 @@ from g_agent.config.schema import Config
 from g_agent.plugins.base import PluginBase, PluginContext
 from g_agent.plugins.loader import filter_plugins, load_installed_plugins
 from g_agent.providers.base import LLMProvider, LLMResponse
+from g_agent.providers.factory import build_provider, collect_provider_factories, has_provider_factory
 
 
 class DummyProvider(LLMProvider):
@@ -79,6 +80,18 @@ class ChannelPlugin(PluginBase):
         channels["plugin-test"] = PluginTestChannel(context.bus)
 
 
+class ProviderPlugin(PluginBase):
+    name = "provider-plugin"
+
+    def register_providers(self, providers: dict[str, Any], context: PluginContext) -> None:
+        assert context.config is not None
+
+        def _factory(_route: Any, _config: Config) -> LLMProvider:
+            return DummyProvider()
+
+        providers["default"] = _factory
+
+
 class FakeEntryPoint:
     def __init__(self, name: str, target: Any):
         self.name = name
@@ -99,13 +112,15 @@ def test_load_installed_plugins_supports_class_and_factory():
         entry_points_provider=lambda _group: [
             FakeEntryPoint("class_plugin", ToolPlugin),
             FakeEntryPoint("factory_plugin", _plugin_factory),
+            FakeEntryPoint("provider_plugin", ProviderPlugin),
             FakeEntryPoint("invalid", object()),
         ]
     )
     names = [str(getattr(plugin, "name", "")) for plugin in plugins]
     assert "tool-plugin" in names
     assert "factory-plugin" in names
-    assert len(plugins) == 2
+    assert "provider-plugin" in names
+    assert len(plugins) == 3
 
 
 def test_filter_plugins_respects_enabled_allow_deny():
@@ -157,3 +172,14 @@ def test_channel_manager_respects_plugin_deny_policy(monkeypatch):
 
     manager = ChannelManager(config, bus)
     assert "plugin-test" not in manager.channels
+
+
+def test_provider_plugins_register_default_factory():
+    config = Config()
+    factories = collect_provider_factories(config, [ProviderPlugin()])
+
+    assert has_provider_factory("anthropic", provider_factories=factories)
+
+    route = config.resolve_model_route()
+    provider = build_provider(route, config, provider_factories=factories)
+    assert isinstance(provider, DummyProvider)

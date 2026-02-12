@@ -26,6 +26,8 @@ def _is_plugin_instance(value: Any) -> bool:
         return True
     return callable(getattr(value, "register_tools", None)) or callable(
         getattr(value, "register_channels", None)
+    ) or callable(
+        getattr(value, "register_providers", None)
     )
 
 
@@ -49,7 +51,7 @@ def _coerce_plugin(entry_name: str, loaded: Any) -> Any:
     if not _is_plugin_instance(candidate):
         raise TypeError(
             f"Entry point '{entry_name}' did not resolve to a plugin instance "
-            "(missing register_tools/register_channels)."
+            "(missing register_tools/register_channels/register_providers)."
         )
 
     if not getattr(candidate, "name", ""):
@@ -160,3 +162,34 @@ def register_channel_plugins(
             logger.warning(
                 f"Plugin '{plugin_label(plugin)}' attempted to register invalid channel '{name}'"
             )
+
+
+def register_provider_plugins(
+    plugins: list[Any],
+    context: PluginContext,
+    *,
+    providers: dict[str, Any],
+) -> None:
+    """Call register_providers() on loaded plugins and validate provider factories."""
+    for plugin in plugins:
+        hook = getattr(plugin, "register_providers", None)
+        if not callable(hook):
+            continue
+        before = set(providers.keys())
+        try:
+            hook(providers, context)
+        except Exception as exc:
+            logger.warning(f"Plugin '{plugin_label(plugin)}' provider registration failed: {exc}")
+            continue
+
+        for name in list(providers.keys()):
+            factory = providers.get(name)
+            if callable(factory):
+                continue
+            providers.pop(name, None)
+            logger.warning(
+                f"Plugin '{plugin_label(plugin)}' attempted to register invalid provider '{name}'"
+            )
+
+        for name in sorted(set(providers.keys()) - before):
+            logger.info(f"Plugin '{plugin_label(plugin)}' registered provider '{name}'")

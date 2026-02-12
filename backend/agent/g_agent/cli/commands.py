@@ -90,10 +90,13 @@ def _plugin_hooks(plugin: Any) -> str:
     hooks: list[str] = []
     register_tools = getattr(type(plugin), "register_tools", None)
     register_channels = getattr(type(plugin), "register_channels", None)
+    register_providers = getattr(type(plugin), "register_providers", None)
     if register_tools is not PluginBase.register_tools:
         hooks.append("tools")
     if register_channels is not PluginBase.register_channels:
         hooks.append("channels")
+    if register_providers is not PluginBase.register_providers:
+        hooks.append("providers")
     return ", ".join(hooks) if hooks else "-"
 
 
@@ -356,7 +359,7 @@ def gateway(
         is_quiet_hours_now,
         resolve_timezone,
     )
-    from g_agent.providers.litellm_provider import LiteLLMProvider
+    from g_agent.providers.factory import build_provider, collect_provider_factories, has_provider_factory
 
     if verbose:
         import logging
@@ -372,6 +375,7 @@ def gateway(
         allow=config.tools.plugins.allow,
         deny=config.tools.plugins.deny,
     )
+    provider_factories = collect_provider_factories(config, plugins)
     if plugins:
         console.print(f"[green]✓[/green] Plugins loaded: {', '.join(plugin_label(p) for p in plugins)}")
 
@@ -383,24 +387,24 @@ def gateway(
     api_key = route.api_key
     if not api_key and route.provider not in {"vllm", "bedrock"}:
         api_key = config.get_api_key()
-    api_base = route.api_base
     model = config.agents.defaults.model
     is_bedrock = route.provider == "bedrock" or model.startswith("bedrock/")
 
-    if not api_key and not is_bedrock:
+    if (
+        not api_key
+        and not is_bedrock
+        and not has_provider_factory(route.provider, provider_factories=provider_factories)
+    ):
         config_path = get_config_path()
         _cli_fail(
             f"No API key configured for provider '{route.provider}'.",
             _missing_api_key_fix(route.provider, config_path),
         )
 
-    provider_cfg = config.get_provider(route.model)
-    provider = LiteLLMProvider(
-        api_key=api_key,
-        api_base=api_base,
-        default_model=route.model,
-        extra_headers=provider_cfg.extra_headers if provider_cfg else None,
-        provider_name=route.provider,
+    provider = build_provider(
+        route.model_copy(update={"api_key": api_key}),
+        config,
+        provider_factories=provider_factories,
     )
 
     # Create cron service first (callback set after agent creation)
@@ -657,7 +661,7 @@ def agent(
     from g_agent.bus.queue import MessageBus
     from g_agent.config.loader import get_config_path, load_config
     from g_agent.plugins.loader import filter_plugins, load_installed_plugins
-    from g_agent.providers.litellm_provider import LiteLLMProvider
+    from g_agent.providers.factory import build_provider, collect_provider_factories, has_provider_factory
 
     config = load_config()
 
@@ -665,16 +669,8 @@ def agent(
     api_key = route.api_key
     if not api_key and route.provider not in {"vllm", "bedrock"}:
         api_key = config.get_api_key()
-    api_base = route.api_base
     model = config.agents.defaults.model
     is_bedrock = route.provider == "bedrock" or model.startswith("bedrock/")
-
-    if not api_key and not is_bedrock:
-        config_path = get_config_path()
-        _cli_fail(
-            f"No API key configured for provider '{route.provider}'.",
-            _missing_api_key_fix(route.provider, config_path),
-        )
 
     bus = MessageBus()
     plugins = filter_plugins(
@@ -683,13 +679,23 @@ def agent(
         allow=config.tools.plugins.allow,
         deny=config.tools.plugins.deny,
     )
-    provider_cfg = config.get_provider(route.model)
-    provider = LiteLLMProvider(
-        api_key=api_key,
-        api_base=api_base,
-        default_model=route.model,
-        extra_headers=provider_cfg.extra_headers if provider_cfg else None,
-        provider_name=route.provider,
+    provider_factories = collect_provider_factories(config, plugins)
+
+    if (
+        not api_key
+        and not is_bedrock
+        and not has_provider_factory(route.provider, provider_factories=provider_factories)
+    ):
+        config_path = get_config_path()
+        _cli_fail(
+            f"No API key configured for provider '{route.provider}'.",
+            _missing_api_key_fix(route.provider, config_path),
+        )
+
+    provider = build_provider(
+        route.model_copy(update={"api_key": api_key}),
+        config,
+        provider_factories=provider_factories,
     )
 
     agent_loop = AgentLoop(
@@ -1885,7 +1891,7 @@ def digest(
     from g_agent.bus.queue import MessageBus
     from g_agent.config.loader import get_config_path, load_config
     from g_agent.plugins.loader import filter_plugins, load_installed_plugins
-    from g_agent.providers.litellm_provider import LiteLLMProvider
+    from g_agent.providers.factory import build_provider, collect_provider_factories, has_provider_factory
 
     config = load_config()
     route = config.resolve_model_route()
@@ -1894,26 +1900,28 @@ def digest(
         api_key = config.get_api_key()
     model = config.agents.defaults.model
     is_bedrock = route.provider == "bedrock" or model.startswith("bedrock/")
-    if not api_key and not is_bedrock:
-        config_path = get_config_path()
-        _cli_fail(
-            f"No API key configured for provider '{route.provider}'.",
-            _missing_api_key_fix(route.provider, config_path),
-        )
-
-    provider_cfg = config.get_provider(route.model)
     plugins = filter_plugins(
         load_installed_plugins(),
         enabled=config.tools.plugins.enabled,
         allow=config.tools.plugins.allow,
         deny=config.tools.plugins.deny,
     )
-    provider = LiteLLMProvider(
-        api_key=api_key,
-        api_base=route.api_base,
-        default_model=route.model,
-        extra_headers=provider_cfg.extra_headers if provider_cfg else None,
-        provider_name=route.provider,
+    provider_factories = collect_provider_factories(config, plugins)
+    if (
+        not api_key
+        and not is_bedrock
+        and not has_provider_factory(route.provider, provider_factories=provider_factories)
+    ):
+        config_path = get_config_path()
+        _cli_fail(
+            f"No API key configured for provider '{route.provider}'.",
+            _missing_api_key_fix(route.provider, config_path),
+        )
+
+    provider = build_provider(
+        route.model_copy(update={"api_key": api_key}),
+        config,
+        provider_factories=provider_factories,
     )
     bus = MessageBus()
     agent_loop = AgentLoop(
