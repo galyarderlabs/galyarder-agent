@@ -44,3 +44,14 @@ yarn-error.log*
 # Google OAuth credential files (defense-in-depth; code uses env vars)
 credentials.json
 token.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+.pytest_cache/
+.coverage
+htmlcov/
