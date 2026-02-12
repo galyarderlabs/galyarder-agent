@@ -55,9 +55,28 @@ async with Agent() as agent:
     result = await agent.ask("hello")
 ```
 
+## Run demo script
+
+Run sync mode:
+
+```bash
+uv run --project /home/galyarder/projects/galyarder-agent/backend/agent \
+  python /home/galyarder/projects/galyarder-agent/backend/agent/scripts/embedded_agent_demo.py \
+  --mode sync --prompt "Summarize my top priorities today"
+```
+
+Run async mode:
+
+```bash
+uv run --project /home/galyarder/projects/galyarder-agent/backend/agent \
+  python /home/galyarder/projects/galyarder-agent/backend/agent/scripts/embedded_agent_demo.py \
+  --mode async --prompt "Draft a short project update"
+```
+
 ## Notes
 
 - `ask_sync()` is for synchronous contexts only.
 - If you already run an event loop, use `await agent.ask(...)`.
 - In async contexts, use `await agent.aclose()` or `async with Agent()`.
 - By default, the API loads config from `~/.g-agent/config.json`.
+- If provider/API key config is not ready, `Agent()` initialization can fail.

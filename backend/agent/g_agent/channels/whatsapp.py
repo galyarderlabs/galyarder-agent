@@ -146,17 +146,23 @@ class WhatsAppChannel(BaseChannel):
                 else:
                     logger.warning(f"WhatsApp media path not found: {media_path}")
 
-            # Handle voice transcription if it's a voice message
-            if (
-                content in ("[Voice Message]", "[Audio Message]")
-                and media_paths
-                and self.groq_api_key
-            ):
+            normalized_media_type = str(media_type or "").strip().lower()
+            normalized_mime_type = str(mime_type or "").strip().lower()
+            is_audio_payload = normalized_media_type in {"voice", "audio"} or normalized_mime_type.startswith(
+                "audio/"
+            )
+
+            # Handle audio transcription when an audio attachment is present.
+            if is_audio_payload and media_paths:
                 try:
-                    transcriber = GroqTranscriptionProvider(api_key=self.groq_api_key)
+                    transcriber = GroqTranscriptionProvider(api_key=self.groq_api_key or None)
                     transcription = await transcriber.transcribe(media_paths[0])
                     if transcription:
-                        content = f"{content}\n[transcription: {transcription}]"
+                        content = (
+                            f"{content}\n[transcription: {transcription}]"
+                            if content
+                            else f"[transcription: {transcription}]"
+                        )
                 except Exception as e:
                     logger.warning(f"WhatsApp transcription failed: {e}")
 

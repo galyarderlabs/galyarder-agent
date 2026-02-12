@@ -167,3 +167,70 @@ def test_message_tool_sticker_no_default_caption(tmp_path: Path, monkeypatch):
     assert len(captured) == 1
     assert captured[0].metadata.get("media_type") == "sticker"
     assert "caption" not in captured[0].metadata
+
+
+def test_message_tool_voice_tts_wav_falls_back_to_audio(tmp_path: Path, monkeypatch):
+    captured: list[OutboundMessage] = []
+
+    async def _send(msg: OutboundMessage) -> None:
+        captured.append(msg)
+
+    wav_file = tmp_path / "tts.wav"
+    wav_file.write_bytes(b"fake-wav")
+
+    def fake_synthesize(self: MessageTool, text: str, media_type: str) -> str:
+        assert text == "voice fallback check"
+        assert media_type == "voice"
+        return str(wav_file.resolve())
+
+    monkeypatch.setattr(MessageTool, "_synthesize_speech", fake_synthesize)
+
+    tool = MessageTool(
+        send_callback=_send, default_channel="whatsapp", default_chat_id="62811@s.whatsapp.net"
+    )
+    result = asyncio.run(tool.execute(content="voice fallback check", media_type="voice"))
+
+    assert "Message sent to whatsapp:62811@s.whatsapp.net (audio)" == result
+    assert len(captured) == 1
+    assert captured[0].metadata.get("media_type") == "audio"
+    assert captured[0].metadata.get("mime_type") == "audio/wav"
+
+
+def test_whatsapp_channel_transcribes_audio_by_media_fields(tmp_path: Path, monkeypatch):
+    config = WhatsAppConfig(enabled=True, bridge_url="ws://localhost:3001", allow_from=[])
+    channel = WhatsAppChannel(config=config, bus=MessageBus(), groq_api_key="")
+
+    media_file = tmp_path / "voice.ogg"
+    media_file.write_bytes(b"voice")
+
+    class FakeTranscriber:
+        def __init__(self, api_key: str | None = None):
+            self.api_key = api_key
+
+        async def transcribe(self, file_path: str | Path) -> str:
+            assert str(file_path) == str(media_file)
+            return "transcribed text"
+
+    monkeypatch.setattr("g_agent.channels.whatsapp.GroqTranscriptionProvider", FakeTranscriber)
+
+    captured: dict[str, object] = {}
+
+    async def fake_handle_message(**kwargs: object) -> None:
+        captured.update(kwargs)
+
+    monkeypatch.setattr(channel, "_handle_message", fake_handle_message)
+
+    payload = {
+        "type": "message",
+        "sender": "62811@s.whatsapp.net",
+        "chatId": "62811@s.whatsapp.net",
+        "content": "[Audio Clip]",
+        "mediaType": "voice",
+        "mimeType": "audio/ogg",
+        "mediaPath": str(media_file),
+    }
+
+    asyncio.run(channel._handle_bridge_message(json.dumps(payload)))
+
+    assert "content" in captured
+    assert "[transcription: transcribed text]" in str(captured["content"])

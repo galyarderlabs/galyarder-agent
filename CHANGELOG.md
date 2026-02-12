@@ -33,6 +33,8 @@ All notable changes to this project are documented in this file.
 - Deprecated `opus 4.5` model aliases are now migrated to `claude-opus-4-6-thinking` during config load.
 - `channels login` now performs bridge preflight checks and reports clearer causes/fixes for port bind failures.
 - Missing API key failures now include provider-aware remediation hints.
+- WhatsApp inbound transcription now triggers from audio media metadata (`mediaType`/`mimeType`) instead of only placeholder text markers.
+- Generated `media_type: "voice"` replies now auto-fallback to `audio` when local TTS output is non-OGG (e.g., missing `ffmpeg`).
 
 ## [0.1.9] - 2026-02-12
 

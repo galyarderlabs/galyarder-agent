@@ -23,6 +23,12 @@ Discord/Feishu paths exist in runtime code and can be hardened as needed.
 3. Ensure your WA sender ID is in `channels.whatsapp.allowFrom`
 4. Keep bridge + gateway active (systemd user services recommended)
 
+### Voice notes
+
+- Incoming voice/audio transcription uses Groq Whisper (`providers.groq.apiKey` or `GROQ_API_KEY`).
+- Generated `media_type: "voice"` replies require `espeak-ng`/`espeak` + `ffmpeg` for OGG/Opus voice-note format.
+- If `ffmpeg` is unavailable, g-agent auto-falls back to regular `audio` output.
+
 ## Email
 
 Bidirectional email channel using IMAP polling and SMTP replies.
