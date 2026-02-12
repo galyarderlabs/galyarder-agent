@@ -22,6 +22,7 @@ nav:
   - Getting Started: getting-started.md
   - Install Matrix: install-matrix.md
   - Configuration: configuration.md
+  - Plugins: plugins.md
   - CLI Commands: cli-commands.md
   - Channels: channels.md
   - Operations: operations.md

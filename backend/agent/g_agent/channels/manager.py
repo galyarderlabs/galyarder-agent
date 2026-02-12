@@ -10,6 +10,8 @@ from g_agent.bus.events import OutboundMessage
 from g_agent.bus.queue import MessageBus
 from g_agent.channels.base import BaseChannel
 from g_agent.config.schema import Config
+from g_agent.plugins.base import PluginContext
+from g_agent.plugins.loader import load_installed_plugins, register_channel_plugins
 
 
 class ChannelManager:
@@ -22,10 +24,11 @@ class ChannelManager:
     - Route outbound messages
     """
 
-    def __init__(self, config: Config, bus: MessageBus):
+    def __init__(self, config: Config, bus: MessageBus, plugins: list[Any] | None = None):
         self.config = config
         self.bus = bus
         self.channels: dict[str, BaseChannel] = {}
+        self.plugins = plugins if plugins is not None else load_installed_plugins()
         self._dispatch_task: asyncio.Task | None = None
         self._outbound_idempotency_ttl_s = 120.0
         self._outbound_seen: dict[str, float] = {}
@@ -102,6 +105,14 @@ class ChannelManager:
                 logger.info("Slack channel enabled")
             except ImportError as e:
                 logger.warning(f"Slack channel not available: {e}")
+
+        if self.plugins:
+            context = PluginContext(
+                workspace=self.config.workspace_path,
+                config=self.config,
+                bus=self.bus,
+            )
+            register_channel_plugins(self.plugins, context, channels=self.channels)
 
     async def start_all(self) -> None:
         """Start WhatsApp channel and the outbound dispatcher."""

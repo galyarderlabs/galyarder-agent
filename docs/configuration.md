@@ -152,3 +152,9 @@ See [Channels](channels.md) for full setup guides for:
 - **Slack**: Socket Mode with group policies and DM controls
 - **Telegram**: Bot token with numeric user ID allowlists
 - **WhatsApp**: QR-paired bridge with sender ID allowlists
+
+## Runtime plugins
+
+`g-agent` can load extension plugins from Python entry points (`g_agent.plugins`).
+
+See [Plugins](plugins.md) for plugin SDK, registration format, and verification steps.
