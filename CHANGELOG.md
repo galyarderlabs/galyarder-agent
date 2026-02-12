@@ -33,6 +33,7 @@ All notable changes to this project are documented in this file.
 - Missing API key failures now include provider-aware remediation hints.
 - `channels login` now auto-rebuilds local bridge assets when bundled bridge source changes, preventing stale bridge runtime mismatches.
 - `channels login` now passes bridge runtime env (`BRIDGE_PORT`, `AUTH_DIR`) from config/data-dir so npm bridge start matches configured URL and auth storage path.
+- `channels login --restart-existing` can now stop stale bridge listeners on configured port before starting a fresh QR login.
 
 ## [0.1.4] - 2026-02-09
 
