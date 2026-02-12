@@ -443,7 +443,7 @@ Core commands:
 - `g-agent channels status`
 
 Release automation is handled in repository root by `../../.github/workflows/release.yml`.  
-Update `../../CHANGELOG.md`, push `main`, then push a version tag (`vX.Y.Z` style).
+Before tagging, update both `../../CHANGELOG.md` and `../../docs/release-notes/vX.Y.Z.md`, push `main`, then push a version tag (`vX.Y.Z` style).
 
 ---
 
