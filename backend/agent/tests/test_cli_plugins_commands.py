@@ -24,6 +24,13 @@ class ChannelOnlyPlugin(PluginBase):
         return
 
 
+class ProviderOnlyPlugin(PluginBase):
+    name = "provider-plugin"
+
+    def register_providers(self, providers: dict[str, Any], context: PluginContext) -> None:
+        providers["default"] = lambda _route, _config: None
+
+
 def _prepare_config(
     tmp_path,
     monkeypatch,
@@ -82,3 +89,17 @@ def test_plugins_list_handles_empty_discovery(tmp_path, monkeypatch):
     result = runner.invoke(app, ["plugins", "list"])
     assert result.exit_code == 0
     assert "No plugins discovered" in result.stdout
+
+
+def test_plugins_list_shows_provider_hook(tmp_path, monkeypatch):
+    _prepare_config(tmp_path, monkeypatch)
+
+    monkeypatch.setattr(
+        "g_agent.plugins.loader.load_installed_plugins",
+        lambda *_args, **_kwargs: [ProviderOnlyPlugin()],
+    )
+
+    result = runner.invoke(app, ["plugins", "list"])
+    assert result.exit_code == 0
+    assert "provider-plugin" in result.stdout
+    assert "providers" in result.stdout

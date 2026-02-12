@@ -54,6 +54,7 @@ This enables local safeguards before push/commit, including:
 - Include tests/checks for behavior changes.
 - Do not commit secrets or production tokens.
 - Keep docs updated when behavior or setup changes.
+- If a release closes roadmap items, update roadmap status docs in the same PR.
 
 ## Safety and quality bar
 

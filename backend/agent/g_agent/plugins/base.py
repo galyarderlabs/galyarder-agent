@@ -42,3 +42,10 @@ class PluginBase:
         """Register custom channels into the runtime channel map."""
         return
 
+    def register_providers(
+        self,
+        providers: dict[str, Any],
+        context: PluginContext,
+    ) -> None:
+        """Register custom provider factories for route provider names."""
+        return

@@ -12,7 +12,7 @@ from g_agent.config.loader import load_config
 from g_agent.config.schema import Config
 from g_agent.plugins.loader import filter_plugins, load_installed_plugins
 from g_agent.providers.base import LLMProvider
-from g_agent.providers.litellm_provider import LiteLLMProvider
+from g_agent.providers.factory import build_provider, collect_provider_factories, has_provider_factory
 
 
 class Agent:
@@ -31,13 +31,14 @@ class Agent:
             self.config.agents.defaults.workspace = str(Path(workspace).expanduser())
 
         route = self.config.resolve_model_route()
-        resolved_provider = provider or self._build_provider(route)
         resolved_plugins = plugins or filter_plugins(
             load_installed_plugins(),
             enabled=self.config.tools.plugins.enabled,
             allow=self.config.tools.plugins.allow,
             deny=self.config.tools.plugins.deny,
         )
+        provider_factories = collect_provider_factories(self.config, resolved_plugins)
+        resolved_provider = provider or self._build_provider(route, provider_factories)
 
         self.bus = MessageBus()
         self.loop = AgentLoop(
@@ -63,26 +64,28 @@ class Agent:
         )
         self._closed = False
 
-    def _build_provider(self, route: Any) -> LLMProvider:
+    def _build_provider(self, route: Any, provider_factories: dict[str, Any]) -> LLMProvider:
         """Build default provider from config routing settings."""
         api_key = route.api_key
         if not api_key and route.provider not in {"vllm", "bedrock"}:
             api_key = self.config.get_api_key(route.model)
         model = self.config.agents.defaults.model
         is_bedrock = route.provider == "bedrock" or model.startswith("bedrock/")
-        if not api_key and not is_bedrock:
+        if (
+            not api_key
+            and not is_bedrock
+            and not has_provider_factory(route.provider, provider_factories=provider_factories)
+        ):
             raise ValueError(
                 f"No API key configured for provider '{route.provider}'. "
                 "Set providers.<name>.apiKey or pass a custom provider."
             )
 
-        provider_cfg = self.config.get_provider(route.model)
-        return LiteLLMProvider(
-            api_key=api_key,
-            api_base=route.api_base,
-            default_model=route.model,
-            extra_headers=provider_cfg.extra_headers if provider_cfg else None,
-            provider_name=route.provider,
+        resolved_route = route.model_copy(update={"api_key": api_key})
+        return build_provider(
+            resolved_route,
+            self.config,
+            provider_factories=provider_factories,
         )
 
     async def ask(

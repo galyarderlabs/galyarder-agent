@@ -31,6 +31,13 @@ class MarkerPlugin(PluginBase):
         context.extras["plugin_marker"] = "loaded"
 
 
+class ProviderDefaultPlugin(PluginBase):
+    name = "provider-default-plugin"
+
+    def register_providers(self, providers: dict[str, Any], context: PluginContext) -> None:
+        providers["default"] = lambda _route, _config: DummyProvider()
+
+
 def _build_agent(tmp_path, monkeypatch) -> Agent:
     monkeypatch.setenv("G_AGENT_DATA_DIR", str(tmp_path / "data"))
     config = Config()
@@ -70,3 +77,18 @@ def test_embedded_agent_async_context_manager(tmp_path, monkeypatch):
 
     with pytest.raises(RuntimeError, match="Agent is closed"):
         agent.ask_sync("one more message")
+
+
+def test_embedded_agent_allows_plugin_provider_without_api_key(tmp_path, monkeypatch):
+    monkeypatch.setenv("G_AGENT_DATA_DIR", str(tmp_path / "data"))
+    config = Config()
+    config.agents.defaults.workspace = str(tmp_path)
+    config.agents.defaults.model = "claude-opus-4-6-thinking"
+    config.providers.anthropic.api_key = ""
+    config.providers.openrouter.api_key = ""
+    config.providers.openai.api_key = ""
+    config.providers.proxy.api_key = ""
+    config.providers.vllm.api_key = ""
+
+    agent = Agent(config=config, plugins=[ProviderDefaultPlugin()])
+    assert agent.ask_sync("hello plugin provider") == "embedded-ok"

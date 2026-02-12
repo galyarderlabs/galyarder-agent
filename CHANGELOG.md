@@ -34,6 +34,22 @@ All notable changes to this project are documented in this file.
 - `channels login` now performs bridge preflight checks and reports clearer causes/fixes for port bind failures.
 - Missing API key failures now include provider-aware remediation hints.
 
+## [0.1.9] - 2026-02-12
+
+### Added
+- Plugin SDK provider hook (`register_providers`) for route-aware provider factory overrides.
+- Provider factory helpers (`collect_provider_factories`, `has_provider_factory`, `build_provider`) for consistent plugin-aware provider bootstrap.
+- Roadmap status mapping section in `docs/roadmap/openclaw-delta.md` for explicit implemented/partial/scoped reporting.
+- Release notes page `docs/release-notes/v0.1.9.md` with cumulative status summary.
+
+### Changed
+- CLI runtime commands (`gateway`, `agent`, `digest`) now resolve provider plugins before API-key preflight failures.
+- Embedded `Agent` API now accepts plugin provider factories during internal provider bootstrap.
+- Plugin diagnostics now include `providers` hook visibility in `g-agent plugins list`.
+
+### Fixed
+- Removed the remaining plugin-SDK gap where provider extension required patching core code.
+
 ## [0.1.8] - 2026-02-12
 
 ### Fixed
