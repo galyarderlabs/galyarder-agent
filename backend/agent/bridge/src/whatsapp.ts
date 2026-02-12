@@ -1,6 +1,6 @@
 /**
  * WhatsApp client wrapper using Baileys.
- * Based on OpenClaw's working implementation.
+ * Derived from a production-tested implementation.
  */
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
