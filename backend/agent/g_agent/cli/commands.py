@@ -966,6 +966,41 @@ def _stop_bridge_processes(port: int, pids: list[str], *, timeout_seconds: float
     return sorted(active.intersection(normalized))
 
 
+def _force_kill_bridge_processes(
+    port: int,
+    pids: list[str],
+    *,
+    timeout_seconds: float = 1.5,
+) -> list[str]:
+    """Send SIGKILL to listed PIDs and return still-listening bridge PIDs."""
+    import os
+    import signal
+    import time
+
+    normalized = sorted({pid.strip() for pid in pids if pid and pid.strip().isdigit()})
+    for pid in normalized:
+        try:
+            os.kill(int(pid), signal.SIGKILL)
+        except ProcessLookupError:
+            continue
+        except OSError:
+            continue
+
+    if not normalized:
+        return _bridge_port_pids(port)
+
+    deadline = time.monotonic() + max(0.1, float(timeout_seconds))
+    while time.monotonic() < deadline:
+        active = set(_bridge_port_pids(port))
+        survivors = sorted(active.intersection(normalized))
+        if not survivors:
+            return []
+        time.sleep(0.1)
+
+    active = set(_bridge_port_pids(port))
+    return sorted(active.intersection(normalized))
+
+
 def _bridge_bind_error(port: int) -> OSError | None:
     """Return bind error for 127.0.0.1:<port>, or None when bind is allowed."""
     import socket
@@ -997,6 +1032,11 @@ def channels_login(
         "--restart-existing",
         help="Stop process already listening on bridge port before login",
     ),
+    force_kill: bool = typer.Option(
+        False,
+        "--force-kill",
+        help="With --restart-existing, escalate to SIGKILL when SIGTERM cannot free bridge port",
+    ),
 ):
     """Link device via QR code."""
     import errno
@@ -1008,6 +1048,12 @@ def channels_login(
 
     config = load_config()
     bridge_url = config.channels.whatsapp.bridge_url
+    if force_kill and not restart_existing:
+        _cli_fail(
+            "--force-kill requires --restart-existing.",
+            "Run: g-agent channels login --restart-existing --force-kill",
+        )
+
     parsed = urlparse(bridge_url)
     if parsed.scheme not in {"ws", "wss"} or not parsed.hostname:
         _cli_fail(
@@ -1025,10 +1071,19 @@ def channels_login(
             f"{', '.join(pids)}[/yellow]"
         )
         survivors = _stop_bridge_processes(port, pids)
+        if survivors and force_kill:
+            console.print(
+                f"[yellow]SIGTERM did not clear port {port}; forcing stop with SIGKILL: "
+                f"{', '.join(survivors)}[/yellow]"
+            )
+            survivors = _force_kill_bridge_processes(port, survivors)
         if survivors:
+            fix_cmd = f"kill {' '.join(survivors)}"
+            if not force_kill:
+                fix_cmd += "  (or retry with --force-kill)"
             _cli_fail(
                 f"Could not stop existing bridge process on port {port}: {', '.join(survivors)}",
-                f"Stop manually with: kill {' '.join(survivors)}",
+                f"Stop manually with: {fix_cmd}",
             )
         pids = _bridge_port_pids(port)
 
