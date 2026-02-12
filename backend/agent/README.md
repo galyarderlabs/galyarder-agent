@@ -14,7 +14,7 @@
 
 ## Why This Backend Exists
 
-OpenClaw and Nanobot prove the direction is real: personal agents are useful when they can act in your real workflow.
+Open-source agent runtimes prove the direction is real: personal agents are useful when they can act in your real workflow.
 
 This backend keeps that direction but stays focused on ownership and operational clarity:
 
@@ -461,7 +461,6 @@ The goal is to keep the runtime lean while adding high-value capabilities delibe
 
 This runtime is built with respect for upstream inspiration:
 
-- [`HKUDS/nanobot`](https://github.com/HKUDS/nanobot)
 - [`openclaw/openclaw`](https://github.com/openclaw/openclaw)
 
 This project keeps that spirit while prioritizing personal ownership and operational discipline.

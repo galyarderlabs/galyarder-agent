@@ -39,8 +39,7 @@ All notable changes to this project are documented in this file.
 ### Added
 - Plugin SDK provider hook (`register_providers`) for route-aware provider factory overrides.
 - Provider factory helpers (`collect_provider_factories`, `has_provider_factory`, `build_provider`) for consistent plugin-aware provider bootstrap.
-- Roadmap status mapping section in `docs/roadmap/openclaw-delta.md` for explicit implemented/partial/scoped reporting.
-- Release notes page `docs/release-notes/v0.1.9.md` with cumulative status summary.
+- Release notes page `docs/release-notes/v0.1.9.md` with detailed release content.
 
 ### Changed
 - CLI runtime commands (`gateway`, `agent`, `digest`) now resolve provider plugins before API-key preflight failures.

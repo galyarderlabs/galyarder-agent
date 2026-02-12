@@ -38,19 +38,6 @@ Out of scope:
 
 ---
 
-## Nanobot-inspired Status (Discussion #431 Mapping)
-
-This is a **mapping**, not a literal clone of nanobot architecture.
-
-| Theme | Status in `g-agent` | Notes |
-| --- | --- | --- |
-| Plugin SDK (tools/channels/providers) | implemented | `register_tools`, `register_channels`, and `register_providers` plugin hooks are available. |
-| Multi-modal + memory quality | partially implemented | Voice/image/sticker/document flows + persistent memory are implemented; full video-native understanding remains future work. |
-| Embeddable core | implemented | Python API via `from g_agent.agent import Agent`. |
-| Platform parity with every upstream channel | intentionally scoped | `g-agent` keeps a focused channel set for operator reliability; QQ/DingTalk are currently out of scope. |
-
----
-
 ## Delta Tracks and Status
 
 ### 1) Execution Runtime with Checkpoints
