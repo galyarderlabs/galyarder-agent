@@ -61,6 +61,7 @@ class Agent:
             fallback_models=route.fallback_models,
             plugins=resolved_plugins,
         )
+        self._closed = False
 
     def _build_provider(self, route: Any) -> LLMProvider:
         """Build default provider from config routing settings."""
@@ -93,6 +94,7 @@ class Agent:
         chat_id: str = "embed",
     ) -> str:
         """Process one direct message through the agent."""
+        self._ensure_open()
         return await self.loop.process_direct(
             content=content,
             session_key=session_key,
@@ -109,6 +111,7 @@ class Agent:
         chat_id: str = "embed",
     ) -> str:
         """Sync wrapper for ask()."""
+        self._ensure_open()
         try:
             asyncio.get_running_loop()
         except RuntimeError:
@@ -117,3 +120,34 @@ class Agent:
             )
         raise RuntimeError("ask_sync() cannot run inside an active event loop; use await ask(...).")
 
+    async def _close_async(self) -> None:
+        if self._closed:
+            return
+        await self.loop.shutdown()
+        self._closed = True
+
+    def close(self) -> None:
+        """Close the embedded agent in sync contexts."""
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            asyncio.run(self._close_async())
+            return
+        raise RuntimeError(
+            "close() cannot run inside an active event loop; use await aclose() or async with Agent()."
+        )
+
+    async def aclose(self) -> None:
+        """Close the embedded agent in async contexts."""
+        await self._close_async()
+
+    async def __aenter__(self) -> Agent:
+        self._ensure_open()
+        return self
+
+    async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        await self._close_async()
+
+    def _ensure_open(self) -> None:
+        if self._closed:
+            raise RuntimeError("Agent is closed. Create a new Agent instance to continue.")

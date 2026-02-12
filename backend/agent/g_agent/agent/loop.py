@@ -322,6 +322,12 @@ class AgentLoop:
         self._running = False
         logger.info("Agent loop stopping")
 
+    async def shutdown(self) -> None:
+        """Stop loop services and cancel running background subagents."""
+        self.stop()
+        self.bus.stop()
+        await self.subagents.shutdown()
+
     async def _process_message(self, msg: InboundMessage) -> OutboundMessage | None:
         """
         Process a single inbound message.

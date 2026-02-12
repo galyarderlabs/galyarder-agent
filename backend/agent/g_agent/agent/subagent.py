@@ -256,3 +256,15 @@ When you have completed the task, provide a clear summary of your findings or ac
     def get_running_count(self) -> int:
         """Return the number of currently running subagents."""
         return len(self._running_tasks)
+
+    async def shutdown(self) -> None:
+        """Cancel and await all running subagents."""
+        if not self._running_tasks:
+            return
+
+        tasks = list(self._running_tasks.values())
+        for task in tasks:
+            task.cancel()
+
+        await asyncio.gather(*tasks, return_exceptions=True)
+        self._running_tasks.clear()

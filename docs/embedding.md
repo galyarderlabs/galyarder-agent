@@ -32,8 +32,32 @@ agent = Agent(
 )
 ```
 
+## Lifecycle
+
+Use `close()` in sync code:
+
+```python
+from g_agent.agent import Agent
+
+agent = Agent()
+try:
+    print(agent.ask_sync("hello"))
+finally:
+    agent.close()
+```
+
+Use async context manager in async code:
+
+```python
+from g_agent.agent import Agent
+
+async with Agent() as agent:
+    result = await agent.ask("hello")
+```
+
 ## Notes
 
 - `ask_sync()` is for synchronous contexts only.
 - If you already run an event loop, use `await agent.ask(...)`.
+- In async contexts, use `await agent.aclose()` or `async with Agent()`.
 - By default, the API loads config from `~/.g-agent/config.json`.

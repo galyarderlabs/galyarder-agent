@@ -1,4 +1,7 @@
+import asyncio
 from typing import Any
+
+import pytest
 
 from g_agent.agent import Agent
 from g_agent.config.schema import Config
@@ -28,17 +31,42 @@ class MarkerPlugin(PluginBase):
         context.extras["plugin_marker"] = "loaded"
 
 
-def test_embedded_agent_ask_sync(tmp_path, monkeypatch):
+def _build_agent(tmp_path, monkeypatch) -> Agent:
     monkeypatch.setenv("G_AGENT_DATA_DIR", str(tmp_path / "data"))
     config = Config()
     config.agents.defaults.workspace = str(tmp_path)
-
-    agent = Agent(
+    return Agent(
         config=config,
         provider=DummyProvider(),
         plugins=[MarkerPlugin()],
     )
 
+
+def test_embedded_agent_ask_sync(tmp_path, monkeypatch):
+    agent = _build_agent(tmp_path, monkeypatch)
     result = agent.ask_sync("hello from embed")
     assert result == "embedded-ok"
 
+
+def test_embedded_agent_close_blocks_future_calls(tmp_path, monkeypatch):
+    agent = _build_agent(tmp_path, monkeypatch)
+
+    agent.close()
+    agent.close()
+
+    with pytest.raises(RuntimeError, match="Agent is closed"):
+        agent.ask_sync("hello again")
+
+
+def test_embedded_agent_async_context_manager(tmp_path, monkeypatch):
+    agent = _build_agent(tmp_path, monkeypatch)
+
+    async def _run() -> str:
+        async with agent:
+            return await agent.ask("hello from async context")
+
+    result = asyncio.run(_run())
+    assert result == "embedded-ok"
+
+    with pytest.raises(RuntimeError, match="Agent is closed"):
+        agent.ask_sync("one more message")
