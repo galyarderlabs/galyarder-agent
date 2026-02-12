@@ -795,6 +795,46 @@ def channels_status():
     console.print(table)
 
 
+def _bridge_source_signature(source: Path) -> str:
+    """Compute deterministic content signature for bridge source files."""
+    import hashlib
+
+    digest = hashlib.sha256()
+    candidates = ["package.json", "package-lock.json", "tsconfig.json"]
+    for path in sorted((source / "src").rglob("*.ts")):
+        candidates.append(str(path.relative_to(source)))
+
+    for rel_path in candidates:
+        file_path = source / rel_path
+        if not file_path.exists() or not file_path.is_file():
+            continue
+        digest.update(rel_path.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(file_path.read_bytes())
+        digest.update(b"\0")
+
+    return digest.hexdigest()
+
+
+def _bridge_build_id_path(bridge_dir: Path) -> Path:
+    """Marker file storing bridge source signature used for local build."""
+    return bridge_dir / ".g_agent_bridge_build_id"
+
+
+def _bridge_needs_rebuild(bridge_dir: Path, *, expected_build_id: str, force_rebuild: bool) -> bool:
+    """Return True when local bridge should be rebuilt."""
+    if force_rebuild:
+        return True
+    if not (bridge_dir / "dist" / "index.js").exists():
+        return True
+    marker = _bridge_build_id_path(bridge_dir)
+    try:
+        current_build_id = marker.read_text(encoding="utf-8").strip()
+    except OSError:
+        return True
+    return current_build_id != expected_build_id
+
+
 def _get_bridge_dir(force_rebuild: bool = False) -> Path:
     """Get the bridge directory, setting it up if needed."""
     import shutil
@@ -804,10 +844,6 @@ def _get_bridge_dir(force_rebuild: bool = False) -> Path:
 
     # User's bridge location
     user_bridge = get_data_dir() / "bridge"
-
-    # Check if already built
-    if not force_rebuild and (user_bridge / "dist" / "index.js").exists():
-        return user_bridge
 
     # Check for npm
     if not shutil.which("npm"):
@@ -829,6 +865,18 @@ def _get_bridge_dir(force_rebuild: bool = False) -> Path:
         console.print("Try reinstalling: pip install --force-reinstall galyarder-agent")
         raise typer.Exit(1)
 
+    expected_build_id = _bridge_source_signature(source)
+    if not _bridge_needs_rebuild(
+        user_bridge,
+        expected_build_id=expected_build_id,
+        force_rebuild=force_rebuild,
+    ):
+        return user_bridge
+
+    marker_path = _bridge_build_id_path(user_bridge)
+    if marker_path.exists() and not force_rebuild:
+        console.print("[yellow]Bridge source changed; rebuilding local bridge...[/yellow]")
+
     console.print(f"{__logo__} Setting up bridge...")
 
     # Copy to user directory
@@ -845,6 +893,7 @@ def _get_bridge_dir(force_rebuild: bool = False) -> Path:
         console.print("  Building...")
         subprocess.run(["npm", "run", "build"], cwd=user_bridge, check=True, capture_output=True)
 
+        _bridge_build_id_path(user_bridge).write_text(expected_build_id, encoding="utf-8")
         console.print("[green]✓[/green] Bridge ready\n")
     except subprocess.CalledProcessError as e:
         console.print(f"[red]Build failed: {e}[/red]")
