@@ -143,7 +143,7 @@ class AgentDefaults(BaseModel):
     """Default agent configuration."""
 
     workspace: str = Field(default_factory=_default_workspace)
-    model: str = "anthropic/claude-opus-4-5"
+    model: str = "claude-opus-4-6-thinking"
     max_tokens: int = 8192
     temperature: float = 0.7
     max_tool_iterations: int = 20

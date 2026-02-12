@@ -68,6 +68,20 @@ def _migrate_config(data: dict) -> dict:
     exec_cfg = tools.get("exec", {})
     if "restrictToWorkspace" in exec_cfg and "restrictToWorkspace" not in tools:
         tools["restrictToWorkspace"] = exec_cfg.pop("restrictToWorkspace")
+
+    # Migrate deprecated default model names.
+    defaults = data.get("agents", {}).get("defaults", {})
+    legacy_models = {
+        "anthropic/claude-opus-4-5",
+        "anthropic/claude-opus-4-5-thinking",
+        "claude-opus-4-5",
+        "claude-opus-4-5-thinking",
+        "gemini-claude-opus-4-5-thinking",
+        "anthropic/claude-opus-4-6-thinking",
+    }
+    if defaults.get("model") in legacy_models:
+        defaults["model"] = "claude-opus-4-6-thinking"
+
     return data
 
 

@@ -23,6 +23,30 @@ app = typer.Typer(
 console = Console()
 
 
+def _cli_fail(cause: str, fix: str | None = None, *, exit_code: int = 1) -> None:
+    """Print a consistent CLI error block and exit."""
+    console.print(f"[red]{cause}[/red]")
+    if fix:
+        console.print(f"[dim]Fix: {fix}[/dim]")
+    raise typer.Exit(exit_code)
+
+
+def _missing_api_key_fix(provider: str, config_path: Path) -> str:
+    """Build actionable API-key guidance for the resolved route provider."""
+    if provider in {"vllm", "proxy"}:
+        return (
+            f"Set providers.{provider}.apiKey in {config_path} and ensure "
+            f"providers.{provider}.apiBase is set."
+        )
+    if provider == "unresolved":
+        return (
+            f"Set providers.<name>.apiKey in {config_path}. If you use a local proxy key "
+            "(`sk-local-*`), set agents.defaults.routing.mode=\"proxy\" and "
+            "agents.defaults.routing.proxyProvider to that provider (usually `proxy` or `vllm`)."
+        )
+    return f"Set providers.{provider}.apiKey in {config_path}"
+
+
 def version_callback(value: bool):
     if value:
         console.print(f"{__logo__} {__brand__} v{__version__}")
@@ -35,6 +59,37 @@ def main(
 ):
     """g-agent - Personal AI Assistant."""
     pass
+
+
+@app.command(
+    "help",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+)
+def help_command(ctx: typer.Context):
+    """Show help for g-agent commands (alias for --help)."""
+    import subprocess
+    import sys
+
+    target = list(ctx.args)
+    cmd = [sys.argv[0], *target, "--help"]
+    result = subprocess.run(cmd, check=False)
+    raise typer.Exit(result.returncode)
+
+
+@app.command("version")
+def version_command():
+    """Show g-agent version."""
+    console.print(f"{__logo__} {__brand__} v{__version__}")
+
+
+@app.command("login")
+def login_command():
+    """Link device via QR code (alias for `channels login`)."""
+    import subprocess
+    import sys
+
+    result = subprocess.run([sys.argv[0], "channels", "login"], check=False)
+    raise typer.Exit(result.returncode)
 
 
 # ============================================================================
@@ -274,9 +329,11 @@ def gateway(
     is_bedrock = route.provider == "bedrock" or model.startswith("bedrock/")
 
     if not api_key and not is_bedrock:
-        console.print("[red]Error: No API key configured.[/red]")
-        console.print(f"Set one in {get_config_path()} under providers.openrouter.apiKey")
-        raise typer.Exit(1)
+        config_path = get_config_path()
+        _cli_fail(
+            f"No API key configured for provider '{route.provider}'.",
+            _missing_api_key_fix(route.provider, config_path),
+        )
 
     provider_cfg = config.get_provider(route.model)
     provider = LiteLLMProvider(
@@ -538,7 +595,7 @@ def agent(
     """Interact with the agent directly."""
     from g_agent.agent.loop import AgentLoop
     from g_agent.bus.queue import MessageBus
-    from g_agent.config.loader import load_config
+    from g_agent.config.loader import get_config_path, load_config
     from g_agent.providers.litellm_provider import LiteLLMProvider
 
     config = load_config()
@@ -552,8 +609,11 @@ def agent(
     is_bedrock = route.provider == "bedrock" or model.startswith("bedrock/")
 
     if not api_key and not is_bedrock:
-        console.print("[red]Error: No API key configured.[/red]")
-        raise typer.Exit(1)
+        config_path = get_config_path()
+        _cli_fail(
+            f"No API key configured for provider '{route.provider}'.",
+            _missing_api_key_fix(route.provider, config_path),
+        )
 
     bus = MessageBus()
     provider_cfg = config.get_provider(route.model)
@@ -630,6 +690,14 @@ def agent(
 
 channels_app = typer.Typer(help="Manage channels")
 app.add_typer(channels_app, name="channels")
+
+
+@channels_app.callback(invoke_without_command=True)
+def channels_main(ctx: typer.Context):
+    """Manage channels."""
+    if ctx.invoked_subcommand is None:
+        console.print(ctx.get_help())
+        raise typer.Exit(0)
 
 
 @channels_app.command("status")
@@ -719,6 +787,57 @@ def _get_bridge_dir(force_rebuild: bool = False) -> Path:
     return user_bridge
 
 
+def _is_bridge_port_in_use(host: str, port: int, timeout: float = 1.0) -> bool:
+    """Return True when TCP bridge port is already accepting connections."""
+    import socket
+
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
+def _bridge_port_pids(port: int) -> list[str]:
+    """Best-effort list of process IDs currently listening on a TCP port."""
+    import shutil
+    import subprocess
+
+    if not shutil.which("lsof"):
+        return []
+
+    result = subprocess.run(
+        ["lsof", "-ti", f":{port}"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode not in {0, 1}:
+        return []
+
+    pids = [line.strip() for line in result.stdout.splitlines() if line.strip().isdigit()]
+    return sorted(set(pids))
+
+
+def _bridge_bind_error(port: int) -> OSError | None:
+    """Return bind error for 0.0.0.0:<port>, or None when bind is allowed."""
+    import socket
+
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    except OSError as exc:
+        return exc
+
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        sock.bind(("0.0.0.0", port))
+        return None
+    except OSError as exc:
+        return exc
+    finally:
+        sock.close()
+
+
 @channels_app.command("login")
 def channels_login(
     rebuild: bool = typer.Option(
@@ -728,7 +847,64 @@ def channels_login(
     ),
 ):
     """Link device via QR code."""
+    import errno
     import subprocess
+    from urllib.parse import urlparse
+
+    from g_agent.config.loader import load_config
+
+    config = load_config()
+    bridge_url = config.channels.whatsapp.bridge_url
+    parsed = urlparse(bridge_url)
+    if parsed.scheme not in {"ws", "wss"} or not parsed.hostname:
+        _cli_fail(
+            f"Invalid channels.whatsapp.bridgeUrl: {bridge_url}",
+            "Use ws://host:port or wss://host:port in config "
+            f"({Path.home() / '.g-agent' / 'config.json'}).",
+        )
+    host = parsed.hostname or "localhost"
+    port = parsed.port or (443 if parsed.scheme == "wss" else 80)
+
+    pids = _bridge_port_pids(port)
+    if pids:
+        console.print(
+            f"[yellow]Bridge already running at {bridge_url} "
+            f"(port {port} is in use by PID: {', '.join(pids)}).[/yellow]"
+        )
+        console.print("[dim]Stop existing bridge first, then run login again.[/dim]")
+        console.print(f"[dim]Example: kill {' '.join(pids)}[/dim]")
+        raise typer.Exit(0)
+
+    if _is_bridge_port_in_use(host, port):
+        console.print(
+            f"[yellow]Bridge already running at {bridge_url} "
+            f"(port {port} is in use).[/yellow]"
+        )
+        console.print(
+            "[dim]If you need a fresh QR, stop existing process first:[/dim] "
+            f"[dim]lsof -i :{port} -n -P[/dim]"
+        )
+        console.print("[dim]Then kill the PID and run `g-agent channels login` again.[/dim]")
+        raise typer.Exit(0)
+
+    bind_error = _bridge_bind_error(port)
+    if bind_error:
+        if bind_error.errno in {errno.EPERM, errno.EACCES}:
+            _cli_fail(
+                f"Cannot bind bridge port {port} (permission denied: {bind_error}).",
+                "Check sandbox/firewall/permissions, or change "
+                "channels.whatsapp.bridgeUrl to another free port.",
+            )
+        if bind_error.errno == errno.EADDRINUSE:
+            console.print(
+                f"[yellow]Bridge port {port} is already in use ({bind_error}).[/yellow]"
+            )
+            console.print("[dim]Stop existing process, then run login again.[/dim]")
+            raise typer.Exit(0)
+        _cli_fail(
+            f"Bridge preflight failed on port {port}: {bind_error}",
+            f"Check listener state with `lsof -i :{port} -n -P` and retry.",
+        )
 
     bridge_dir = _get_bridge_dir(force_rebuild=rebuild)
 
@@ -740,9 +916,13 @@ def channels_login(
     try:
         subprocess.run(["npm", "start"], cwd=bridge_dir, check=True)
     except subprocess.CalledProcessError as e:
-        console.print(f"[red]Bridge failed: {e}[/red]")
+        _cli_fail(
+            f"Bridge failed (exit {e.returncode}).",
+            f"Common causes: port {port} in use, permission denied, or stale bridge process. "
+            f"Check listener with `lsof -i :{port} -n -P`.",
+        )
     except FileNotFoundError:
-        console.print("[red]npm not found. Please install Node.js.[/red]")
+        _cli_fail("npm not found.", "Install Node.js >= 18 and retry.")
 
 
 # ============================================================================
@@ -752,6 +932,14 @@ def channels_login(
 
 google_app = typer.Typer(help="Manage Google Workspace integration")
 app.add_typer(google_app, name="google")
+
+
+@google_app.callback(invoke_without_command=True)
+def google_main(ctx: typer.Context):
+    """Manage Google Workspace integration."""
+    if ctx.invoked_subcommand is None:
+        console.print(ctx.get_help())
+        raise typer.Exit(0)
 
 
 @google_app.command("status")
@@ -830,9 +1018,10 @@ def google_auth_url(
     config = load_config()
     google_cfg = config.integrations.google
     if not google_cfg.client_id:
-        console.print("[red]Google client_id missing.[/red]")
-        console.print(f"Set integrations.google.clientId in {get_config_path()}")
-        raise typer.Exit(1)
+        _cli_fail(
+            "Google client_id is missing.",
+            f"Set integrations.google.clientId in {get_config_path()}",
+        )
 
     params = {
         "client_id": google_cfg.client_id,
@@ -864,11 +1053,10 @@ def google_exchange(
     config = load_config()
     google_cfg = config.integrations.google
     if not (google_cfg.client_id and google_cfg.client_secret):
-        console.print("[red]Google client_id/client_secret missing.[/red]")
-        console.print(
-            "Set integrations.google.clientId and integrations.google.clientSecret first."
+        _cli_fail(
+            "Google client_id/client_secret are missing.",
+            "Set integrations.google.clientId and integrations.google.clientSecret first.",
         )
-        raise typer.Exit(1)
 
     payload = {
         "code": code.strip(),
@@ -881,23 +1069,25 @@ def google_exchange(
         with httpx.Client(timeout=20.0) as client:
             response = client.post("https://oauth2.googleapis.com/token", data=payload)
     except Exception as e:
-        console.print(f"[red]Token exchange failed: {e}[/red]")
-        raise typer.Exit(1)
+        _cli_fail(
+            f"Token exchange failed: {e}",
+            "Check internet connectivity and OAuth client credentials, then retry.",
+        )
 
     if response.status_code != 200:
-        console.print(f"[red]Token exchange failed (HTTP {response.status_code}).[/red]")
-        try:
-            console.print(response.json())
-        except Exception:
-            console.print(response.text[:500])
-        raise typer.Exit(1)
+        _cli_fail(
+            f"Token exchange failed (HTTP {response.status_code}).",
+            "Re-run `g-agent google auth-url` and complete consent flow again.",
+        )
 
     data = response.json()
     access_token = data.get("access_token", "")
     refresh_token = data.get("refresh_token")
     if not access_token:
-        console.print("[red]No access_token returned from Google.[/red]")
-        raise typer.Exit(1)
+        _cli_fail(
+            "No access_token returned from Google.",
+            "Re-run consent flow via `g-agent google auth-url` and exchange code again.",
+        )
 
     config.integrations.google.access_token = access_token
     if refresh_token:
@@ -957,14 +1147,16 @@ def google_verify(timeout: float = typer.Option(10.0, "--timeout", help="HTTP ti
             config.integrations.google.access_token = access_token
             save_config(config)
         elif not access_token:
-            console.print(f"[red]{refresh_error}[/red]")
-            console.print("Run: g-agent google auth-url, then g-agent google exchange --code ...")
-            raise typer.Exit(1)
+            _cli_fail(
+                refresh_error,
+                "Run `g-agent google auth-url`, then `g-agent google exchange --code ...`.",
+            )
 
     if not access_token:
-        console.print("[red]Google auth not configured.[/red]")
-        console.print("Run: g-agent google configure, then g-agent google auth-url + exchange")
-        raise typer.Exit(1)
+        _cli_fail(
+            "Google auth not configured.",
+            "Run `g-agent google configure`, then `g-agent google auth-url` and `g-agent google exchange --code ...`.",
+        )
 
     try:
         with httpx.Client(timeout=timeout) as client:
@@ -973,14 +1165,18 @@ def google_verify(timeout: float = typer.Option(10.0, "--timeout", help="HTTP ti
                 headers={"Authorization": f"Bearer {access_token}"},
             )
     except Exception as e:
-        console.print(f"[red]Google API request failed: {e}[/red]")
-        raise typer.Exit(1)
+        _cli_fail(
+            f"Google API request failed: {e}",
+            "Check network connectivity, then run `g-agent google verify` again.",
+        )
 
     if profile_resp.status_code == 401 and has_refresh_creds:
         refreshed, refreshed_token, refresh_error = refresh_access_token()
         if not refreshed:
-            console.print(f"[red]{refresh_error}[/red]")
-            raise typer.Exit(1)
+            _cli_fail(
+                refresh_error,
+                "Re-run `g-agent google auth-url` and `g-agent google exchange --code ...`.",
+            )
         access_token = refreshed_token
         config.integrations.google.access_token = access_token
         save_config(config)
@@ -991,16 +1187,16 @@ def google_verify(timeout: float = typer.Option(10.0, "--timeout", help="HTTP ti
                     headers={"Authorization": f"Bearer {access_token}"},
                 )
         except Exception as e:
-            console.print(f"[red]Google API request failed: {e}[/red]")
-            raise typer.Exit(1)
+            _cli_fail(
+                f"Google API request failed: {e}",
+                "Check network connectivity, then run `g-agent google verify` again.",
+            )
 
     if profile_resp.status_code != 200:
-        console.print(f"[red]Google verify failed (HTTP {profile_resp.status_code}).[/red]")
-        try:
-            console.print(profile_resp.json())
-        except Exception:
-            console.print(profile_resp.text)
-        raise typer.Exit(1)
+        _cli_fail(
+            f"Google verify failed (HTTP {profile_resp.status_code}).",
+            "Refresh auth with `g-agent google auth-url` and `g-agent google exchange --code ...`.",
+        )
 
     profile = profile_resp.json()
     email_address = profile.get("emailAddress", "(unknown)")
@@ -1035,6 +1231,14 @@ def google_clear(
 
 cron_app = typer.Typer(help="Manage scheduled tasks")
 app.add_typer(cron_app, name="cron")
+
+
+@cron_app.callback(invoke_without_command=True)
+def cron_main(ctx: typer.Context):
+    """Manage scheduled tasks."""
+    if ctx.invoked_subcommand is None:
+        console.print(ctx.get_help())
+        raise typer.Exit(0)
 
 
 @cron_app.command("list")
@@ -1101,6 +1305,8 @@ def cron_add(
     ),
 ):
     """Add a scheduled job."""
+    import datetime
+
     from g_agent.config.loader import get_data_dir
     from g_agent.cron.service import CronService
     from g_agent.cron.types import CronSchedule
@@ -1111,13 +1317,16 @@ def cron_add(
     elif cron_expr:
         schedule = CronSchedule(kind="cron", expr=cron_expr)
     elif at:
-        import datetime
-
-        dt = datetime.datetime.fromisoformat(at)
+        try:
+            dt = datetime.datetime.fromisoformat(at)
+        except ValueError:
+            _cli_fail(
+                f"Invalid --at datetime: {at}",
+                "Use ISO format, e.g. 2026-02-12T09:30:00",
+            )
         schedule = CronSchedule(kind="at", at_ms=int(dt.timestamp() * 1000))
     else:
-        console.print("[red]Error: Must specify --every, --cron, or --at[/red]")
-        raise typer.Exit(1)
+        _cli_fail("Missing schedule option.", "Use exactly one of: --every, --cron, or --at")
 
     store_path = get_data_dir() / "cron" / "jobs.json"
     service = CronService(store_path)
@@ -1148,7 +1357,10 @@ def cron_remove(
     if service.remove_job(job_id):
         console.print(f"[green]✓[/green] Removed job {job_id}")
     else:
-        console.print(f"[red]Job {job_id} not found[/red]")
+        _cli_fail(
+            f"Job {job_id} not found.",
+            "Run `g-agent cron list --all` to find valid IDs.",
+        )
 
 
 @cron_app.command("enable")
@@ -1168,7 +1380,10 @@ def cron_enable(
         status = "disabled" if disable else "enabled"
         console.print(f"[green]✓[/green] Job '{job.name}' {status}")
     else:
-        console.print(f"[red]Job {job_id} not found[/red]")
+        _cli_fail(
+            f"Job {job_id} not found.",
+            "Run `g-agent cron list --all` to find valid IDs.",
+        )
 
 
 @cron_app.command("run")
@@ -1189,7 +1404,10 @@ def cron_run(
     if asyncio.run(run()):
         console.print("[green]✓[/green] Job executed")
     else:
-        console.print(f"[red]Failed to run job {job_id}[/red]")
+        _cli_fail(
+            f"Failed to run job {job_id}.",
+            "Check if the job exists and is enabled with `g-agent cron list --all`.",
+        )
 
 
 # ============================================================================
@@ -1218,7 +1436,7 @@ def digest(
     """Generate a daily personal digest via the agent."""
     from g_agent.agent.loop import AgentLoop
     from g_agent.bus.queue import MessageBus
-    from g_agent.config.loader import load_config
+    from g_agent.config.loader import get_config_path, load_config
     from g_agent.providers.litellm_provider import LiteLLMProvider
 
     config = load_config()
@@ -1229,8 +1447,11 @@ def digest(
     model = config.agents.defaults.model
     is_bedrock = route.provider == "bedrock" or model.startswith("bedrock/")
     if not api_key and not is_bedrock:
-        console.print("[red]Error: No API key configured.[/red]")
-        raise typer.Exit(1)
+        config_path = get_config_path()
+        _cli_fail(
+            f"No API key configured for provider '{route.provider}'.",
+            _missing_api_key_fix(route.provider, config_path),
+        )
 
     provider_cfg = config.get_provider(route.model)
     provider = LiteLLMProvider(
@@ -1411,6 +1632,14 @@ def proactive_disable():
 
 policy_app = typer.Typer(help="Manage tool policy presets")
 app.add_typer(policy_app, name="policy")
+
+
+@policy_app.callback(invoke_without_command=True)
+def policy_main(ctx: typer.Context):
+    """Manage tool policy presets."""
+    if ctx.invoked_subcommand is None:
+        console.print(ctx.get_help())
+        raise typer.Exit(0)
 
 
 @policy_app.command("list")
@@ -2166,7 +2395,7 @@ def doctor(
             "Model routing",
             "fail",
             f"model={route.model} (mode={route.mode}, provider={route.provider}, no API key)",
-            f"Set provider API key in {config_path} (or providers.vllm.apiKey for local proxy)",
+            _missing_api_key_fix(route.provider, config_path),
         )
 
     add(

@@ -130,7 +130,7 @@ Edit `~/.g-agent/config.json`:
   },
   "agents": {
     "defaults": {
-      "model": "anthropic/claude-opus-4-5",
+      "model": "claude-opus-4-6-thinking",
       "routing": { "mode": "direct" }
     }
   }
