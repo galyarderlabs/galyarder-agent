@@ -22,12 +22,14 @@ nav:
   - Getting Started: getting-started.md
   - Install Matrix: install-matrix.md
   - Configuration: configuration.md
+  - CLI Commands: cli-commands.md
   - Channels: channels.md
   - Operations: operations.md
   - Troubleshooting: troubleshooting.md
   - FAQ: faq.md
   - Security: security.md
   - Contributing: contributing.md
+  - CLI Error Style: cli-error-style.md
   - Roadmap:
       - OpenClaw Delta Plan: roadmap/openclaw-delta.md
 

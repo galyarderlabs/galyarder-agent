@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ "${G_AGENT_SKIP_PRE_COMMIT:-0}" == "1" ]]; then
+  echo "g-agent pre-commit: skipped (G_AGENT_SKIP_PRE_COMMIT=1)"
+  exit 0
+fi
+
+if ! repo_root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+  echo "g-agent pre-commit: unable to detect repository root"
+  exit 1
+fi
+cd "$repo_root"
+
+staged_files="$(git diff --cached --name-only --diff-filter=ACMR || true)"
+if [[ -z "$staged_files" ]]; then
+  exit 0
+fi
+
+needs_cli_docs_check=false
+while IFS= read -r path; do
+  [[ -n "$path" ]] || continue
+  case "$path" in
+    backend/agent/g_agent/cli/*|backend/agent/scripts/generate_cli_docs.py|docs/cli-commands.md)
+      needs_cli_docs_check=true
+      ;;
+  esac
+done <<< "$staged_files"
+
+if [[ "$needs_cli_docs_check" != true ]]; then
+  exit 0
+fi
+
+echo "g-agent pre-commit: verifying CLI command docs sync"
+
+generator_python=""
+if [[ -x "backend/agent/.venv/bin/python" ]]; then
+  generator_python="backend/agent/.venv/bin/python"
+elif command -v python >/dev/null 2>&1 && python -c "import typer" >/dev/null 2>&1; then
+  generator_python="python"
+fi
+
+if [[ -z "$generator_python" ]]; then
+  echo "g-agent pre-commit: missing Python env with typer installed"
+  echo "Install backend deps first: cd backend/agent && pip install -e \".[dev]\""
+  exit 1
+fi
+
+if ! "$generator_python" backend/agent/scripts/generate_cli_docs.py >/dev/null; then
+  echo "g-agent pre-commit: failed to generate docs/cli-commands.md"
+  echo "Install backend deps first: cd backend/agent && pip install -e \".[dev]\""
+  exit 1
+fi
+
+if ! git diff --quiet -- docs/cli-commands.md; then
+  echo "g-agent pre-commit: docs/cli-commands.md is out of date"
+  echo "Run: python backend/agent/scripts/generate_cli_docs.py"
+  echo "Then: git add docs/cli-commands.md"
+  exit 1
+fi
+
+echo "g-agent pre-commit: CLI docs sync ok"

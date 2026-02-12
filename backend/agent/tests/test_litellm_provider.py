@@ -48,6 +48,18 @@ def test_resolve_model_gateway_prefixes(make_provider):
     assert resolved == "openrouter/anthropic/claude-sonnet-4-5"
 
 
+def test_resolve_model_proxy_gateway_uses_openai_prefix(make_provider):
+    """Generic proxy mode should normalize to openai/<model> for LiteLLM."""
+    provider = make_provider(
+        api_key="sk-local-test",
+        api_base="http://127.0.0.1:8317/v1",
+        provider_name="proxy",
+        default_model="claude-opus-4-6-thinking",
+    )
+    resolved = provider._resolve_model("claude-opus-4-6-thinking")
+    assert resolved == "openai/claude-opus-4-6-thinking"
+
+
 def test_resolve_model_standard_auto_prefix(make_provider):
     """Standard mode: auto-prefix bare model names for known providers."""
     provider = make_provider(
@@ -137,6 +149,18 @@ def test_setup_env_gateway_overrides(make_provider, monkeypatch):
         default_model="claude-sonnet-4-5",
     )
     assert os.environ.get("OPENROUTER_API_KEY") == "sk-or-v1-new-key"
+
+
+def test_setup_env_proxy_gateway_overrides_openai(make_provider, monkeypatch):
+    """Generic proxy mode should write OPENAI_API_KEY for OpenAI-compatible base."""
+    monkeypatch.setenv("OPENAI_API_KEY", "old-key")
+    make_provider(
+        api_key="sk-local-240905",
+        api_base="http://127.0.0.1:8317/v1",
+        provider_name="proxy",
+        default_model="claude-opus-4-6-thinking",
+    )
+    assert os.environ.get("OPENAI_API_KEY") == "sk-local-240905"
 
 
 def test_setup_env_standard_does_not_override(make_provider, monkeypatch):

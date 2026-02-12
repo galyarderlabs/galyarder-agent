@@ -35,6 +35,19 @@ mkdocs build --strict
 bash deploy/optimize-images.sh --dry-run
 ```
 
+### Recommended: enable local git hooks
+
+```bash
+git config core.hooksPath .githooks
+chmod +x .githooks/pre-commit .githooks/pre-push
+```
+
+This enables local safeguards before push/commit, including:
+
+- backend/runtime checks on push to `main`
+- docs strict build checks on push to `main`
+- CLI command docs sync check (`docs/cli-commands.md`) on commit
+
 ## Pull request rules
 
 - Keep changes focused and minimal.

@@ -99,6 +99,24 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         strip_model_prefix=True,  # anthropic/claude-3 → claude-3 → openai/claude-3
         model_overrides=(),
     ),
+    # Generic proxy: local OpenAI-compatible gateway (CLIProxyAPI, LiteLLM, etc.).
+    # Explicitly matched by provider_name="proxy" from config routing.
+    ProviderSpec(
+        name="proxy",
+        keywords=("proxy",),
+        env_key="OPENAI_API_KEY",
+        display_name="Proxy",
+        litellm_prefix="openai",  # claude-opus-4-6-thinking → openai/claude-opus-4-6-thinking
+        skip_prefixes=(),
+        env_extras=(),
+        is_gateway=True,
+        is_local=False,
+        detect_by_key_prefix="",
+        detect_by_base_keyword="",
+        default_api_base="",
+        strip_model_prefix=True,
+        model_overrides=(),
+    ),
     # === Standard providers (matched by model-name keywords) ===============
     # Anthropic: LiteLLM recognizes "claude-*" natively, no prefix needed.
     ProviderSpec(
