@@ -11,6 +11,7 @@ Use this matrix for common runtime and ops failures.
 | WhatsApp bridge reconnect loop | stale session or unstable bridge runtime | `journalctl --user -u g-agent-wa-bridge.service` | re-login via `g-agent channels login`, restart bridge |
 | Channel silently stops after runtime error | transient channel crash | gateway logs show `channel crashed`/`restarting` | upgrade to latest build; supervisor now auto-restarts channels with backoff |
 | Outbound reply missed during reconnect | channel send failed during transient disconnect | gateway logs show `Retrying outbound message` | keep gateway running; dispatcher now retries failed sends with capped backoff |
+| `status` / `doctor` shows metrics alert warnings | SLO threshold breached (success-rate, latency, recall) | `g-agent metrics --hours 24` | inspect warned checks and fix upstream cause (provider, tools, cron, recall quality) |
 | LLM auth error | wrong provider key/base/model route | `g-agent status`, provider section in config | correct `providers.*` fields and restart gateway |
 | Google tool unavailable | OAuth missing/expired | `g-agent status` Google OAuth parts | refresh OAuth token flow in CLI |
 | Cron jobs not firing | jobs disabled/misconfigured timezone | startup logs + cron service lines | verify proactive config and schedule definitions |

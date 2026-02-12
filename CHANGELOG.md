@@ -17,6 +17,7 @@ All notable changes to this project are documented in this file.
 - `g-agent plugins list` and `g-agent plugins doctor` commands for plugin policy diagnostics.
 - Channel manager supervisor restart loop for long-running channel crash recovery.
 - Outbound dispatch retries with capped backoff for transient channel send failures.
+- Compact metrics alert summaries now surfaced in `status`/`doctor`, with alert gauges exported in Prometheus output.
 
 ### Changed
 - `resolve_model_route()` now uses `proxy_provider` instead of hardcoding `vllm`.

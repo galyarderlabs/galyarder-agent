@@ -2534,6 +2534,7 @@ def status():
 
             metrics_store = MetricsStore(workspace / "state" / "metrics" / "events.jsonl")
             metrics_snapshot = metrics_store.snapshot(hours=24)
+            metrics_alerts = metrics_store.alert_compact(hours=24, snapshot=metrics_snapshot)
             console.print(
                 "Metrics (24h): "
                 f"events={metrics_snapshot['totals']['events']}, "
@@ -2541,6 +2542,7 @@ def status():
                 f"tools={metrics_snapshot['tools']['calls']}, "
                 f"recall-hit={metrics_snapshot['recall']['hit_rate']}%"
             )
+            console.print(f"Metrics alerts (24h): {metrics_alerts['brief']}")
         except Exception:
             console.print("Metrics (24h): [dim]unknown[/dim]")
 
@@ -2914,11 +2916,21 @@ def doctor(
         try:
             from g_agent.observability.metrics import MetricsStore
 
-            metrics_snapshot = MetricsStore(metrics_file).snapshot(hours=24)
+            metrics_store = MetricsStore(metrics_file)
+            metrics_snapshot = metrics_store.snapshot(hours=24)
+            metrics_alerts = metrics_store.alert_compact(hours=24, snapshot=metrics_snapshot)
             add(
                 "Observability metrics",
                 "pass",
                 f"{metrics_file} ({metrics_snapshot['totals']['events']} events /24h)",
+            )
+            add(
+                "Observability alerts (24h)",
+                "pass" if metrics_alerts["overall"] == "ok" else "warn",
+                metrics_alerts["brief"],
+                ""
+                if metrics_alerts["overall"] == "ok"
+                else "Inspect with: g-agent metrics --hours 24",
             )
         except Exception as e:
             add(
