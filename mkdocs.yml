@@ -33,6 +33,7 @@ nav:
   - Contributing: contributing.md
   - CLI Error Style: cli-error-style.md
   - Release Notes:
+      - v0.1.8: release-notes/v0.1.8.md
       - v0.1.7: release-notes/v0.1.7.md
       - v0.1.6: release-notes/v0.1.6.md
       - v0.1.5: release-notes/v0.1.5.md
