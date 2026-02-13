@@ -1,4 +1,4 @@
-"""Galyarder Agent - A lightweight personal AI assistant framework."""
+"""Galyarder Agent - Sovereignty-first AI assistant runtime for real daily workflows."""
 
 from importlib.metadata import PackageNotFoundError, version
 
