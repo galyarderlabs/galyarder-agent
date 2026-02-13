@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [0.1.10] - 2026-02-13
+
 ### Added
 - Configurable `proxy_provider` in `RoutingConfig` (default: `vllm` for backward compatibility).
 - Generic `proxy` provider in `ProvidersConfig` for CLIProxyAPI and similar OpenAI-compatible proxies.
@@ -28,6 +30,8 @@ All notable changes to this project are documented in this file.
 - Group commands (`channels`, `google`, `cron`, `policy`) now show help when called without subcommand.
 - Release workflow now loads GitHub release body from `docs/release-notes/vX.Y.Z.md` and fails tag publish when that file is missing or empty.
 - CI pull-request checks now fail version bumps that do not include a non-empty `docs/release-notes/vX.Y.Z.md` file for the target version.
+- Prompt/tool guidance now explicitly documents media outbound support for `message`.
+- Telegram `/pack` command now routes through the normal inbound message flow.
 
 ### Fixed
 - Deprecated `opus 4.5` model aliases are now migrated to `claude-opus-4-6-thinking` during config load.
@@ -35,6 +39,9 @@ All notable changes to this project are documented in this file.
 - Missing API key failures now include provider-aware remediation hints.
 - WhatsApp inbound transcription now triggers from audio media metadata (`mediaType`/`mimeType`) instead of only placeholder text markers.
 - Generated `media_type: "voice"` replies now auto-fallback to `audio` when local TTS output is non-OGG (e.g., missing `ffmpeg`).
+- Voice/media explicit delivery requests now auto-deliver media on Telegram/WhatsApp when model skips `message` tool calls.
+- Stale text-only/approval-denial voice replies are rewritten or recovered to contextual voice payloads.
+- Indonesian cross-conversation memory-denial phrasing is now corrected to persistent-memory truth in runtime guard.
 
 ## [0.1.9] - 2026-02-12
 
