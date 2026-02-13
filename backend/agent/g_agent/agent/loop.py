@@ -367,6 +367,7 @@ class AgentLoop:
             self._log_user_message_to_daily_memory(msg)
             effective_content = msg.content
             workflow_silent_mode = False
+            requested_delivery_mode = self._extract_requested_delivery_mode(msg.content)
             resolved_pack = resolve_workflow_pack_request(msg.content)
             if resolved_pack:
                 pack_name, pack_context = resolved_pack
@@ -482,7 +483,49 @@ class AgentLoop:
             if auto_memory_result:
                 final_content = f"{final_content.rstrip()}\n\n{auto_memory_result}"
             final_content = self._align_memory_claims(final_content, executed_tool_results)
-            suppress_outbound = self._should_suppress_workflow_text(
+
+            hinted_content = self._enforce_delivery_mode_hint(
+                final_content,
+                requested_delivery_mode=requested_delivery_mode,
+                executed_tools=executed_tools,
+            )
+            auto_delivery_sent = False
+            if self._should_auto_media_delivery(
+                requested_delivery_mode=requested_delivery_mode,
+                executed_tools=executed_tools,
+                channel=msg.channel,
+            ):
+                delivery_content = hinted_content.strip()
+                if requested_delivery_mode == "voice" and hinted_content != final_content:
+                    delivery_content = ""
+                    recovered_content = await self._recover_voice_delivery_content(
+                        user_content=msg.content,
+                        stale_content=final_content,
+                    )
+                    if recovered_content:
+                        delivery_content = recovered_content
+                if not delivery_content:
+                    delivery_content = self._fallback_delivery_content(requested_delivery_mode)
+
+                auto_result = await self.tools.execute(
+                    "message",
+                    {
+                        "content": delivery_content,
+                        "media_type": requested_delivery_mode,
+                        "caption": "",
+                    },
+                )
+                executed_tools.append("message")
+                executed_tool_results.append(("message", str(auto_result)))
+                if self._is_message_delivery_success(auto_result):
+                    auto_delivery_sent = True
+                    final_content = ""
+                else:
+                    final_content = hinted_content
+            else:
+                final_content = hinted_content
+
+            suppress_outbound = auto_delivery_sent or self._should_suppress_workflow_text(
                 workflow_silent_mode=workflow_silent_mode,
                 tool_results=executed_tool_results,
             )
@@ -707,6 +750,12 @@ class AgentLoop:
             "only within this conversation",
             "saya tidak punya memory jangka panjang",
             "saya tidak memiliki memory jangka panjang",
+            "saya tidak memiliki memori lintas percakapan",
+            "saya tidak punya memori lintas percakapan",
+            "tidak memiliki memori lintas percakapan",
+            "tidak punya memori lintas percakapan",
+            "setiap conversation dimulai dari nol",
+            "setiap percakapan dimulai dari nol",
             "hanya bisa mengingat percakapan ini",
         )
         if not any(marker in lowered for marker in denial_markers):
@@ -864,9 +913,96 @@ class AgentLoop:
         message_results = [result for name, result in tool_results if name == "message"]
         if not message_results:
             return False
-        return any(
-            not str(result).strip().lower().startswith("error") for result in message_results
+        return any(self._is_message_delivery_success(result) for result in message_results)
+
+    def _is_message_delivery_success(self, result: Any) -> bool:
+        """True when message tool result indicates successful outbound delivery."""
+        text = str(result or "").strip().lower()
+        if not text:
+            return False
+        if text.startswith("error"):
+            return False
+        if "approval required" in text:
+            return False
+        return text.startswith("message sent to") or text == "ok"
+
+    def _should_auto_media_delivery(
+        self,
+        *,
+        requested_delivery_mode: str | None,
+        executed_tools: list[str],
+        channel: str,
+    ) -> bool:
+        """Auto-send media when user explicitly requests it on real chat channels."""
+        if requested_delivery_mode not in {"voice", "image", "sticker"}:
+            return False
+        if channel not in {"telegram", "whatsapp"}:
+            return False
+        return "message" not in {name.strip().lower() for name in executed_tools}
+
+    def _fallback_delivery_content(self, requested_delivery_mode: str | None) -> str:
+        """Default concise payload for auto media generation when model output is stale."""
+        if requested_delivery_mode == "voice":
+            return "Siap, gue kirim jawaban via suara sesuai permintaan lo."
+        if requested_delivery_mode == "image":
+            return "Focus. Execute. Ship."
+        if requested_delivery_mode == "sticker":
+            return "Gaskeun!"
+        return "Delivery requested"
+
+    async def _recover_voice_delivery_content(
+        self,
+        *,
+        user_content: str,
+        stale_content: str,
+    ) -> str | None:
+        """Recover contextual voice payload when draft was stale capability denial."""
+        system_prompt = (
+            "You are preparing text for a voice note. "
+            "Answer the user's request directly using concrete, contextual content. "
+            "Do not mention limitations, approvals, tools, `/pack`, or inability. "
+            "Return plain answer text only."
         )
+        user_prompt = (
+            f"User request:\n{user_content}\n\n"
+            f"Stale draft to avoid:\n{stale_content}\n\n"
+            "Write the actual answer content to send as voice note."
+        )
+        try:
+            response, _ = await self._chat_with_model_failover(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                tools=None,
+                max_tokens=600,
+                temperature=0.4,
+            )
+            recovered = (response.content or "").strip()
+            if not recovered:
+                return None
+            lowered = recovered.lower()
+            blocked_markers = (
+                "approve message",
+                "approval required",
+                "text-based",
+                "cannot generate voice",
+                "can't generate voice",
+                "cannot produce speech",
+                "can't produce speech",
+                "don't have a voice tool",
+                "do not have a voice tool",
+                "/pack",
+                "media_type=voice",
+            )
+            if any(marker in lowered for marker in blocked_markers):
+                return None
+            if recovered.lower() in {"ok", "done", "sure", "siap"}:
+                return None
+            return recovered
+        except Exception as e:
+            logger.debug(f"Voice content recovery skipped: {e}")
+            return None
 
     def _extract_approval_intent(self, text: str) -> tuple[set[str], bool]:
         """Parse explicit approval flags from user text."""
@@ -885,6 +1021,117 @@ class AgentLoop:
         skip = {"tool", "tools", "and", "please", "pls"}
         names = {item.strip() for item in chunks if item.strip() and item.strip() not in skip}
         return names, False
+
+    def _extract_requested_delivery_mode(self, text: str) -> str | None:
+        """Detect explicit user request for voice/image/sticker delivery."""
+        content = (text or "").strip().lower()
+        if not content:
+            return None
+
+        negative_pattern = (
+            r"\b(do\s+not|don't|dont|jangan|tak\s+usah|ga\s+usah|gak\s+usah|tidak\s+usah|tanpa)\b"
+        )
+
+        def _is_negated_prefix(prefix: str) -> bool:
+            return bool(
+                re.search(rf"{negative_pattern}(?:\s+\w+){{0,3}}\s*$", prefix)
+            )
+
+        voice_match = re.search(
+            r"\b(--voice|voice note|voice-note|pesan suara|pake voice|pakai voice|pake suara|pakai suara|dengan suara|kirim voice|kirim vn|use voice)\b",
+            content,
+        )
+        if voice_match:
+            prefix = content[: voice_match.start()]
+            if not _is_negated_prefix(prefix):
+                return "voice"
+
+        sticker_match = re.search(r"\b(--sticker|sticker)\b", content)
+        if sticker_match:
+            prefix = content[: sticker_match.start()]
+            if not _is_negated_prefix(prefix):
+                return "sticker"
+
+        image_match = re.search(r"\b(--image|image|gambar)\b", content)
+        if image_match:
+            prefix = content[: image_match.start()]
+            if not _is_negated_prefix(prefix):
+                return "image"
+
+        return None
+
+    def _enforce_delivery_mode_hint(
+        self,
+        content: str | None,
+        *,
+        requested_delivery_mode: str | None,
+        executed_tools: list[str],
+    ) -> str:
+        """Prevent stale-memory text claims when explicit media mode was requested."""
+        text = (content or "").strip()
+        if not text:
+            return text
+        if requested_delivery_mode is None:
+            return text
+        if "message" in executed_tools:
+            return text
+
+        lowered = text.lower()
+        stale_markers = (
+            "belum bisa kirim voice",
+            "belum bisa kirim voice note",
+            "cuma bisa komunikasi lewat teks",
+            "output gua masih teks",
+            "voice note / pesan suara",
+            "hanya bisa komunikasi lewat teks",
+            "hanya bisa lewat teks",
+            "berbasis teks",
+            "asisten coding berbasis teks",
+            "tidak bisa melakukan analisis menggunakan suara",
+            "tidak bisa menghasilkan atau memproses audio",
+            "tidak bisa memproses audio/suara",
+            "mohon ketik approve all",
+            "agar saya bisa membuat file suara",
+            "only text",
+            "text-based coding assistant",
+            "text-based ai assistant",
+            "can't produce speech",
+            "cannot produce speech",
+            "can't generate voice",
+            "cannot generate voice",
+            "can't generate voice messages",
+            "cannot generate voice messages",
+            "i can only communicate through text",
+            "don't have the ability to generate or play voice",
+            "i do not have the ability to generate or play voice",
+            "i don't have a voice tool",
+            "i do not have a voice tool",
+            "text-to-speech capability",
+            "text to speech capability",
+            "approval required for tool 'message'",
+            "approve message",
+            "approve all",
+        )
+        if not any(marker in lowered for marker in stale_markers):
+            return text
+
+        if requested_delivery_mode == "voice":
+            return (
+                "Gue bisa kirim voice note. Coba ulangi request dengan format eksplisit: "
+                "`/pack daily_brief --voice --silent` atau minta gue kirim pakai tool `message` "
+                "dengan `media_type=voice`."
+            )
+        if requested_delivery_mode == "sticker":
+            return (
+                "Gue bisa kirim sticker kalau generation path tersedia. Coba request eksplisit: "
+                "`/pack daily_brief --sticker --silent` atau pakai tool `message` dengan `media_type=sticker`."
+            )
+        if requested_delivery_mode == "image":
+            return (
+                "Gue bisa kirim image card kalau generator tersedia. Coba request eksplisit: "
+                "`/pack daily_brief --image --silent` atau pakai tool `message` dengan `media_type=image`."
+            )
+        return text
 
     def _message_idempotency_key(
         self, msg: InboundMessage, fallback: str | None = None

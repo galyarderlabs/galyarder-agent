@@ -59,6 +59,8 @@ def test_message_tool_accepts_media_without_text(tmp_path: Path):
     assert captured[0].metadata.get("media_type") == "voice"
 
 
+
+
 def test_whatsapp_channel_builds_media_payload(tmp_path: Path):
     config = WhatsAppConfig(enabled=True, bridge_url="ws://localhost:3001", allow_from=[])
     channel = WhatsAppChannel(config=config, bus=MessageBus())

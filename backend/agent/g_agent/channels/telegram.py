@@ -145,6 +145,9 @@ class TelegramChannel(BaseChannel):
 
                 self._app.add_handler(CommandHandler("start", self._on_start))
 
+                # Route /pack commands through normal message flow
+                self._app.add_handler(CommandHandler("pack", self._on_pack_command))
+
                 logger.info("Starting Telegram bot (polling mode)...")
 
                 # Initialize and start polling
@@ -296,6 +299,40 @@ class TelegramChannel(BaseChannel):
         user = update.effective_user
         await update.message.reply_text(
             f"👋 Hi {user.first_name}! I'm g-agent.\n\nSend me a message and I'll respond!"
+        )
+
+    async def _on_pack_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle /pack command by forwarding it through inbound bus flow."""
+        if not update.message or not update.effective_user:
+            return
+
+        message = update.message
+        user = update.effective_user
+        chat_id = message.chat_id
+
+        sender_id = str(user.id)
+        if user.username:
+            sender_id = f"{sender_id}|{user.username}"
+        self._chat_ids[sender_id] = chat_id
+
+        original_text = message.text or ""
+        payload = original_text if original_text.startswith("/pack") else f"/pack {original_text}"
+        if message.caption:
+            payload = f"{payload} {message.caption}".strip()
+
+        await self._handle_message(
+            sender_id=sender_id,
+            chat_id=str(chat_id),
+            content=payload,
+            media=[],
+            metadata={
+                "message_id": message.message_id,
+                "user_id": user.id,
+                "username": user.username,
+                "first_name": user.first_name,
+                "is_group": message.chat.type != "private",
+                "from_me": False,
+            },
         )
 
     async def _on_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

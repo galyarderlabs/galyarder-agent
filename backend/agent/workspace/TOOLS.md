@@ -66,9 +66,45 @@ web_fetch(url: str, extractMode: str = "markdown", maxChars: int = 50000) -> str
 ## Communication
 
 ### message
-Send a message to the user (used internally).
+Send a message to the user via active channel/chat. Supports text and media outbound.
 ```
-message(content: str, channel: str = None, chat_id: str = None) -> str
+message(
+  content: str = None,
+  channel: str = None,
+  chat_id: str = None,
+  media_path: str = None,
+  media_type: str = None,
+  mime_type: str = None,
+  caption: str = None,
+) -> str
+```
+
+**Parameters**
+- `content`: text body. Optional when sending media-only payload.
+- `channel`: optional target channel override (`telegram`, `whatsapp`, etc.).
+- `chat_id`: optional target chat/user override.
+- `media_path`: optional local file path for outbound media payload.
+- `media_type`: optional explicit media type (`voice`, `image`, `audio`, `sticker`, `document`).
+- `mime_type`: optional MIME override for media payload.
+- `caption`: optional media caption (defaults to `content` for non-sticker media when present).
+
+**Supported media types**
+- `voice`
+- `image`
+- `audio`
+- `sticker`
+- `document`
+
+**Examples**
+```python
+# Voice note from existing file
+message(media_path="/tmp/good-night.ogg", media_type="voice")
+
+# Generate/send image card with caption text
+message(content="Daily brief", media_type="image")
+
+# Send sticker file
+message(media_path="/tmp/reaction.webp", media_type="sticker")
 ```
 
 ## Background Tasks
