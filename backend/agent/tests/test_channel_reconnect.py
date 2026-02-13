@@ -102,6 +102,15 @@ class _FakeBot:
         return type("BotInfo", (), {"username": "g-agent-test-bot"})()
 
 
+class _FakeMessage:
+    def __init__(self, text: str = "", caption: str = "", message_id: int = 1):
+        self.text = text
+        self.caption = caption
+        self.message_id = message_id
+        self.chat_id = 12345
+        self.chat = type("Chat", (), {"type": "private"})()
+
+
 class _FakeTelegramApp:
     def __init__(self, fail_initialize: bool = False):
         self.fail_initialize = fail_initialize
@@ -180,6 +189,36 @@ class _FakeApplicationFactory:
     def builder(cls) -> _FakeApplicationBuilder:
         assert cls.builder_instance is not None
         return cls.builder_instance
+
+
+def test_telegram_pack_command_forwards_as_message(monkeypatch):
+    bus = MessageBus()
+    channel = TelegramChannel(
+        config=TelegramConfig(enabled=True, token="token-123", allow_from=["6218572023"]),
+        bus=bus,
+    )
+
+    captured: list[object] = []
+
+    async def fake_publish(msg):
+        captured.append(msg)
+
+    monkeypatch.setattr(bus, "publish_inbound", fake_publish)
+
+    class _FakeUser:
+        id = 6218572023
+        username = "galyarderlabs"
+        first_name = "Galyarder"
+
+    class _FakeUpdate:
+        def __init__(self):
+            self.message = _FakeMessage(text="/pack daily_brief --voice --silent")
+            self.effective_user = _FakeUser()
+
+    asyncio.run(channel._on_pack_command(_FakeUpdate(), object()))
+
+    assert len(captured) == 1
+    assert captured[0].content == "/pack daily_brief --voice --silent"
 
 
 def test_telegram_channel_reconnects_after_startup_error(monkeypatch):
