@@ -353,6 +353,10 @@ def test_agent_loop_auto_sends_voice_on_telegram_without_message_tool(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     monkeypatch.setenv("G_AGENT_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setattr(
+        "g_agent.agent.tools.message.MessageTool._synthesize_speech",
+        lambda self, text, media_type: "/tmp/synth.ogg",
+    )
     provider = DummyProvider(
         responses=[
             LLMResponse(
@@ -403,6 +407,10 @@ def test_agent_loop_auto_sends_voice_for_natural_voice_phrase(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     monkeypatch.setenv("G_AGENT_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setattr(
+        "g_agent.agent.tools.message.MessageTool._synthesize_speech",
+        lambda self, text, media_type: "/tmp/synth.ogg",
+    )
     provider = DummyProvider(
         responses=[
             LLMResponse(
