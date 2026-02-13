@@ -53,14 +53,6 @@ For vulnerabilities, follow private disclosure:
 - Use GitHub Security Advisory (private), not public issues.
 - See `SECURITY.md` for response expectations and details.
 
----
-
-## Community Channels
-
-- Discord: https://discord.gg/MnCvHqpUGB
-
----
-
 ## Maintainer Notes
 
 When asking for help on multi-profile setups, specify profile explicitly:
