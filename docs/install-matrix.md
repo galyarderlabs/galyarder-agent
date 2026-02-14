@@ -60,6 +60,8 @@ If you prefer bootstrap scripts instead of manual setup, use `deploy/*`:
 - Install: `powershell -ExecutionPolicy Bypass -File deploy/windows/install.ps1`
 - Uninstall: `powershell -ExecutionPolicy Bypass -File deploy/windows/uninstall.ps1`
 
+**Note:** `g-agent onboard` is safe to re-run after upgrades — it merges new config defaults without overwriting your existing settings.
+
 ## Post-install checklist
 
 1. Confirm provider/model in `~/.g-agent/config.json`

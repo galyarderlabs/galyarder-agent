@@ -151,7 +151,7 @@ See [Channels](channels.md) for full setup guides for:
 - **Email**: IMAP/SMTP with consent-gated access and sender allowlists
 - **Slack**: Socket Mode with group policies and DM controls
 - **Telegram**: Bot token with numeric user ID allowlists
-- **WhatsApp**: QR-paired bridge with sender ID allowlists
+- **WhatsApp**: QR-paired bridge with sender ID allowlists and optional `bridgeToken` auth
 
 ## Runtime plugins
 

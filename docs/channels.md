@@ -23,6 +23,28 @@ Discord/Feishu paths exist in runtime code and can be hardened as needed.
 3. Ensure your WA sender ID is in `channels.whatsapp.allowFrom`
 4. Keep bridge + gateway active (systemd user services recommended)
 
+### Configuration
+
+```json
+{
+  "channels": {
+    "whatsapp": {
+      "enabled": true,
+      "bridgeUrl": "ws://localhost:3001",
+      "allowFrom": ["628xxxxxxxxxx"],
+      "bridgeToken": "your-shared-secret"
+    }
+  }
+}
+```
+
+### Bridge authentication
+
+Set `bridgeToken` to add a shared-secret auth gate on the WebSocket bridge. The Python client sends an auth message immediately after connecting; the Node.js bridge verifies it within 5 seconds or closes the connection.
+
+- If `bridgeToken` is empty (default), the bridge accepts all connections (backward compatible).
+- The token is also passed as `BRIDGE_TOKEN` env var when launching the bridge via `g-agent channels login`.
+
 ### Voice notes
 
 - Incoming voice/audio transcription uses Groq Whisper (`providers.groq.apiKey` or `GROQ_API_KEY`).

@@ -7,6 +7,9 @@ g-agent status
 g-agent doctor --network
 g-agent gateway
 g-agent agent -m "Daily brief"
+g-agent new                     # clear cli:default session (archived)
+g-agent new --all --yes         # clear all sessions
+g-agent new --channel whatsapp  # clear WhatsApp sessions only
 ```
 
 For incident handling patterns, see [Troubleshooting](troubleshooting.md).
