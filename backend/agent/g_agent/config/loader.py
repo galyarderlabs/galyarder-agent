@@ -8,6 +8,17 @@ from g_agent.config.schema import Config
 from g_agent.utils.helpers import get_data_path
 
 
+def deep_merge_config(existing: dict[str, Any], defaults: dict[str, Any]) -> dict[str, Any]:
+    """Deep-merge defaults into existing config. Existing values take priority."""
+    merged = dict(existing)
+    for key, default_value in defaults.items():
+        if key not in merged:
+            merged[key] = default_value
+        elif isinstance(merged[key], dict) and isinstance(default_value, dict):
+            merged[key] = deep_merge_config(merged[key], default_value)
+    return merged
+
+
 def get_config_path() -> Path:
     """Get the default configuration file path."""
     return get_data_path() / "config.json"

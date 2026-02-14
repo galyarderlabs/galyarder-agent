@@ -203,3 +203,27 @@ class SessionManager:
                 continue
 
         return sorted(sessions, key=lambda x: x.get("updated_at", ""), reverse=True)
+
+    def archive(self, key: str) -> bool:
+        """Archive session (copy to archive dir, then delete original)."""
+        import shutil
+
+        path = self._get_session_path(key)
+        if not path.exists():
+            return False
+        archive_dir = self.sessions_dir / "archive"
+        archive_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        safe_key = safe_filename(key.replace(":", "_"))
+        archive_path = archive_dir / f"{safe_key}_{timestamp}.jsonl"
+        shutil.copy2(path, archive_path)
+        self.delete(key)
+        return True
+
+    def archive_all(self) -> int:
+        """Archive all sessions. Returns count archived."""
+        count = 0
+        for info in self.list_sessions():
+            if self.archive(info.get("key", "")):
+                count += 1
+        return count
