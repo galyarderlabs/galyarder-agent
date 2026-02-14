@@ -67,6 +67,23 @@ Use:
 - `g-agent doctor --network`
 - `journalctl --user -u g-agent-gateway.service -u g-agent-wa-bridge.service -n 120 --no-pager`
 
+## Does `g-agent onboard` overwrite my config?
+
+No. If a config already exists, `onboard` deep-merges new defaults while preserving your existing values (API keys, allowlists, customizations). It is safe to re-run after upgrades.
+
+## How do I reset my conversation history?
+
+Use `g-agent new` to archive and clear sessions:
+
+- `g-agent new` — clears the default CLI session (archived to `~/.g-agent/sessions/archive/`)
+- `g-agent new --all --yes` — clears all sessions
+- `g-agent new --channel whatsapp` — clears WhatsApp sessions only
+- `g-agent new --no-archive` — deletes without archiving
+
+## How do I secure the WhatsApp bridge?
+
+Set `channels.whatsapp.bridgeToken` in your config to a shared secret. The bridge will require authentication before accepting commands. Without a token, any process on localhost can connect to the bridge WebSocket.
+
 ## Where should I start contributing?
 
 Read:

@@ -23,6 +23,8 @@ g-agent onboard
 g-agent status
 ```
 
+`onboard` is safe to re-run — it merges new defaults into your existing config without overwriting customizations like API keys.
+
 ## Start runtime
 
 ```bash

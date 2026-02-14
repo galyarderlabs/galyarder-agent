@@ -16,6 +16,7 @@ Galyarder Agent is secured by layered controls:
 3. Separate guest profile from personal profile
 4. Scope API/OAuth permissions to least privilege
 5. Monitor runtime logs and rotate secrets on suspicion
+6. Set `channels.whatsapp.bridgeToken` when running WhatsApp bridge in production
 
 ## Vulnerability reporting
 
