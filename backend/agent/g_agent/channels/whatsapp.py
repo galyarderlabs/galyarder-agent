@@ -47,6 +47,10 @@ class WhatsAppChannel(BaseChannel):
                     self._connected = True
                     logger.info("Connected to WhatsApp bridge")
 
+                    if self.config.bridge_token:
+                        await ws.send(json.dumps({"type": "auth", "token": self.config.bridge_token}))
+                        logger.info("Sent bridge auth token")
+
                     # Listen for messages
                     async for message in ws:
                         try:

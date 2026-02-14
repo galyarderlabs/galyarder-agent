@@ -153,21 +153,32 @@ def login_command():
 @app.command()
 def onboard():
     """Initialize g-agent configuration and workspace."""
-    from g_agent.config.loader import get_config_path, save_config
+    from g_agent.config.loader import (
+        convert_keys,
+        convert_to_camel,
+        deep_merge_config,
+        get_config_path,
+        load_config,
+        save_config,
+    )
     from g_agent.config.schema import Config
     from g_agent.utils.helpers import get_workspace_path
 
     config_path = get_config_path()
 
     if config_path.exists():
-        console.print(f"[yellow]Config already exists at {config_path}[/yellow]")
-        if not typer.confirm("Overwrite?"):
-            raise typer.Exit()
-
-    # Create default config
-    config = Config()
-    save_config(config)
-    console.print(f"[green]✓[/green] Created config at {config_path}")
+        existing_config = load_config()
+        default_config = Config()
+        existing_data = convert_to_camel(existing_config.model_dump())
+        default_data = convert_to_camel(default_config.model_dump())
+        merged_data = deep_merge_config(existing_data, default_data)
+        merged_config = Config.model_validate(convert_keys(merged_data))
+        save_config(merged_config)
+        console.print(f"[green]✓[/green] Merged config at {config_path} (existing values preserved)")
+    else:
+        config = Config()
+        save_config(config)
+        console.print(f"[green]✓[/green] Created config at {config_path}")
 
     # Create workspace
     workspace = get_workspace_path()
@@ -758,6 +769,65 @@ def agent(
 
 
 # ============================================================================
+# Session Commands
+# ============================================================================
+
+
+@app.command("new")
+def new_session(
+    channel: str = typer.Option(None, "--channel", "-c", help="Target specific channel"),
+    all_sessions: bool = typer.Option(False, "--all", "-a", help="Clear all sessions"),
+    archive: bool = typer.Option(True, "--archive/--no-archive", help="Archive before clearing"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation"),
+):
+    """Start fresh by clearing/archiving conversation history."""
+    from g_agent.config.loader import load_config
+    from g_agent.session.manager import SessionManager
+
+    config = load_config()
+    sm = SessionManager(config.workspace_path)
+    sessions = sm.list_sessions()
+
+    if not sessions:
+        console.print("[dim]No sessions found.[/dim]")
+        raise typer.Exit(0)
+
+    # Determine which sessions to clear
+    if all_sessions:
+        targets = sessions
+    elif channel:
+        prefix = f"{channel}:"
+        targets = [s for s in sessions if s.get("key", "").startswith(prefix)]
+        if not targets:
+            console.print(f"[dim]No sessions found for channel '{channel}'.[/dim]")
+            raise typer.Exit(0)
+    else:
+        targets = [s for s in sessions if s.get("key") == "cli:default"]
+        if not targets:
+            console.print("[dim]No cli:default session found.[/dim]")
+            raise typer.Exit(0)
+
+    # Confirm
+    if not yes:
+        label = f"{len(targets)} session(s)"
+        if not typer.confirm(f"Clear {label}?"):
+            raise typer.Exit(0)
+
+    count = 0
+    for info in targets:
+        key = info.get("key", "")
+        if archive:
+            if sm.archive(key):
+                count += 1
+        else:
+            if sm.delete(key):
+                count += 1
+
+    verb = "Archived" if archive else "Cleared"
+    console.print(f"[green]✓[/green] {verb} {count} session(s)")
+
+
+# ============================================================================
 # Channel Commands
 # ============================================================================
 
@@ -1164,6 +1234,9 @@ def channels_login(
     bridge_env["BRIDGE_HOST"] = host
     bridge_env["BRIDGE_PORT"] = str(port)
     bridge_env["AUTH_DIR"] = str(get_data_dir() / "whatsapp-auth")
+
+    if config.channels.whatsapp.bridge_token:
+        bridge_env["BRIDGE_TOKEN"] = config.channels.whatsapp.bridge_token
 
     try:
         subprocess.run(["npm", "start"], cwd=bridge_dir, check=True, env=bridge_env)

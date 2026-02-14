@@ -19,6 +19,7 @@ class WhatsAppConfig(BaseModel):
     enabled: bool = False
     bridge_url: str = "ws://localhost:3001"
     allow_from: list[str] = Field(default_factory=list)  # Allowed phone numbers
+    bridge_token: str = ""  # Shared secret for bridge WebSocket auth
 
 
 class TelegramConfig(BaseModel):

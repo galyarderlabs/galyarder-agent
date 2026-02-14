@@ -31,6 +31,7 @@ g-agent [OPTIONS] COMMAND [ARGS]...
 | `onboard` | Initialize g-agent configuration and workspace. |
 | `gateway` | Start the g-agent gateway. |
 | `agent` | Interact with the agent directly. |
+| `new` | Start fresh by clearing/archiving conversation history. |
 | `digest` | Generate a daily personal digest via the agent. |
 | `proactive-enable` | Install proactive cron jobs (daily digest + weekly lessons). |
 | `proactive-disable` | Remove default proactive cron jobs. |

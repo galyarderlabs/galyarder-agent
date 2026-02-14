@@ -15,6 +15,11 @@ interface SendCommand {
   caption?: string;
 }
 
+interface AuthMessage {
+  type: 'auth';
+  token: string;
+}
+
 interface BridgeMessage {
   type: 'message' | 'status' | 'qr' | 'error';
   [key: string]: unknown;
@@ -25,7 +30,12 @@ export class BridgeServer {
   private wa: WhatsAppClient | null = null;
   private clients: Set<WebSocket> = new Set();
 
-  constructor(private host: string, private port: number, private authDir: string) {}
+  constructor(
+    private host: string,
+    private port: number,
+    private authDir: string,
+    private token: string = '',
+  ) {}
 
   async start(): Promise<void> {
     const wss = new WebSocketServer({ host: this.host, port: this.port });
@@ -63,32 +73,62 @@ export class BridgeServer {
     // Handle WebSocket connections
     wss.on('connection', (ws) => {
       console.log('🔗 Python client connected');
-      this.clients.add(ws);
 
-      ws.on('message', async (data) => {
-        try {
-          const cmd = JSON.parse(data.toString()) as SendCommand;
-          await this.handleCommand(cmd);
-          ws.send(JSON.stringify({ type: 'sent', to: cmd.to }));
-        } catch (error) {
-          console.error('Error handling command:', error);
-          ws.send(JSON.stringify({ type: 'error', error: String(error) }));
-        }
-      });
+      if (this.token) {
+        // Wait for auth message within 5 seconds
+        const authTimeout = setTimeout(() => {
+          console.log('⛔ Auth timeout, closing connection');
+          ws.close(4003, 'Auth timeout');
+        }, 5000);
 
-      ws.on('close', () => {
-        console.log('🔌 Python client disconnected');
-        this.clients.delete(ws);
-      });
-
-      ws.on('error', (error) => {
-        console.error('WebSocket error:', error);
-        this.clients.delete(ws);
-      });
+        ws.once('message', (data) => {
+          clearTimeout(authTimeout);
+          try {
+            const msg = JSON.parse(data.toString()) as AuthMessage;
+            if (msg.type === 'auth' && msg.token === this.token) {
+              console.log('🔓 Client authenticated');
+              this.acceptClient(ws);
+            } else {
+              console.log('⛔ Invalid auth token');
+              ws.close(4003, 'Invalid token');
+            }
+          } catch {
+            console.log('⛔ Invalid auth message');
+            ws.close(4003, 'Invalid auth message');
+          }
+        });
+      } else {
+        this.acceptClient(ws);
+      }
     });
 
     // Connect to WhatsApp
     await this.wa.connect();
+  }
+
+  private acceptClient(ws: WebSocket): void {
+    this.clients.add(ws);
+
+    ws.on('message', async (data) => {
+      try {
+        const cmd = JSON.parse(data.toString()) as SendCommand;
+        await this.handleCommand(cmd);
+        ws.send(JSON.stringify({ type: 'sent', to: cmd.to }));
+      } catch (error) {
+        console.error('Error handling command:', error);
+        ws.send(JSON.stringify({ type: 'error', error: String(error) }));
+      }
+    });
+
+    ws.on('close', () => {
+      console.log('🔌 Python client disconnected');
+      this.clients.delete(ws);
+    });
+
+    ws.on('error', (error) => {
+      console.error('WebSocket error:', error);
+      this.clients.delete(ws);
+    });
   }
 
   private async handleCommand(cmd: SendCommand): Promise<void> {
