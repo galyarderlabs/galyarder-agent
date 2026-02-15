@@ -187,6 +187,7 @@ class AgentLoop:
         self._running = False
         self._register_default_tools()
         self._register_plugin_tools()
+        logger.info(f"Registered {len(self.tools)} tools: {self.tools.tool_names}")
 
     def _register_default_tools(self) -> None:
         """Register the default set of tools."""
@@ -443,9 +444,15 @@ class AgentLoop:
                 self.runtime.append_event(task_id, "llm_call", f"iteration={iteration}")
 
                 # Call LLM
+                tool_defs = self.tools.get_definitions()
+                if iteration == 1:
+                    logger.debug(
+                        f"LLM call with {len(tool_defs)} tools: "
+                        f"{[t['function']['name'] for t in tool_defs]}"
+                    )
                 response, active_model = await self._chat_with_model_failover(
                     messages=messages,
-                    tools=self.tools.get_definitions(),
+                    tools=tool_defs,
                     task_id=task_id,
                 )
                 if active_model != self.model:
