@@ -250,14 +250,14 @@ class SelfieTool(Tool):
         api_base = self._config.image_gen.api_base.rstrip("/")
         if not api_base:
             if provider_lower == "nebius":
-                api_base = "https://api.studio.nebius.com/v1"
+                api_base = "https://api.tokenfactory.nebius.com/v1"
             else:
                 raise ValueError(
                     "api_base is required for openai-compatible image generation."
                 )
         model = self._config.image_gen.model
         if not model and provider_lower == "nebius":
-            model = "black-forest-labs/flux-1-schnell"
+            model = "black-forest-labs/flux-dev"
         url = f"{api_base}/images/generations"
         headers = {"Authorization": f"Bearer {self._config.image_gen.api_key}"}
         payload: dict[str, Any] = {"prompt": prompt, "response_format": "b64_json"}
