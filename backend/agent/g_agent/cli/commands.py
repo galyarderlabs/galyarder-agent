@@ -2983,6 +2983,13 @@ def status():
             f"WhatsApp channel: {'[green]✓ enabled[/green]' if wa.enabled else '[dim]disabled[/dim]'} (allowFrom: {len(wa.allow_from)})"
         )
 
+        vis = config.visual
+        vis_provider = vis.image_gen.provider or "none"
+        vis_desc = "yes" if vis.physical_description else "no"
+        console.print(
+            f"Visual identity: {'[green]✓ enabled[/green]' if vis.enabled else '[dim]disabled[/dim]'} (provider: {vis_provider}, description: {vis_desc})"
+        )
+
         console.print(
             f"Slack webhook: {'[green]✓[/green]' if config.integrations.slack.webhook_url else '[dim]not set[/dim]'}"
         )
@@ -3663,6 +3670,46 @@ def doctor(
                     f"{type(e).__name__}: {e}",
                     "Check internet access and Google credentials",
                 )
+
+    # Visual identity checks
+    vis = config.visual
+    if vis.enabled:
+        add("Visual identity", "pass", "enabled")
+        if vis.image_gen.provider:
+            add(
+                "Visual identity provider",
+                "pass",
+                f"provider={vis.image_gen.provider}",
+            )
+        else:
+            add(
+                "Visual identity provider",
+                "fail",
+                "no provider configured",
+                "Set visual.imageGen.provider (huggingface, nebius, cloudflare, openai-compatible)",
+            )
+        if vis.physical_description:
+            add("Visual identity description", "pass", "physical description set")
+        elif vis.reference_image:
+            add(
+                "Visual identity description",
+                "warn",
+                "not extracted yet (reference image set, will extract on first selfie)",
+            )
+        else:
+            add(
+                "Visual identity description",
+                "warn",
+                "no description or reference image",
+                "Set visual.referenceImage or visual.physicalDescription",
+            )
+    else:
+        add(
+            "Visual identity",
+            "warn",
+            "disabled",
+            "Set visual.enabled=true and configure visual.imageGen.*",
+        )
 
     table = Table(title=f"{__brand__} Doctor")
     table.add_column("Check", style="cyan")
