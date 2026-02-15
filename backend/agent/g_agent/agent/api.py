@@ -61,6 +61,7 @@ class Agent:
             summary_interval=self.config.agents.defaults.summary_interval,
             fallback_models=route.fallback_models,
             plugins=resolved_plugins,
+            visual_config=self.config.visual,
         )
         self._closed = False
 

@@ -444,6 +444,7 @@ def gateway(
         summary_interval=config.agents.defaults.summary_interval,
         fallback_models=route.fallback_models,
         plugins=plugins,
+        visual_config=config.visual,
     )
 
     data_dir = get_data_dir()
@@ -728,6 +729,7 @@ def agent(
         summary_interval=config.agents.defaults.summary_interval,
         fallback_models=route.fallback_models,
         plugins=plugins,
+        visual_config=config.visual,
     )
 
     if message:
@@ -2017,6 +2019,7 @@ def digest(
         summary_interval=config.agents.defaults.summary_interval,
         fallback_models=route.fallback_models,
         plugins=plugins,
+        visual_config=config.visual,
     )
 
     async def run_digest() -> str:
