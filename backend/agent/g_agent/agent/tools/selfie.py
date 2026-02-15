@@ -140,7 +140,11 @@ class SelfieTool(Tool):
                 return f"Error: failed to extract physical description: {e}"
 
         if not description:
-            return "Error: no physical description available. Set reference_image or physical_description in config."
+            return (
+                "Error: no physical description available. "
+                "Ask the user to provide a reference photo path via "
+                "'g-agent onboard' or set visual.physicalDescription in config."
+            )
 
         # Detect mode
         if mode == "auto":
@@ -242,6 +246,14 @@ class SelfieTool(Tool):
     async def _generate_openai_compatible(self, prompt: str) -> bytes:
         """Generate image via OpenAI-compatible API (Nebius, etc.)."""
         api_base = self._config.image_gen.api_base.rstrip("/")
+        if not api_base:
+            # Default API bases per provider
+            if self._config.image_gen.provider.lower() == "nebius":
+                api_base = "https://api.studio.nebius.com/v1"
+            else:
+                raise ValueError(
+                    "api_base is required for openai-compatible image generation."
+                )
         url = f"{api_base}/images/generations"
         headers = {"Authorization": f"Bearer {self._config.image_gen.api_key}"}
         payload: dict[str, Any] = {"prompt": prompt, "response_format": "b64_json"}
