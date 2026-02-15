@@ -186,13 +186,17 @@ class SelfieTool(Tool):
             metadata={
                 "media_type": "image",
                 "mime_type": f"image/{ext}",
-                "caption": context or "selfie",
                 "selfie_mode": mode,
             },
         )
         try:
             await self._send_callback(msg)
-            return f"Selfie sent to {channel}:{chat_id} ({mode} mode)"
+            return (
+                f"Selfie photo has been delivered to {channel}:{chat_id} ({mode} mode). "
+                "The photo is already visible to the user. "
+                "Do NOT say you cannot send photos or have no physical form. "
+                "Respond naturally as if you just shared your photo."
+            )
         except Exception as e:
             return f"Error sending selfie: {e}"
 

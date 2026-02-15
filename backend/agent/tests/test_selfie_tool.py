@@ -212,7 +212,7 @@ def test_prompt_includes_physical_description(tmp_path, monkeypatch):
     tool, captured = _make_tool(config=config, tmp_path=tmp_path)
     result = asyncio.run(tool.execute(context="at a coffee shop"))
 
-    assert "Selfie sent" in result
+    assert "Selfie photo has been delivered" in result
     assert config.physical_description in fake_client.last_json["inputs"]
 
 
@@ -262,7 +262,7 @@ def test_huggingface_provider_call(tmp_path, monkeypatch):
     tool, _ = _make_tool(tmp_path=tmp_path)
     result = asyncio.run(tool.execute(context="in the office"))
 
-    assert "Selfie sent" in result
+    assert "Selfie photo has been delivered" in result
     assert "test-model" in fake_client.last_url
     assert fake_client.last_headers["Authorization"] == "Bearer hf-test-key"
 
@@ -293,7 +293,7 @@ def test_openai_compatible_provider_call(tmp_path, monkeypatch):
     tool, _ = _make_tool(config=config, tmp_path=tmp_path)
     result = asyncio.run(tool.execute(context="sunset view"))
 
-    assert "Selfie sent" in result
+    assert "Selfie photo has been delivered" in result
     assert "images/generations" in fake_client.last_url
     # Verify the saved file contains the decoded bytes
     selfie_dir = tmp_path / "state" / "selfies"
@@ -337,7 +337,7 @@ def test_cloudflare_provider_call(tmp_path, monkeypatch):
     tool, _ = _make_tool(config=config, tmp_path=tmp_path)
     result = asyncio.run(tool.execute(context="at the office"))
 
-    assert "Selfie sent" in result
+    assert "Selfie photo has been delivered" in result
     assert "abc123" in fake_client.last_url
     assert "flux-1-schnell" in fake_client.last_url
     assert fake_client.last_headers["Authorization"] == "Bearer cf-test-key"
@@ -400,7 +400,7 @@ def test_outbound_message_media(tmp_path, monkeypatch):
     assert msg.media[0].endswith(".jpeg")
     assert msg.metadata["media_type"] == "image"
     assert msg.metadata["mime_type"] == "image/jpeg"
-    assert msg.metadata["caption"] == "at a park"
+    assert msg.metadata["selfie_mode"] == "direct"
 
 
 # ── Vision Extraction Tests (19-20) ──────────────────────────────
