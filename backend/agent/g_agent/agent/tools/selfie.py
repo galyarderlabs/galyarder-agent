@@ -160,6 +160,7 @@ class SelfieTool(Tool):
         try:
             image_bytes = await self._generate_image(prompt)
         except Exception as e:
+            logger.error(f"Selfie image generation failed: {e}")
             return f"Error: image generation failed: {e}"
 
         # Save to workspace
@@ -245,20 +246,23 @@ class SelfieTool(Tool):
 
     async def _generate_openai_compatible(self, prompt: str) -> bytes:
         """Generate image via OpenAI-compatible API (Nebius, etc.)."""
+        provider_lower = self._config.image_gen.provider.lower()
         api_base = self._config.image_gen.api_base.rstrip("/")
         if not api_base:
-            # Default API bases per provider
-            if self._config.image_gen.provider.lower() == "nebius":
+            if provider_lower == "nebius":
                 api_base = "https://api.studio.nebius.com/v1"
             else:
                 raise ValueError(
                     "api_base is required for openai-compatible image generation."
                 )
+        model = self._config.image_gen.model
+        if not model and provider_lower == "nebius":
+            model = "black-forest-labs/flux-1-schnell"
         url = f"{api_base}/images/generations"
         headers = {"Authorization": f"Bearer {self._config.image_gen.api_key}"}
         payload: dict[str, Any] = {"prompt": prompt, "response_format": "b64_json"}
-        if self._config.image_gen.model:
-            payload["model"] = self._config.image_gen.model
+        if model:
+            payload["model"] = model
         async with httpx.AsyncClient(timeout=self._config.image_gen.timeout) as client:
             resp = await client.post(url, headers=headers, json=payload)
             resp.raise_for_status()
