@@ -151,7 +151,9 @@ def login_command():
 
 
 @app.command()
-def onboard():
+def onboard(
+    no_interactive: bool = typer.Option(False, "--no-interactive", help="Skip interactive setup"),
+):
     """Initialize g-agent configuration and workspace."""
     from g_agent.config.loader import (
         convert_keys,
@@ -187,12 +189,218 @@ def onboard():
     # Create default bootstrap files
     _create_workspace_templates(workspace)
 
+    # Interactive setup wizard
+    if not no_interactive:
+        config = load_config()
+        config = _interactive_setup(config)
+        save_config(config)
+
     console.print(f"\n{__logo__} {__brand__} is ready!")
-    console.print("\nNext steps:")
-    console.print(f"  1. Add your API key to [cyan]{config_path}[/cyan]")
-    console.print("     Get one at: https://openrouter.ai/keys")
-    console.print('  2. Chat: [cyan]g-agent agent -m "Hello!"[/cyan]')
-    console.print("\n[dim]Want Telegram/WhatsApp? See the README Chat Apps section.[/dim]")
+    console.print("\n  Chat: [cyan]g-agent agent -m \"Hello!\"[/cyan]")
+
+
+_PROVIDER_CHOICES = [
+    ("OpenRouter", "openrouter", "direct", "https://openrouter.ai/keys"),
+    ("Anthropic (Claude)", "anthropic", "direct", "https://console.anthropic.com/settings/keys"),
+    ("OpenAI (GPT)", "openai", "direct", "https://platform.openai.com/api-keys"),
+    ("Gemini (Google)", "gemini", "direct", "https://aistudio.google.com/apikey"),
+    ("DeepSeek", "deepseek", "direct", "https://platform.deepseek.com/api_keys"),
+    ("Groq", "groq", "direct", "https://console.groq.com/keys"),
+    ("Local Proxy (vLLM, Ollama, LiteLLM, etc.)", "proxy", "proxy", None),
+]
+
+_SELFIE_PROVIDER_CHOICES = [
+    ("HuggingFace (free)", "huggingface"),
+    ("Cloudflare Workers AI (free, ~2000/day)", "cloudflare"),
+    ("Nebius", "nebius"),
+    ("OpenAI-compatible (local)", "openai-compatible"),
+]
+
+
+def _prompt_choice(label: str, choices: list[str], current: str | None = None) -> int | None:
+    """Show numbered menu, return 0-based index or None if skipped."""
+    for i, choice in enumerate(choices, 1):
+        marker = " [cyan]<current>[/cyan]" if current and current.lower() in choice.lower() else ""
+        console.print(f"  {i}. {choice}{marker}")
+    console.print("  0. Skip")
+    while True:
+        raw = typer.prompt("  Choose", default="0")
+        try:
+            n = int(raw)
+            if 0 <= n <= len(choices):
+                return None if n == 0 else n - 1
+        except ValueError:
+            pass
+        console.print(f"  [dim]Enter 0-{len(choices)}[/dim]")
+
+
+def _prompt_secret(label: str, current: str = "") -> str:
+    """Prompt for a secret value, showing masked current value."""
+    if current:
+        masked = current[:4] + "..." + current[-4:] if len(current) > 8 else "***"
+        hint = f" [dim](current: {masked}, Enter to keep)[/dim]"
+        console.print(f"  {label}{hint}")
+        value = typer.prompt("  ", default="", show_default=False)
+        return value if value else current
+    return typer.prompt(f"  {label}", default="")
+
+
+def _interactive_setup(config: Any) -> Any:
+    """Run interactive setup wizard, returning modified config."""
+    console.print(f"\n{'─' * 50}")
+    console.print("[bold]Interactive Setup[/bold]")
+    console.print(f"{'─' * 50}")
+    console.print("[dim]Each step is optional. Press 0 or Enter to skip.[/dim]\n")
+
+    # ── Step 1: LLM Provider ──────────────────────────────────────
+    console.print("[bold]Step 1/5: LLM Provider[/bold]")
+    current_provider = config.agents.defaults.routing.proxy_provider
+    if config.agents.defaults.routing.mode == "direct":
+        current_provider = config.get_provider_name() or ""
+    choice = _prompt_choice(
+        "provider",
+        [c[0] for c in _PROVIDER_CHOICES],
+        current=current_provider,
+    )
+    if choice is not None:
+        _, provider_name, routing_mode, key_url = _PROVIDER_CHOICES[choice]
+        if key_url:
+            console.print(f"  [dim]Get key at: {key_url}[/dim]")
+
+        provider_cfg = getattr(config.providers, provider_name)
+        api_key = _prompt_secret("API Key", provider_cfg.api_key)
+        if api_key:
+            provider_cfg.api_key = api_key
+
+        if routing_mode == "proxy":
+            api_base = typer.prompt(
+                "  API Base URL",
+                default=provider_cfg.api_base or "http://127.0.0.1:8000/v1",
+            )
+            provider_cfg.api_base = api_base
+
+        config.agents.defaults.routing.mode = routing_mode
+        if routing_mode == "proxy":
+            config.agents.defaults.routing.proxy_provider = provider_name
+
+        if api_key:
+            console.print(f"  [green]✓[/green] {_PROVIDER_CHOICES[choice][0]} configured\n")
+        else:
+            console.print("  [yellow]⚠[/yellow] No API key set — add it later in config.json\n")
+    else:
+        console.print()
+
+    # ── Step 2: Model Selection ───────────────────────────────────
+    console.print("[bold]Step 2/5: Default Model[/bold]")
+    current_model = config.agents.defaults.model
+    console.print(f"  [dim]Current: {current_model}[/dim]")
+    model = typer.prompt("  Model name (Enter to keep)", default="")
+    if model:
+        config.agents.defaults.model = model
+        console.print(f"  [green]✓[/green] Model set to {model}\n")
+    else:
+        console.print()
+
+    # ── Step 3: Web Search ────────────────────────────────────────
+    console.print("[bold]Step 3/5: Web Search (Brave)[/bold]")
+    if typer.confirm("  Enable web search?", default=bool(config.tools.web.search.api_key)):
+        console.print("  [dim]Get key at: https://brave.com/search/api/[/dim]")
+        api_key = _prompt_secret("Brave Search API Key", config.tools.web.search.api_key)
+        if api_key:
+            config.tools.web.search.api_key = api_key
+            console.print("  [green]✓[/green] Web search configured\n")
+        else:
+            console.print("  [yellow]⚠[/yellow] No key set\n")
+    else:
+        console.print()
+
+    # ── Step 4: Channels ──────────────────────────────────────────
+    console.print("[bold]Step 4/5: Chat Channels[/bold]")
+
+    # Telegram
+    if typer.confirm("  Enable Telegram?", default=config.channels.telegram.enabled):
+        config.channels.telegram.enabled = True
+        console.print("  [dim]Get token from @BotFather on Telegram[/dim]")
+        token = _prompt_secret("Bot token", config.channels.telegram.token)
+        if token:
+            config.channels.telegram.token = token
+        user_id = typer.prompt(
+            "  Your Telegram user ID",
+            default=config.channels.telegram.allow_from[0]
+            if config.channels.telegram.allow_from
+            else "",
+        )
+        if user_id and user_id not in config.channels.telegram.allow_from:
+            config.channels.telegram.allow_from.append(user_id)
+        console.print("  [green]✓[/green] Telegram configured")
+    else:
+        config.channels.telegram.enabled = False
+
+    # WhatsApp
+    if typer.confirm("  Enable WhatsApp?", default=config.channels.whatsapp.enabled):
+        config.channels.whatsapp.enabled = True
+        bridge_token = _prompt_secret(
+            "Bridge token (optional shared secret)", config.channels.whatsapp.bridge_token
+        )
+        if bridge_token:
+            config.channels.whatsapp.bridge_token = bridge_token
+        phone = typer.prompt(
+            "  Your phone number (with country code, e.g. 6281234567890)",
+            default=config.channels.whatsapp.allow_from[0]
+            if config.channels.whatsapp.allow_from
+            else "",
+        )
+        if phone and phone not in config.channels.whatsapp.allow_from:
+            config.channels.whatsapp.allow_from.append(phone)
+        console.print("  [green]✓[/green] WhatsApp configured")
+    else:
+        config.channels.whatsapp.enabled = False
+
+    console.print()
+
+    # ── Step 5: Visual Identity ───────────────────────────────────
+    console.print("[bold]Step 5/5: Visual Identity (Selfie)[/bold]")
+    if typer.confirm("  Enable AI selfie generation?", default=config.visual.enabled):
+        config.visual.enabled = True
+        choice = _prompt_choice(
+            "selfie provider",
+            [c[0] for c in _SELFIE_PROVIDER_CHOICES],
+            current=config.visual.image_gen.provider,
+        )
+        if choice is not None:
+            _, provider = _SELFIE_PROVIDER_CHOICES[choice]
+            config.visual.image_gen.provider = provider
+            api_key = _prompt_secret("Provider API Key", config.visual.image_gen.api_key)
+            if api_key:
+                config.visual.image_gen.api_key = api_key
+            if provider == "cloudflare":
+                account_id = typer.prompt(
+                    "  Cloudflare Account ID",
+                    default=config.visual.image_gen.account_id or "",
+                )
+                if account_id:
+                    config.visual.image_gen.account_id = account_id
+            elif provider == "openai-compatible":
+                api_base = typer.prompt(
+                    "  API Base URL",
+                    default=config.visual.image_gen.api_base or "http://127.0.0.1:8188/v1",
+                )
+                if api_base:
+                    config.visual.image_gen.api_base = api_base
+
+        desc = typer.prompt(
+            "  Physical description (or Enter to skip, will auto-extract from photo later)",
+            default=config.visual.physical_description or "",
+        )
+        if desc:
+            config.visual.physical_description = desc
+
+        console.print("  [green]✓[/green] Visual identity configured\n")
+    else:
+        config.visual.enabled = False
+        console.print()
+
+    return config
 
 
 def _create_workspace_templates(workspace: Path):
