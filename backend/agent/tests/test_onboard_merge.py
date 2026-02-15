@@ -200,3 +200,27 @@ def test_interactive_telegram_channel(tmp_path, monkeypatch):
     assert data["channels"]["telegram"]["enabled"] is True
     assert data["channels"]["telegram"]["token"] == "123456:AABB"
     assert "99887766" in data["channels"]["telegram"]["allowFrom"]
+
+
+def test_interactive_visual_identity_with_ref_image(tmp_path, monkeypatch):
+    """Interactive wizard: enabling selfie with reference image and provider."""
+    data_dir = tmp_path / "g-agent"
+    data_dir.mkdir()
+    monkeypatch.setattr("g_agent.config.loader.get_data_path", lambda: data_dir)
+    monkeypatch.setattr("g_agent.utils.helpers.get_data_path", lambda: data_dir)
+
+    ref_path = str(tmp_path / "my_face.jpg")
+
+    # provider=0, model=skip, web search=no, telegram=no, whatsapp=no,
+    # selfie=yes, provider=1 (HuggingFace), key=hf-test-key,
+    # ref_image=ref_path, description=skip
+    user_input = f"0\n\nn\nn\nn\ny\n1\nhf-test-key\n{ref_path}\n\n"
+    result = runner.invoke(app, ["onboard"], input=user_input)
+    assert result.exit_code == 0
+
+    with open(data_dir / "config.json") as f:
+        data = json.load(f)
+    assert data["visual"]["enabled"] is True
+    assert data["visual"]["imageGen"]["provider"] == "huggingface"
+    assert data["visual"]["imageGen"]["apiKey"] == "hf-test-key"
+    assert data["visual"]["referenceImage"] == ref_path

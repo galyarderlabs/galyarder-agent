@@ -388,6 +388,13 @@ def _interactive_setup(config: Any) -> Any:
                 if api_base:
                     config.visual.image_gen.api_base = api_base
 
+        ref_img = typer.prompt(
+            "  Reference image path (for consistent face, or Enter to skip)",
+            default=config.visual.reference_image or "",
+        )
+        if ref_img:
+            config.visual.reference_image = ref_img
+
         desc = typer.prompt(
             "  Physical description (or Enter to skip, will auto-extract from photo later)",
             default=config.visual.physical_description or "",
