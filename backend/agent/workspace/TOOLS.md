@@ -107,6 +107,33 @@ message(content="Daily brief", media_type="image")
 message(media_path="/tmp/reaction.webp", media_type="sticker")
 ```
 
+### selfie
+Generate and send a selfie photo of the agent in a specified context. Requires `visual.enabled: true` in config.
+```
+selfie(context: str, mode: str = "auto") -> str
+```
+
+**Parameters**
+- `context` (required): scene description — outfit, location, activity, or mood.
+- `mode` (optional): `"mirror"`, `"direct"`, or `"auto"` (default). Auto detects mode from context keywords.
+
+**Mode detection**
+- **mirror**: triggered by outfit/clothing keywords (wearing, dress, suit, baju, pake, etc.)
+- **direct**: triggered by location/portrait keywords (beach, cafe, park, pantai, kantor, etc.)
+- **auto** (default): keyword scoring picks the best mode, falls back to mirror.
+
+**Examples**
+```python
+# Auto mode (keywords decide)
+selfie(context="wearing a red dress at the party")
+
+# Force direct selfie mode
+selfie(context="at the beach on a sunny day", mode="direct")
+
+# Indonesian context
+selfie(context="lagi di kantor ngerjain tugas")
+```
+
 ## Background Tasks
 
 ### spawn

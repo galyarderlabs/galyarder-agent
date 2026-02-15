@@ -12,6 +12,7 @@ Primary config path:
 - `channels`: Telegram, WhatsApp, Email, Slack channel toggles and allowlists
 - `providers`: API base, key, and extra headers for model routing
 - `tools`: shell timeout, workspace restriction, web search settings
+- `visual`: selfie generation — image provider, physical description, prompt templates
 - `google`: OAuth credentials for Gmail/Calendar/Docs/Sheets/Drive
 
 ## Safety defaults
@@ -164,3 +165,81 @@ Policy fields under `tools.plugins`:
 - `deny`: optional plugin name denylist (overrides allow)
 
 See [Plugins](plugins.md) for plugin SDK, policy examples, and verification steps.
+
+## Visual identity (selfie generation)
+
+The `visual` section enables AI-generated selfie photos with consistent appearance.
+
+### Setup
+
+1. Provide a reference photo or write a physical description manually
+2. Configure an image generation provider
+3. Enable the feature
+
+### Provider options
+
+| Provider | Config `provider` | Cost | Notes |
+| --- | --- | --- | --- |
+| HuggingFace | `huggingface` | Free | Rate limited ~1000/5min |
+| Cloudflare Workers AI | `cloudflare` | Free | ~2000 img/day, requires `accountId` |
+| Nebius | `nebius` | $0.001/img | OpenAI-compatible |
+| OpenAI-compatible | `openai-compatible` | Varies | Local vLLM, ComfyUI, etc. |
+
+### Example: Cloudflare (free)
+
+```json
+{
+  "visual": {
+    "enabled": true,
+    "referenceImage": "~/Photos/myphoto.jpg",
+    "imageGen": {
+      "provider": "cloudflare",
+      "apiKey": "your-cf-api-token",
+      "accountId": "your-cloudflare-account-id",
+      "model": "@cf/black-forest-labs/flux-1-schnell"
+    }
+  }
+}
+```
+
+### Example: HuggingFace (free)
+
+```json
+{
+  "visual": {
+    "enabled": true,
+    "physicalDescription": "25-year-old man with short black hair, brown eyes",
+    "imageGen": {
+      "provider": "huggingface",
+      "apiKey": "hf_xxxxx",
+      "model": "black-forest-labs/FLUX.1-schnell"
+    }
+  }
+}
+```
+
+### Fields
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `enabled` | bool | `false` | Enable selfie generation |
+| `referenceImage` | string | `""` | Path to reference photo for vision extraction |
+| `physicalDescription` | string | `""` | Physical traits (auto-extracted or manual) |
+| `imageGen.provider` | string | `""` | Provider name |
+| `imageGen.apiKey` | string | `""` | Provider API key |
+| `imageGen.apiBase` | string | `""` | Custom endpoint URL |
+| `imageGen.model` | string | `""` | Model identifier |
+| `imageGen.accountId` | string | `""` | Cloudflare account ID |
+| `imageGen.timeout` | int | `30` | Request timeout (seconds) |
+| `defaultFormat` | string | `"jpeg"` | Output image format |
+| `promptTemplates` | object | (builtin) | `mirror` and `direct` prompt templates |
+| `mirrorKeywords` | list | (builtin) | Keywords triggering mirror selfie mode |
+| `directKeywords` | list | (builtin) | Keywords triggering direct selfie mode |
+
+### How it works
+
+1. **One-time setup:** Vision LLM extracts physical traits from reference photo → saved to `physicalDescription`
+2. **Every selfie:** Physical description is injected into prompt template → sent to text-to-image provider
+3. **Delivery:** Generated image saved locally → sent via existing media pipeline (Telegram/WhatsApp/etc.)
+
+If `physicalDescription` is already set (manually or from previous extraction), the reference image is not needed again.

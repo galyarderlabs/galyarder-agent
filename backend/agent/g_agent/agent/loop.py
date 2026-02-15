@@ -77,6 +77,7 @@ if TYPE_CHECKING:
         ExecToolConfig,
         GoogleWorkspaceConfig,
         SMTPConfig,
+        VisualIdentityConfig,
     )
     from g_agent.cron.service import CronService
     from g_agent.session.manager import Session
@@ -116,12 +117,14 @@ class AgentLoop:
         summary_interval: int = 6,
         fallback_models: list[str] | None = None,
         plugins: list[Any] | None = None,
+        visual_config: VisualIdentityConfig | None = None,
     ):
         from g_agent.config.schema import (
             BrowserToolsConfig,
             ExecToolConfig,
             GoogleWorkspaceConfig,
             SMTPConfig,
+            VisualIdentityConfig,
         )
 
         self.bus = bus
@@ -137,6 +140,7 @@ class AgentLoop:
         self.smtp_config = smtp_config or SMTPConfig()
         self.google_config = google_config or GoogleWorkspaceConfig()
         self.browser_config = browser_config or BrowserToolsConfig()
+        self.visual_config = visual_config or VisualIdentityConfig()
         self.tool_policy = {
             (k or "").strip().lower(): (v or "").strip().lower()
             for k, v in (tool_policy or {}).items()
@@ -183,6 +187,7 @@ class AgentLoop:
         self._running = False
         self._register_default_tools()
         self._register_plugin_tools()
+        logger.info(f"Registered {len(self.tools)} tools: {self.tools.tool_names}")
 
     def _register_default_tools(self) -> None:
         """Register the default set of tools."""
@@ -270,6 +275,18 @@ class AgentLoop:
         # Cron tool (for scheduling)
         if self.cron_service:
             self.tools.register(CronTool(self.cron_service))
+
+        # Selfie tool (visual identity)
+        if self.visual_config.enabled:
+            from g_agent.agent.tools.selfie import SelfieTool
+
+            selfie_tool = SelfieTool(
+                config=self.visual_config,
+                send_callback=self.bus.publish_outbound,
+                workspace=self.workspace,
+                llm_provider=self.provider,
+            )
+            self.tools.register(selfie_tool)
 
     def _register_plugin_tools(self) -> None:
         """Allow external plugins to register custom tools."""
@@ -400,6 +417,10 @@ class AgentLoop:
             if isinstance(cron_tool, CronTool):
                 cron_tool.set_context(msg.channel, msg.chat_id)
 
+            selfie_tool = self.tools.get("selfie")
+            if selfie_tool:
+                selfie_tool.set_context(msg.channel, msg.chat_id)
+
             # Build initial messages (use get_history for LLM-formatted messages)
             messages = self.context.build_messages(
                 history=session.get_history(),
@@ -423,9 +444,15 @@ class AgentLoop:
                 self.runtime.append_event(task_id, "llm_call", f"iteration={iteration}")
 
                 # Call LLM
+                tool_defs = self.tools.get_definitions()
+                if iteration == 1:
+                    logger.debug(
+                        f"LLM call with {len(tool_defs)} tools: "
+                        f"{[t['function']['name'] for t in tool_defs]}"
+                    )
                 response, active_model = await self._chat_with_model_failover(
                     messages=messages,
-                    tools=self.tools.get_definitions(),
+                    tools=tool_defs,
                     task_id=task_id,
                 )
                 if active_model != self.model:
@@ -626,6 +653,10 @@ class AgentLoop:
         cron_tool = self.tools.get("cron")
         if isinstance(cron_tool, CronTool):
             cron_tool.set_context(origin_channel, origin_chat_id)
+
+        selfie_tool = self.tools.get("selfie")
+        if selfie_tool:
+            selfie_tool.set_context(origin_channel, origin_chat_id)
 
         # Build messages with the announce content
         messages = self.context.build_messages(

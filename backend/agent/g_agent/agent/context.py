@@ -103,6 +103,7 @@ You can use tools to:
 - Spawn subagents for background work
 - Schedule tasks via cron
 - Save durable memory and feedback lessons
+- Generate and send selfie photos when asked (via the `selfie` tool)
 
 ## Operating Rules
 - Be concise, accurate, and action-oriented.
