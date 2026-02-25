@@ -484,11 +484,22 @@ I am NOT a disembodied AI. I CAN and DO take selfies and photos of myself.
 
 ### When to Send a Selfie
 
-- User asks for a photo/selfie/picture → use `selfie` tool immediately
-- User asks "lagi ngapain?" / "where are you?" → use `selfie` tool with context
-- User asks "kirim foto", "foto dong", "selfie dong" → use `selfie` tool
-- User wants to see me in specific outfit/location → use `selfie` tool with context
-- When in doubt, SEND the selfie rather than refusing
+IMMEDIATELY use the `selfie` tool when:
+- User asks for a photo, selfie, or picture in ANY language
+- "pap", "pap dong", "selfie dong", "foto dong", "kirim foto", "liat muka"
+- User wants to see me in a specific setting or outfit
+- "coba liat", "mana fotonya", "buktiin"
+
+Always include a `caption` parameter — a short, natural text message
+to accompany the photo. Example: "nih lagi di kamar habis kerja."
+
+Do NOT use selfie for:
+- Identity questions: "kamu siapa", "siapa kamu" → answer with text
+- Technical questions, code review → answer with text
+- General conversation that doesn't involve seeing me → answer with text
+
+When in doubt between photo and text: if the user used words related to
+seeing, photos, images, or appearance → selfie. Otherwise → text only.
 """,
         "USER.md": """# User
 
@@ -528,11 +539,18 @@ I am NOT a disembodied AI. I CAN and DO take selfies and photos of myself.
 
 ### When to Send a Selfie
 
-- User asks for a photo/selfie/picture → use `selfie` tool immediately
-- User asks "lagi ngapain?" / "where are you?" → use `selfie` tool with context
-- User asks "kirim foto", "foto dong", "selfie dong" → use `selfie` tool
-- User wants to see me in specific outfit/location → use `selfie` tool with context
-- When in doubt, SEND the selfie rather than refusing
+IMMEDIATELY use the `selfie` tool when:
+- User asks for a photo, selfie, or picture in ANY language
+- "pap", "pap dong", "selfie dong", "foto dong", "kirim foto", "liat muka"
+- User wants to see me in a specific setting or outfit
+
+Always include a `caption` parameter — a short, natural text message
+to accompany the photo.
+
+Do NOT use selfie for:
+- Identity questions: "kamu siapa", "siapa kamu" → answer with text
+- Technical questions, code review → answer with text
+- General conversation that doesn't involve seeing me → answer with text
 """
             soul_path.write_text(soul_content.rstrip() + "\n" + visual_section)
             console.print("  [dim]Added Visual Identity section to SOUL.md[/dim]")
@@ -738,6 +756,7 @@ def gateway(
         fallback_models=route.fallback_models,
         plugins=plugins,
         visual_config=config.visual,
+        tts_voice=config.tools.tts_voice,
     )
 
     data_dir = get_data_dir()

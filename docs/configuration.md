@@ -274,3 +274,26 @@ When `loraTrigger` is set, `physicalDescription` and `referenceImage` are not ne
 3. **Delivery:** Generated image saved locally → sent via existing media pipeline (Telegram/WhatsApp/etc.)
 
 If `physicalDescription` is already set (manually or from previous extraction), the reference image is not needed again.
+
+## TTS (Text-to-Speech)
+
+The `message` tool can synthesize voice notes using edge-tts (Microsoft Neural TTS).
+
+### Configuration
+
+```json
+{
+  "tools": {
+    "ttsVoice": "id-ID-GadisNeural"
+  }
+}
+```
+
+### Fields
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `ttsVoice` | string | `"id-ID-GadisNeural"` | edge-tts voice name for TTS synthesis |
+
+Run `edge-tts --list-voices` for all available voices. Requires `pip install edge-tts`.
+Falls back to espeak-ng if edge-tts is unavailable.

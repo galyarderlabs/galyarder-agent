@@ -69,7 +69,17 @@ def test_whatsapp_channel_builds_media_payload(tmp_path: Path):
 
     class DummyWS:
         async def send(self, raw: str) -> None:
-            sent_payloads.append(json.loads(raw))
+            data = json.loads(raw)
+            sent_payloads.append(data)
+            # Schedule ACK resolution on next event loop tick so the
+            # future is registered by _wait_for_send_ack before we resolve it.
+            request_id = data.get("request_id")
+            if request_id:
+                def _resolve_ack():
+                    future = channel._pending_send_acks.pop(request_id, None)
+                    if future and not future.done():
+                        future.set_result({"type": "sent", "to": data.get("to"), "request_id": request_id})
+                asyncio.get_event_loop().call_soon(_resolve_ack)
 
     media_file = tmp_path / "sticker.webp"
     media_file.write_bytes(b"webp")

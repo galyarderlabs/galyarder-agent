@@ -15,7 +15,7 @@ import makeWASocket, {
 import { Boom } from '@hapi/boom';
 import qrcode from 'qrcode-terminal';
 import pino from 'pino';
-import { mkdirSync, writeFileSync } from 'fs';
+import { mkdirSync, readFileSync, statSync, writeFileSync } from 'fs';
 import { basename, join } from 'path';
 
 const VERSION = '0.1.0';
@@ -231,31 +231,35 @@ export class WhatsAppClient {
     let payload: Record<string, unknown>;
 
     if (mediaPath) {
+      const mediaBuffer = this.readLocalMedia(mediaPath);
       if (mediaType === 'image') {
         payload = {
-          image: { url: mediaPath },
+          image: mediaBuffer,
           caption,
           mimetype: options.mimeType || undefined,
         };
       } else if (mediaType === 'voice') {
         payload = {
-          audio: { url: mediaPath },
+          audio: mediaBuffer,
           ptt: true,
           mimetype: options.mimeType || 'audio/ogg; codecs=opus',
         };
       } else if (mediaType === 'audio') {
         payload = {
-          audio: { url: mediaPath },
+          audio: mediaBuffer,
           ptt: false,
           mimetype: options.mimeType || undefined,
         };
       } else if (mediaType === 'sticker') {
         payload = {
-          sticker: { url: mediaPath },
+          sticker: mediaBuffer,
         };
       } else {
+        if (mediaType !== 'document') {
+          console.warn(`Unknown outbound media type "${mediaType}" for ${mediaPath}; falling back to document`);
+        }
         payload = {
-          document: { url: mediaPath },
+          document: mediaBuffer,
           fileName: basename(mediaPath),
           caption,
           mimetype: options.mimeType || undefined,
@@ -268,6 +272,13 @@ export class WhatsAppClient {
     const sent = await this.sock.sendMessage(to, payload);
     const sentId = sent?.key?.id as string | undefined;
     this.trackOutgoing(to, text, sentId);
+  }
+
+  async sendAction(to: string, action: string): Promise<void> {
+    if (!this.sock) return;
+    if (action === 'typing') {
+      await this.sock.sendPresenceUpdate('composing', to);
+    }
   }
 
   async disconnect(): Promise<void> {
@@ -314,6 +325,28 @@ export class WhatsAppClient {
     if (mediaType === 'document') return 'bin';
     if (mediaType === 'sticker') return 'webp';
     return 'dat';
+  }
+
+  private readLocalMedia(mediaPath: string): Buffer {
+    let stats;
+    try {
+      stats = statSync(mediaPath);
+    } catch (error) {
+      throw new Error(`Local media file not readable: ${mediaPath} (${String(error)})`);
+    }
+
+    if (!stats.isFile()) {
+      throw new Error(`Local media path is not a file: ${mediaPath}`);
+    }
+    if (stats.size <= 0) {
+      throw new Error(`Local media file is empty: ${mediaPath}`);
+    }
+
+    try {
+      return readFileSync(mediaPath);
+    } catch (error) {
+      throw new Error(`Failed to read local media file: ${mediaPath} (${String(error)})`);
+    }
   }
 
   private resolveOutboundMediaType(mediaPath: string, explicitType?: string): string {

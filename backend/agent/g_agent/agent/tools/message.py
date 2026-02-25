@@ -51,11 +51,13 @@ class MessageTool(Tool):
         default_channel: str = "",
         default_chat_id: str = "",
         workspace: Path | None = None,
+        tts_voice: str = "id-ID-GadisNeural",
     ):
         self._send_callback = send_callback
         self._default_channel = default_channel
         self._default_chat_id = default_chat_id
         self._workspace = workspace.expanduser().resolve() if workspace else None
+        self._tts_voice = tts_voice
 
     def set_context(self, channel: str, chat_id: str) -> None:
         """Set the current message context."""
@@ -244,7 +246,7 @@ class MessageTool(Tool):
 
         mp3_path = target_dir / f"{stem}.mp3"
         try:
-            communicate = edge_tts.Communicate(text, voice="id-ID-GadisNeural")
+            communicate = edge_tts.Communicate(text, voice=self._tts_voice)
             await communicate.save(str(mp3_path))
         except Exception:
             return None

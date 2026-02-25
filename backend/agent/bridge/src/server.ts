@@ -13,7 +13,17 @@ interface SendCommand {
   mediaType?: string;
   mimeType?: string;
   caption?: string;
+  request_id?: string;
 }
+
+interface ActionCommand {
+  type: 'action';
+  to: string;
+  action: string;
+  request_id?: string;
+}
+
+type Command = SendCommand | ActionCommand;
 
 interface AuthMessage {
   type: 'auth';
@@ -111,12 +121,27 @@ export class BridgeServer {
 
     ws.on('message', async (data) => {
       try {
-        const cmd = JSON.parse(data.toString()) as SendCommand;
+        const cmd = JSON.parse(data.toString()) as Command;
         await this.handleCommand(cmd);
-        ws.send(JSON.stringify({ type: 'sent', to: cmd.to }));
+        const ack = { type: 'sent' as const, to: cmd.to, request_id: cmd.request_id ?? null };
+        ws.send(JSON.stringify(ack));
       } catch (error) {
         console.error('Error handling command:', error);
-        ws.send(JSON.stringify({ type: 'error', error: String(error) }));
+        let requestId: string | undefined;
+        try {
+          const parsed = JSON.parse(data.toString()) as Partial<SendCommand>;
+          requestId = parsed.request_id;
+        } catch {
+          requestId = undefined;
+        }
+        ws.send(
+          JSON.stringify({
+            type: 'error',
+            error: error instanceof Error ? error.message : String(error),
+            category: 'send_error',
+            request_id: requestId,
+          })
+        );
       }
     });
 
@@ -131,14 +156,18 @@ export class BridgeServer {
     });
   }
 
-  private async handleCommand(cmd: SendCommand): Promise<void> {
-    if (cmd.type === 'send' && this.wa) {
-      await this.wa.sendMessage(cmd.to, cmd.text, {
-        mediaPath: cmd.mediaPath,
-        mediaType: cmd.mediaType,
-        mimeType: cmd.mimeType,
-        caption: cmd.caption,
-      });
+  private async handleCommand(cmd: Command): Promise<void> {
+    if (this.wa) {
+      if (cmd.type === 'send') {
+        await this.wa.sendMessage(cmd.to, cmd.text, {
+          mediaPath: cmd.mediaPath,
+          mediaType: cmd.mediaType,
+          mimeType: cmd.mimeType,
+          caption: cmd.caption,
+        });
+      } else if (cmd.type === 'action') {
+        await this.wa.sendAction(cmd.to, cmd.action);
+      }
     }
   }
 

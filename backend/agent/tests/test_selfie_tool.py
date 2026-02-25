@@ -381,7 +381,7 @@ def test_image_save_to_workspace(tmp_path, monkeypatch):
 
 
 def test_outbound_message_media(tmp_path, monkeypatch):
-    """Test 18: OutboundMessage has media path and metadata."""
+    """Test 18: OutboundMessage has media path, metadata, and optional caption."""
     fake_resp = _FakeResponse(content=b"media-img", content_type="image/jpeg")
     fake_client = _FakeAsyncClient(fake_resp)
     monkeypatch.setattr(
@@ -390,7 +390,7 @@ def test_outbound_message_media(tmp_path, monkeypatch):
     )
 
     tool, captured = _make_tool(tmp_path=tmp_path)
-    asyncio.run(tool.execute(context="at a park"))
+    asyncio.run(tool.execute(context="at a park", caption="Here I am at the park!"))
 
     assert len(captured) == 1
     msg = captured[0]
@@ -398,6 +398,7 @@ def test_outbound_message_media(tmp_path, monkeypatch):
     assert msg.chat_id == "123"
     assert len(msg.media) == 1
     assert msg.media[0].endswith(".jpeg")
+    assert msg.content == "Here I am at the park!"
     assert msg.metadata["media_type"] == "image"
     assert msg.metadata["mime_type"] == "image/jpeg"
     assert msg.metadata["selfie_mode"] == "direct"

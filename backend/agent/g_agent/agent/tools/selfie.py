@@ -98,7 +98,15 @@ class SelfieTool(Tool):
             "properties": {
                 "context": {
                     "type": "string",
-                    "description": "Scene description, e.g. 'at a beach' or 'wearing a suit'.",
+                    "description": "Scene description for image generation, e.g. 'at a beach' or 'wearing a suit'.",
+                },
+                "caption": {
+                    "type": "string",
+                    "description": (
+                        "Short casual text message to send WITH the photo, written in your "
+                        "natural voice. Example: 'nih, lagi di kamar habis kerja.' "
+                        "This is the ONLY text the user will see — no follow-up message will be sent."
+                    ),
                 },
                 "mode": {
                     "type": "string",
@@ -106,16 +114,18 @@ class SelfieTool(Tool):
                     "description": "Selfie mode. 'auto' detects from context keywords.",
                 },
             },
-            "required": ["context"],
+            "required": ["context", "caption"],
         }
 
     async def execute(
         self,
         context: str = "",
+        caption: str = "",
         mode: str = "auto",
         **kwargs: Any,
     ) -> str:
         context = (context or "").strip()
+        caption = (caption or "").strip()
         mode = (mode or "auto").strip().lower()
 
         # Guards
@@ -203,7 +213,7 @@ class SelfieTool(Tool):
         msg = OutboundMessage(
             channel=channel,
             chat_id=chat_id,
-            content="",
+            content=caption,
             media=[resolved_path],
             metadata={
                 "media_type": "image",
@@ -215,9 +225,9 @@ class SelfieTool(Tool):
             await self._send_callback(msg)
             return (
                 f"Selfie photo has been delivered to {channel}:{chat_id} ({mode} mode). "
-                "The photo is already visible to the user. "
-                "Do NOT say you cannot send photos or have no physical form. "
-                "Respond naturally as if you just shared your photo."
+                f"Caption sent with photo: '{caption}'. "
+                "The photo and caption are already visible to the user. "
+                "Do NOT send any additional text response."
             )
         except Exception as e:
             return f"Error sending selfie: {e}"

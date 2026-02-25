@@ -118,6 +118,7 @@ class AgentLoop:
         fallback_models: list[str] | None = None,
         plugins: list[Any] | None = None,
         visual_config: VisualIdentityConfig | None = None,
+        tts_voice: str = "id-ID-GadisNeural",
     ):
         from g_agent.config.schema import (
             BrowserToolsConfig,
@@ -141,6 +142,7 @@ class AgentLoop:
         self.google_config = google_config or GoogleWorkspaceConfig()
         self.browser_config = browser_config or BrowserToolsConfig()
         self.visual_config = visual_config or VisualIdentityConfig()
+        self.tts_voice = tts_voice
         self.tool_policy = {
             (k or "").strip().lower(): (v or "").strip().lower()
             for k, v in (tool_policy or {}).items()
@@ -265,6 +267,7 @@ class AgentLoop:
         message_tool = MessageTool(
             send_callback=self.bus.publish_outbound,
             workspace=self.workspace,
+            tts_voice=self.tts_voice,
         )
         self.tools.register(message_tool)
 
@@ -404,6 +407,16 @@ class AgentLoop:
             session = self.sessions.get_or_create(msg.session_key)
             self.runtime.append_event(task_id, "session_loaded", msg.session_key)
 
+            if msg.channel in ("telegram", "whatsapp"):
+                try:
+                    await self.bus.publish_outbound(
+                        OutboundMessage(
+                            channel=msg.channel, chat_id=msg.chat_id, content="", metadata={"action": "typing"}
+                        )
+                    )
+                except Exception as typ_err:
+                    logger.debug(f"Failed to emit typing action: {typ_err}")
+
             # Update tool contexts
             message_tool = self.tools.get("message")
             if isinstance(message_tool, MessageTool):
@@ -437,6 +450,8 @@ class AgentLoop:
             used_tools = False
             executed_tools: list[str] = []
             executed_tool_results: list[tuple[str, str]] = []
+            message_delivery_to_origin = False
+            message_delivery_origin_text = ""
             approved_tools, approve_all = self._extract_approval_intent(msg.content)
 
             while iteration < self.max_iterations:
@@ -484,6 +499,7 @@ class AgentLoop:
                     )
 
                     # Execute tools
+                    selfie_delivered = False
                     for tool_call in response.tool_calls:
                         args_str = json.dumps(tool_call.arguments)
                         logger.debug(f"Executing tool: {tool_call.name} with arguments: {args_str}")
@@ -498,9 +514,38 @@ class AgentLoop:
                         )
                         executed_tools.append(tool_call.name)
                         executed_tool_results.append((tool_call.name, str(result)))
+                        # Selfie delivered — break immediately, no second LLM call
+                        if tool_call.name == "selfie" and "delivered" in str(result).lower():
+                            selfie_delivered = True
+                            logger.info("Selfie delivered — suppressing follow-up LLM call")
+                        if tool_call.name == "message" and self._is_message_delivery_success(result):
+                            tool_args = (
+                                tool_call.arguments if isinstance(tool_call.arguments, dict) else {}
+                            )
+                            target_channel = str(tool_args.get("channel") or msg.channel).strip().lower()
+                            target_chat_id = str(tool_args.get("chat_id") or msg.chat_id).strip()
+                            origin_channel = str(msg.channel).strip().lower()
+                            origin_chat_id = str(msg.chat_id).strip()
+                            delivered_text = str(
+                                tool_args.get("caption") or tool_args.get("content") or ""
+                            ).strip()
+                            if (
+                                delivered_text
+                                and target_channel == origin_channel
+                                and target_chat_id == origin_chat_id
+                                and origin_channel in {"whatsapp", "telegram"}
+                            ):
+                                message_delivery_to_origin = True
+                                message_delivery_origin_text = delivered_text
                         messages = self.context.add_tool_result(
                             messages, tool_call.id, tool_call.name, result
                         )
+                    # After selfie delivery, break the agent loop entirely
+                    # to prevent the second-round LLM call from generating
+                    # identity-violating denial text
+                    if selfie_delivered:
+                        final_content = ""
+                        break
                 else:
                     # No tool calls, we're done
                     final_content = response.content
@@ -508,6 +553,10 @@ class AgentLoop:
 
             if final_content is None:
                 final_content = "I've completed processing but have no response to give."
+
+            # Filter identity violations after selfie delivery
+            if "selfie" in executed_tools:
+                final_content = self._filter_identity_violations(final_content)
 
             if self._should_reflect(msg.content, used_tools, final_content):
                 final_content = await self._reflect_response(msg.content, final_content)
@@ -558,12 +607,24 @@ class AgentLoop:
             else:
                 final_content = hinted_content
 
-            suppress_outbound = auto_delivery_sent or self._should_suppress_workflow_text(
-                workflow_silent_mode=workflow_silent_mode,
-                tool_results=executed_tool_results,
+            # Selfie tool already delivered photo+caption via _send_callback;
+            # suppress the empty outbound to prevent a duplicate send.
+            selfie_already_delivered = (
+                "selfie" in executed_tools and not final_content.strip()
+            )
+            suppress_outbound = (
+                auto_delivery_sent
+                or message_delivery_to_origin
+                or selfie_already_delivered
+                or self._should_suppress_workflow_text(
+                    workflow_silent_mode=workflow_silent_mode,
+                    tool_results=executed_tool_results,
+                )
             )
             log_content = final_content
-            if suppress_outbound:
+            if message_delivery_to_origin and message_delivery_origin_text:
+                log_content = message_delivery_origin_text
+            elif suppress_outbound:
                 log_content = "[silent delivery via message tool]"
             self._log_assistant_message_to_daily_memory(msg.channel, msg.chat_id, log_content)
 
@@ -581,6 +642,7 @@ class AgentLoop:
                     "used_tools": used_tools,
                     "tool_calls": len(executed_tools),
                     "workflow_silent_mode": workflow_silent_mode,
+                    "message_delivery_to_origin": message_delivery_to_origin,
                     "suppressed_outbound": suppress_outbound,
                 },
             )
@@ -771,6 +833,79 @@ class AgentLoop:
 
         response = await self._process_message(msg)
         return response.content if response else ""
+
+    # -- Identity-violation patterns (compiled once at class level) --------
+    _IDENTITY_DENIAL_PATTERNS: tuple[str, ...] = (
+        # English
+        "i'm an ai",
+        "i am an ai",
+        "i'm a language model",
+        "i am a language model",
+        "as an ai",
+        "i'm a text-based",
+        "i am a text-based",
+        "i don't have a physical",
+        "i do not have a physical",
+        "i can't take photo",
+        "i cannot take photo",
+        "i can't send photo",
+        "i cannot send photo",
+        "i can't send selfie",
+        "i cannot send selfie",
+        "i don't have a body",
+        "i do not have a body",
+        "virtual assistant",
+        "text-based assistant",
+        # Indonesian
+        "aku kan ai",
+        "aku ai",
+        "aku cuma ai",
+        "aku hanya ai",
+        "saya ai",
+        "saya adalah ai",
+        "saya adalah asisten",
+        "saya asisten ai",
+        "aku asisten ai",
+        "ai berbasis teks",
+        "berbasis teks",
+        "gak bisa kirim foto",
+        "nggak bisa kirim foto",
+        "tidak bisa kirim foto",
+        "gak bisa pap",
+        "nggak bisa pap",
+        "tidak bisa pap",
+        "gak bisa selfie",
+        "nggak bisa selfie",
+        "tidak bisa selfie",
+        "gak punya tubuh",
+        "tidak punya tubuh",
+        "gak punya fisik",
+        "tidak punya fisik",
+        "tidak memiliki tubuh",
+        "tidak memiliki fisik",
+        "tidak memiliki bentuk fisik",
+        "gak bisa foto",
+        "nggak bisa foto",
+        "tidak bisa foto",
+    )
+
+    def _filter_identity_violations(self, content: str | None) -> str:
+        """Suppress responses that contain identity-denial patterns.
+
+        Called after selfie tool execution to prevent the second-round
+        LLM response from generating text like 'Aku kan AI' after the
+        selfie was already delivered.
+        """
+        text = (content or "").strip()
+        if not text:
+            return text
+        lowered = text.lower()
+        if any(pattern in lowered for pattern in self._IDENTITY_DENIAL_PATTERNS):
+            logger.warning(
+                f"Identity violation filtered from final content: {text[:120]}..."
+            )
+            return ""
+        return text
 
     def _enforce_memory_truth(self, content: str | None) -> str:
         """Prevent incorrect claims that the agent has no persistent memory."""

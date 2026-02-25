@@ -385,6 +385,7 @@ class ToolsConfig(BaseModel):
             "message",
         ]
     )
+    tts_voice: str = "id-ID-GadisNeural"  # edge-tts voice name
     approval_mode: str = "off"  # off|confirm
 
 

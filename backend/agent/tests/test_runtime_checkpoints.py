@@ -245,6 +245,102 @@ def test_agent_loop_keeps_stale_text_when_voice_requested_and_message_tool_used(
     assert "gue bisa kirim voice note" not in result.lower()
 
 
+def test_agent_loop_suppresses_final_text_after_message_tool_to_same_whatsapp_chat(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setenv("G_AGENT_DATA_DIR", str(tmp_path / "data"))
+    provider = DummyProvider(
+        responses=[
+            LLMResponse(
+                content="",
+                tool_calls=[
+                    ToolCallRequest(
+                        id="call_1",
+                        name="message",
+                        arguments={"content": "Gua g-agent, partner eksekusi lo."},
+                    )
+                ],
+            ),
+            LLMResponse(content="I am Gemini, a large language model built by Google."),
+        ]
+    )
+    bus = MessageBus()
+    loop = AgentLoop(
+        bus=bus,
+        provider=provider,
+        workspace=tmp_path,
+        model="dummy-model",
+        max_iterations=3,
+        enable_reflection=False,
+        approval_mode="off",
+    )
+
+    result = asyncio.run(
+        loop.process_direct(
+            content="who are u?",
+            session_key="whatsapp:chat-1",
+            channel="whatsapp",
+            chat_id="chat-1",
+        )
+    )
+
+    assert result == ""
+    
+    # Extract all outbound messages
+    outbound_msgs = []
+    while bus.outbound_size > 0:
+        outbound_msgs.append(asyncio.run(bus.consume_outbound()))
+    
+    visible_msgs = [m for m in outbound_msgs if m.metadata.get("action") != "typing"]
+    assert len(visible_msgs) == 1
+    outbound = visible_msgs[0]
+    
+    assert outbound.channel == "whatsapp"
+    assert outbound.chat_id == "chat-1"
+    assert outbound.content == "Gua g-agent, partner eksekusi lo."
+
+
+def test_agent_loop_keeps_follow_up_text_when_message_tool_content_empty(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setenv("G_AGENT_DATA_DIR", str(tmp_path / "data"))
+    provider = DummyProvider(
+        responses=[
+            LLMResponse(
+                content="",
+                tool_calls=[
+                    ToolCallRequest(
+                        id="call_1",
+                        name="message",
+                        arguments={"media_path": "/tmp/fake-image.png", "media_type": "image"},
+                    )
+                ],
+            ),
+            LLMResponse(content="Cek image tadi, ini highlight pentingnya."),
+        ]
+    )
+    loop = AgentLoop(
+        bus=MessageBus(),
+        provider=provider,
+        workspace=tmp_path,
+        model="dummy-model",
+        max_iterations=3,
+        enable_reflection=False,
+        approval_mode="off",
+    )
+
+    result = asyncio.run(
+        loop.process_direct(
+            content="kirim gambar terus jelasin",
+            session_key="whatsapp:chat-2",
+            channel="whatsapp",
+            chat_id="chat-2",
+        )
+    )
+
+    assert result == "Cek image tadi, ini highlight pentingnya."
+
+
 def test_agent_loop_rewrites_stale_english_voice_denial_when_voice_requested(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
@@ -400,8 +496,9 @@ def test_agent_loop_auto_sends_voice_on_telegram_without_message_tool(
     )
 
     assert result == ""
-    assert len(captured) == 1
-    outbound = captured[0]
+    visible_captured = [m for m in captured if m.metadata.get("action") != "typing"]
+    assert len(visible_captured) == 1
+    outbound = visible_captured[0]
     assert outbound.channel == "telegram"
     assert outbound.chat_id == "12345"
     assert outbound.metadata.get("media_type") == "voice"
@@ -457,8 +554,9 @@ def test_agent_loop_auto_sends_voice_for_natural_voice_phrase(
     )
 
     assert result == ""
-    assert len(captured) == 1
-    outbound = captured[0]
+    visible_captured = [m for m in captured if m.metadata.get("action") != "typing"]
+    assert len(visible_captured) == 1
+    outbound = visible_captured[0]
     assert outbound.channel == "telegram"
     assert outbound.chat_id == "12345"
     assert outbound.metadata.get("media_type") == "voice"
@@ -550,8 +648,9 @@ def test_agent_loop_auto_voice_does_not_echo_denial_text_as_caption(
     )
 
     assert result == ""
-    assert len(captured) == 1
-    outbound = captured[0]
+    visible_captured = [m for m in captured if m.metadata.get("action") != "typing"]
+    assert len(visible_captured) == 1
+    outbound = visible_captured[0]
     assert outbound.metadata.get("media_type") == "voice"
     assert "don't have a voice tool" not in outbound.content.lower()
     assert "don't have a voice tool" not in str(outbound.metadata.get("caption", "")).lower()
@@ -602,8 +701,9 @@ def test_agent_loop_auto_voice_uses_contextual_reply_instead_of_static_template(
     )
 
     assert result == ""
-    assert len(captured) == 1
-    outbound = captured[0]
+    visible_captured = [m for m in captured if m.metadata.get("action") != "typing"]
+    assert len(visible_captured) == 1
+    outbound = visible_captured[0]
     assert outbound.metadata.get("media_type") == "voice"
     assert outbound.content == "Lo orangnya direct, tegas, dan fokus hasil."
     assert "halo, ini voice note" not in outbound.content.lower()
@@ -656,8 +756,9 @@ def test_agent_loop_auto_voice_handles_pake_suara_phrase_with_about_me_context(
     )
 
     assert result == ""
-    assert len(captured) == 1
-    outbound = captured[0]
+    visible_captured = [m for m in captured if m.metadata.get("action") != "typing"]
+    assert len(visible_captured) == 1
+    outbound = visible_captured[0]
     assert outbound.metadata.get("media_type") == "voice"
     assert "voice note" not in outbound.content.lower()
     assert "can't" not in outbound.content.lower()
@@ -711,8 +812,9 @@ def test_agent_loop_auto_voice_handles_indonesian_text_only_denial_phrase(
     )
 
     assert result == ""
-    assert len(captured) == 1
-    outbound = captured[0]
+    visible_captured = [m for m in captured if m.metadata.get("action") != "typing"]
+    assert len(visible_captured) == 1
+    outbound = visible_captured[0]
     assert outbound.metadata.get("media_type") == "voice"
     assert "tidak bisa melakukan analisis menggunakan suara" not in outbound.content.lower()
     assert "berbasis teks" not in outbound.content.lower()
@@ -771,8 +873,9 @@ def test_agent_loop_auto_voice_recovers_from_approve_all_meta_reply(
     )
 
     assert result == ""
-    assert len(captured) == 1
-    outbound = captured[0]
+    visible_captured = [m for m in captured if m.metadata.get("action") != "typing"]
+    assert len(visible_captured) == 1
+    outbound = visible_captured[0]
     assert outbound.metadata.get("media_type") == "voice"
     assert "approve all" not in outbound.content.lower()
     assert "mohon ketik" not in outbound.content.lower()
@@ -820,7 +923,8 @@ def test_agent_loop_does_not_auto_send_voice_for_non_delivery_voice_topic(
     )
 
     assert result == "Kemungkinan suara kamu lagi serak karena capek."
-    assert captured == []
+    visible_captured = [m for m in captured if getattr(m, "content", "") or getattr(m, "media", [])]
+    assert visible_captured == []
 
 
 def test_agent_loop_rewrites_indonesian_cross_conversation_memory_denial(
@@ -900,4 +1004,5 @@ def test_agent_loop_does_not_auto_send_voice_when_user_negates_voice_request(
     )
 
     assert result == "Siap, gue jawab via teks tanpa voice note."
-    assert captured == []
+    visible_captured = [m for m in captured if getattr(m, "content", "") or getattr(m, "media", [])]
+    assert visible_captured == []

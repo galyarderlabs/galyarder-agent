@@ -205,6 +205,16 @@ class TelegramChannel(BaseChannel):
         try:
             # chat_id should be the Telegram chat ID (integer)
             chat_id = int(msg.chat_id)
+
+            # Handle action commands (typing indicator) — early return
+            tg_metadata = msg.metadata if isinstance(msg.metadata, dict) else {}
+            tg_action = str(tg_metadata.get("action", "")).strip()
+            if tg_action == "typing":
+                from telegram.constants import ChatAction
+
+                await self._app.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
+                return
+
             media = self._resolve_outbound_media(msg)
             if media:
                 path, media_type, caption = media
@@ -247,6 +257,7 @@ class TelegramChannel(BaseChannel):
             await self._app.bot.send_message(chat_id=chat_id, text=html_content, parse_mode="HTML")
         except ValueError:
             logger.error(f"Invalid chat_id: {msg.chat_id}")
+            raise
         except Exception as e:
             # Fallback to plain text if HTML parsing fails
             logger.warning(f"HTML parse failed, falling back to plain text: {e}")
@@ -254,6 +265,7 @@ class TelegramChannel(BaseChannel):
                 await self._app.bot.send_message(chat_id=int(msg.chat_id), text=msg.content)
             except Exception as e2:
                 logger.error(f"Error sending Telegram message: {e2}")
+                raise
 
     def _resolve_outbound_media(self, msg: OutboundMessage) -> tuple[Path, str, str] | None:
         """Resolve outbound media tuple (path, type, caption)."""
@@ -267,8 +279,8 @@ class TelegramChannel(BaseChannel):
 
         path = Path(raw_path).expanduser()
         if not path.exists() or not path.is_file():
-            logger.warning(f"Telegram outbound media not found: {raw_path}")
-            return None
+            logger.error(f"Telegram outbound media not found: {raw_path}")
+            raise FileNotFoundError(f"Telegram outbound media not found: {raw_path}")
 
         media_type = str(metadata.get("media_type", "")).strip().lower()
         if media_type not in {"image", "voice", "audio", "sticker", "document"}:
