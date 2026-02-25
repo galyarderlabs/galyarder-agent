@@ -42,6 +42,9 @@ dev = [
 slack = [
     "slack_sdk>=3.27.0",
 ]
+tts = [
+    "edge-tts>=6.1.0",
+]
 
 [project.scripts]
 g-agent = "g_agent.cli.commands:app"

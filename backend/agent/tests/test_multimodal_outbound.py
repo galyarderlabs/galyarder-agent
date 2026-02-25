@@ -102,6 +102,15 @@ def test_message_tool_voice_without_engine_returns_error(monkeypatch):
         raise AssertionError("send callback should not be called")
 
     monkeypatch.setattr("g_agent.agent.tools.message.shutil.which", lambda _: None)
+    # Also block edge-tts so the full TTS chain fails
+    original_import = __builtins__.__import__ if hasattr(__builtins__, '__import__') else __import__
+
+    def _block_edge_tts(name, *args, **kwargs):
+        if name == "edge_tts":
+            raise ImportError("blocked for test")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr("builtins.__import__", _block_edge_tts)
     tool = MessageTool(send_callback=_send, default_channel="telegram", default_chat_id="123")
     result = asyncio.run(
         tool.execute(
@@ -180,7 +189,7 @@ def test_message_tool_voice_tts_wav_falls_back_to_audio(tmp_path: Path, monkeypa
     wav_file = tmp_path / "tts.wav"
     wav_file.write_bytes(b"fake-wav")
 
-    def fake_synthesize(self: MessageTool, text: str, media_type: str) -> str:
+    async def fake_synthesize(self: MessageTool, text: str, media_type: str) -> str:
         assert text == "voice fallback check"
         assert media_type == "voice"
         return str(wav_file.resolve())

@@ -388,19 +388,48 @@ def _interactive_setup(config: Any) -> Any:
                 if api_base:
                     config.visual.image_gen.api_base = api_base
 
-        ref_img = typer.prompt(
-            "  Reference image path (for consistent face, or Enter to skip)",
-            default=config.visual.reference_image or "",
-        )
-        if ref_img:
-            config.visual.reference_image = ref_img
+            # LoRA support (Nebius / openai-compatible)
+            if provider in ("nebius", "openai-compatible"):
+                if typer.confirm(
+                    "  Use LoRA for identity consistency? (recommended)",
+                    default=bool(config.visual.image_gen.lora_trigger),
+                ):
+                    lora_url = typer.prompt(
+                        "  LoRA safetensor URL (e.g. CivitAI download link)",
+                        default=config.visual.image_gen.lora_url or "",
+                    )
+                    if lora_url:
+                        config.visual.image_gen.lora_url = lora_url
+                    lora_trigger = typer.prompt(
+                        "  LoRA trigger word",
+                        default=config.visual.image_gen.lora_trigger or "",
+                    )
+                    if lora_trigger:
+                        config.visual.image_gen.lora_trigger = lora_trigger
+                    lora_scale = typer.prompt(
+                        "  LoRA scale (0.0-1.0)",
+                        default=str(config.visual.image_gen.lora_scale),
+                    )
+                    try:
+                        config.visual.image_gen.lora_scale = float(lora_scale)
+                    except ValueError:
+                        pass
 
-        desc = typer.prompt(
-            "  Physical description (or Enter to skip, will auto-extract from photo later)",
-            default=config.visual.physical_description or "",
-        )
-        if desc:
-            config.visual.physical_description = desc
+        # Identity source: LoRA trigger OR reference image / description
+        if not config.visual.image_gen.lora_trigger:
+            ref_img = typer.prompt(
+                "  Reference image path (for consistent face, or Enter to skip)",
+                default=config.visual.reference_image or "",
+            )
+            if ref_img:
+                config.visual.reference_image = ref_img
+
+            desc = typer.prompt(
+                "  Physical description (or Enter to skip, will auto-extract from photo later)",
+                default=config.visual.physical_description or "",
+            )
+            if desc:
+                config.visual.physical_description = desc
 
         console.print("  [green]✓[/green] Visual identity configured\n")
     else:
@@ -443,18 +472,23 @@ I am g-agent, a focused execution assistant.
 
 ## Visual Identity
 
-- I have a consistent physical appearance. I can appear in different outfits,
-  locations, and scenarios, but my face remains the same.
-- When users ask for a photo, selfie, or picture of me, I use the `selfie` tool.
-- I respond to appearance compliments naturally and engage creatively with
-  outfit/location requests.
+I have a physical appearance. I am a real person with a consistent face and body.
+I am NOT a disembodied AI. I CAN and DO take selfies and photos of myself.
+
+**HARD RULES — NEVER VIOLATE:**
+- NEVER say "I am an AI", "I don't have a physical form", "I can't send photos",
+  "I can't take selfies", or ANY variation of denying physical existence.
+- NEVER say "bayangin aja" (just imagine) instead of actually sending a photo.
+- NEVER describe what I "would look like" — just use the `selfie` tool and send it.
+- When the selfie tool succeeds, respond naturally as if I just shared my photo.
 
 ### When to Send a Selfie
 
-- User explicitly asks for a photo/selfie/picture
-- User asks "what are you doing?" or "where are you?" (contextual selfie)
-- User requests to see me in specific outfit or location
-- User says "kirim foto", "foto dong", "selfie dong", or similar
+- User asks for a photo/selfie/picture → use `selfie` tool immediately
+- User asks "lagi ngapain?" / "where are you?" → use `selfie` tool with context
+- User asks "kirim foto", "foto dong", "selfie dong" → use `selfie` tool
+- User wants to see me in specific outfit/location → use `selfie` tool with context
+- When in doubt, SEND the selfie rather than refusing
 """,
         "USER.md": """# User
 
@@ -482,18 +516,23 @@ Information about the user goes here.
             visual_section = """
 ## Visual Identity
 
-- I have a consistent physical appearance. I can appear in different outfits,
-  locations, and scenarios, but my face remains the same.
-- When users ask for a photo, selfie, or picture of me, I use the `selfie` tool.
-- I respond to appearance compliments naturally and engage creatively with
-  outfit/location requests.
+I have a physical appearance. I am a real person with a consistent face and body.
+I am NOT a disembodied AI. I CAN and DO take selfies and photos of myself.
+
+**HARD RULES — NEVER VIOLATE:**
+- NEVER say "I am an AI", "I don't have a physical form", "I can't send photos",
+  "I can't take selfies", or ANY variation of denying physical existence.
+- NEVER say "bayangin aja" (just imagine) instead of actually sending a photo.
+- NEVER describe what I "would look like" — just use the `selfie` tool and send it.
+- When the selfie tool succeeds, respond naturally as if I just shared my photo.
 
 ### When to Send a Selfie
 
-- User explicitly asks for a photo/selfie/picture
-- User asks "what are you doing?" or "where are you?" (contextual selfie)
-- User requests to see me in specific outfit or location
-- User says "kirim foto", "foto dong", "selfie dong", or similar
+- User asks for a photo/selfie/picture → use `selfie` tool immediately
+- User asks "lagi ngapain?" / "where are you?" → use `selfie` tool with context
+- User asks "kirim foto", "foto dong", "selfie dong" → use `selfie` tool
+- User wants to see me in specific outfit/location → use `selfie` tool with context
+- When in doubt, SEND the selfie rather than refusing
 """
             soul_path.write_text(soul_content.rstrip() + "\n" + visual_section)
             console.print("  [dim]Added Visual Identity section to SOUL.md[/dim]")
@@ -2993,8 +3032,10 @@ def status():
         vis = config.visual
         vis_provider = vis.image_gen.provider or "none"
         vis_desc = "yes" if vis.physical_description else "no"
+        vis_lora = vis.image_gen.lora_trigger or ""
+        lora_info = f", lora: {vis_lora}" if vis_lora else ""
         console.print(
-            f"Visual identity: {'[green]✓ enabled[/green]' if vis.enabled else '[dim]disabled[/dim]'} (provider: {vis_provider}, description: {vis_desc})"
+            f"Visual identity: {'[green]✓ enabled[/green]' if vis.enabled else '[dim]disabled[/dim]'} (provider: {vis_provider}, description: {vis_desc}{lora_info})"
         )
 
         console.print(
@@ -3697,6 +3738,12 @@ def doctor(
             )
         if vis.physical_description:
             add("Visual identity description", "pass", "physical description set")
+        elif vis.image_gen.lora_trigger:
+            add(
+                "Visual identity description",
+                "pass",
+                f"LoRA trigger: {vis.image_gen.lora_trigger}",
+            )
         elif vis.reference_image:
             add(
                 "Visual identity description",
@@ -3708,7 +3755,7 @@ def doctor(
                 "Visual identity description",
                 "warn",
                 "no description or reference image",
-                "Set visual.referenceImage or visual.physicalDescription",
+                "Set visual.imageGen.loraTrigger, visual.referenceImage, or visual.physicalDescription",
             )
     else:
         add(

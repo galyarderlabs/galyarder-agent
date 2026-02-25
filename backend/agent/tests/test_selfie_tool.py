@@ -449,3 +449,172 @@ def test_skip_extraction_when_description_exists(tmp_path, monkeypatch):
 
     # Provider.chat should NOT have been called for extraction
     assert provider.last_messages is None
+
+
+# ── LoRA Tests (21-25) ────────────────────────────────────────────
+
+
+def test_lora_config_defaults():
+    """Test 21: ImageGenProviderConfig has correct LoRA defaults."""
+    cfg = ImageGenProviderConfig()
+    assert cfg.lora_url == ""
+    assert cfg.lora_scale == 0.8
+    assert cfg.lora_trigger == ""
+
+
+def test_lora_trigger_skips_vision_extraction(tmp_path, monkeypatch):
+    """Test 22: LoRA trigger word bypasses vision extraction entirely."""
+    b64_img = base64.b64encode(b"lora-image").decode()
+    json_data = {"data": [{"b64_json": b64_img}]}
+    fake_resp = _FakeResponse(
+        content=json.dumps(json_data).encode(),
+        content_type="application/json",
+        json_data=json_data,
+    )
+    fake_client = _FakeAsyncClient(fake_resp)
+    monkeypatch.setattr(
+        "g_agent.agent.tools.selfie.httpx.AsyncClient",
+        lambda **kw: fake_client,
+    )
+
+    provider = _FakeLLMProvider("should not be called")
+    config = _make_config(
+        physical_description="",
+        reference_image="",
+        image_gen=ImageGenProviderConfig(
+            provider="nebius",
+            api_key="neb-test",
+            lora_trigger="nawusijia",
+            lora_url="https://example.com/lora.safetensors",
+        ),
+    )
+    tool, _ = _make_tool(config=config, tmp_path=tmp_path, llm_provider=provider)
+    result = asyncio.run(tool.execute(context="at the park"))
+
+    assert "Selfie photo has been delivered" in result
+    # Vision extraction should NOT have been called
+    assert provider.last_messages is None
+    # Prompt should contain the trigger word
+    assert "nawusijia" in fake_client.last_json["prompt"]
+
+
+def test_lora_trigger_used_in_prompt(tmp_path, monkeypatch):
+    """Test 23: LoRA trigger word is used as {description} in prompt template."""
+    b64_img = base64.b64encode(b"trigger-img").decode()
+    json_data = {"data": [{"b64_json": b64_img}]}
+    fake_resp = _FakeResponse(
+        content=json.dumps(json_data).encode(),
+        content_type="application/json",
+        json_data=json_data,
+    )
+    fake_client = _FakeAsyncClient(fake_resp)
+    monkeypatch.setattr(
+        "g_agent.agent.tools.selfie.httpx.AsyncClient",
+        lambda **kw: fake_client,
+    )
+
+    config = _make_config(
+        physical_description="old description that should be ignored",
+        image_gen=ImageGenProviderConfig(
+            provider="nebius",
+            api_key="neb-test",
+            lora_trigger="mytrigger",
+            lora_url="https://example.com/lora.safetensors",
+        ),
+    )
+    tool, _ = _make_tool(config=config, tmp_path=tmp_path)
+    asyncio.run(tool.execute(context="wearing a red dress"))
+
+    # Trigger word should be in prompt, NOT the old description
+    prompt = fake_client.last_json["prompt"]
+    assert "mytrigger" in prompt
+    assert "old description that should be ignored" not in prompt
+
+
+def test_lora_payload_injected(tmp_path, monkeypatch):
+    """Test 24: LoRA URL and scale are injected into the API payload."""
+    b64_img = base64.b64encode(b"lora-payload").decode()
+    json_data = {"data": [{"b64_json": b64_img}]}
+    fake_resp = _FakeResponse(
+        content=json.dumps(json_data).encode(),
+        content_type="application/json",
+        json_data=json_data,
+    )
+    fake_client = _FakeAsyncClient(fake_resp)
+    monkeypatch.setattr(
+        "g_agent.agent.tools.selfie.httpx.AsyncClient",
+        lambda **kw: fake_client,
+    )
+
+    config = _make_config(
+        image_gen=ImageGenProviderConfig(
+            provider="nebius",
+            api_key="neb-test",
+            lora_trigger="testtrigger",
+            lora_url="https://example.com/model.safetensors",
+            lora_scale=0.75,
+        ),
+    )
+    tool, _ = _make_tool(config=config, tmp_path=tmp_path)
+    asyncio.run(tool.execute(context="at a cafe"))
+
+    payload = fake_client.last_json
+    assert "loras" in payload
+    assert payload["loras"][0]["url"] == "https://example.com/model.safetensors"
+    assert payload["loras"][0]["scale"] == 0.75
+    assert payload["width"] == 768
+    assert payload["height"] == 768
+    assert payload["num_inference_steps"] == 28
+
+
+def test_url_fallback_response(tmp_path, monkeypatch):
+    """Test 25: When response has 'url' instead of 'b64_json', image is downloaded."""
+    # First call: API returns URL response
+    json_data = {"data": [{"url": "https://example.com/generated.webp"}]}
+    api_resp = _FakeResponse(
+        content=json.dumps(json_data).encode(),
+        content_type="application/json",
+        json_data=json_data,
+    )
+
+    # Second call: Download the image URL
+    download_resp = _FakeResponse(content=b"downloaded-image-bytes")
+
+    class _FakeAsyncClientMulti:
+        def __init__(self):
+            self.last_json = None
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            pass
+
+        async def post(self, url, **kw):
+            self.last_json = kw.get("json")
+            return api_resp
+
+        async def get(self, url, **kw):
+            return download_resp
+
+    fake_client = _FakeAsyncClientMulti()
+    monkeypatch.setattr(
+        "g_agent.agent.tools.selfie.httpx.AsyncClient",
+        lambda **kw: fake_client,
+    )
+
+    config = _make_config(
+        image_gen=ImageGenProviderConfig(
+            provider="nebius",
+            api_key="neb-test",
+            lora_trigger="urltrigger",
+            lora_url="https://example.com/lora.safetensors",
+        ),
+    )
+    tool, _ = _make_tool(config=config, tmp_path=tmp_path)
+    result = asyncio.run(tool.execute(context="casual day"))
+
+    assert "Selfie photo has been delivered" in result
+    selfie_dir = tmp_path / "state" / "selfies"
+    saved_file = next(selfie_dir.iterdir())
+    assert saved_file.read_bytes() == b"downloaded-image-bytes"

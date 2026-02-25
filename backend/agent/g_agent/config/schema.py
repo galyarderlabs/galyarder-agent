@@ -294,6 +294,10 @@ class ImageGenProviderConfig(BaseModel):
     model: str = ""
     account_id: str = ""  # Required for Cloudflare Workers AI
     timeout: int = 30
+    # LoRA support (Nebius)
+    lora_url: str = ""  # URL to LoRA safetensor
+    lora_scale: float = 0.8  # LoRA influence (0.0-1.0)
+    lora_trigger: str = ""  # Trigger word e.g. "nawusijia"
 
 
 class VisualIdentityConfig(BaseModel):
@@ -301,6 +305,7 @@ class VisualIdentityConfig(BaseModel):
 
     enabled: bool = False
     reference_image: str = ""
+    reference_image_hash: str = ""
     physical_description: str = ""
     image_gen: ImageGenProviderConfig = Field(default_factory=ImageGenProviderConfig)
     default_format: str = "jpeg"

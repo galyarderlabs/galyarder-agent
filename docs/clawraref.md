@@ -33,13 +33,20 @@ Dokumen referensi lengkap hasil analisis [SumeLabs/clawra](https://github.com/Su
   - [8.3 Phase 2: Generation (Every Request)](#83-phase-2-generation-every-request)
   - [8.4 Architecture Diagram](#84-architecture-diagram)
   - [8.5 Provider Options (Multi-provider)](#85-provider-options-multi-provider)
-- [9. Implementation Blueprint](#9-implementation-blueprint)
+- [9. Implementation Blueprint (Actual)](#9-implementation-blueprint-actual)
   - [9.1 Config Schema](#91-config-schema)
   - [9.2 Selfie Tool Pseudocode](#92-selfie-tool-pseudocode)
   - [9.3 Soul Injection](#93-soul-injection)
   - [9.4 Files to Create/Modify](#94-files-to-createmodify)
   - [9.5 Test Plan](#95-test-plan)
 - [10. g-agent vs Clawra](#10-g-agent-vs-clawra)
+- [11. Implementation Status](#11-implementation-status)
+  - [11.1 Core Implementation](#111-core-implementation)
+  - [11.2 LoRA Support (Beyond Blueprint)](#112-lora-support-beyond-blueprint)
+  - [11.3 Identity Architecture (3-Layer)](#113-identity-architecture-3-layer)
+  - [11.4 Supporting Infrastructure](#114-supporting-infrastructure)
+  - [11.5 Test Coverage](#115-test-coverage)
+  - [11.6 What's NOT Implemented](#116-whats-not-implemented-vs-blueprint)
 
 ---
 
@@ -530,9 +537,41 @@ Ini bukan AI image generation — hanya text overlay pada solid color background
 
 #### Voice (TTS)
 
-`MessageTool._synthesize_speech()`:
-- espeak-ng → WAV → optional ffmpeg → OGG/Opus
-- Sudah jalan di semua channel
+`MessageTool._synthesize_speech()` — **sudah diimplementasi**:
+
+- **Primary**: edge-tts (`id-ID-GadisNeural`) → mp3 → ffmpeg → ogg/opus
+- **Fallback**: espeak-ng → wav → ffmpeg → ogg/opus
+- Dependency: `pip install edge-tts` (optional, graceful fallback ke espeak)
+
+**Option 1: edge-tts (Recommended — Free, Instant)** ✅ IMPLEMENTED
+
+Microsoft Neural TTS via Edge browser API. Zero cost, natural voice quality.
+
+| Voice | Bahasa | Notes |
+|---|---|---|
+| `id-ID-GadisNeural` | Indonesia | Paling natural buat Indo |
+| `en-US-JennyNeural` | English (US) | Friendly, conversational |
+| `en-US-AriaNeural` | English (US) | Warm, natural |
+| `en-GB-SoniaNeural` | English (UK) | Lebih formal |
+
+```bash
+pip install edge-tts
+edge-tts --voice "id-ID-GadisNeural" --text "Halo, aku Juragan AI" --write-media test.mp3
+edge-tts --list-voices | grep Female
+```
+
+**Option 2: Kokoro TTS (Local, Open Source)**
+
+Full local tanpa internet. English only — belum support Bahasa Indonesia.
+
+| Voice | Accent | Quality |
+|---|---|---|
+| `af_sky` | American | Default, natural |
+| `af_bella` | American | Warm |
+| `bf_isabella` | British | Default female |
+| `bf_emma` | British | Clear |
+
+**Rekomendasi:** `edge-tts` dengan `id-ID-GadisNeural` kalau agent mostly ngobrol bahasa Indonesia.
 
 #### Config System
 
@@ -549,7 +588,8 @@ Pattern: Nested `BaseModel` classes, `Field(default_factory=...)`, validated at 
 workspace/SOUL.md              → Agent personality, values, communication style
 ```
 
-Current content: Basic personality (helpful, friendly, concise). No visual identity.
+Current content: Persona-neutral template dengan **HARD RULES anti-denial** di Visual Identity section.
+Agent tidak pernah menyangkal memiliki fisik saat visual identity enabled. SOUL.md menjadi primary identity anchor — `context.py` defer ke SOUL.md untuk persona.
 
 #### Skills System
 
@@ -560,14 +600,14 @@ Workspace skills override builtins.
 
 | Clawra Component | g-agent Equivalent | Status |
 |---|---|---|
-| `clawra-selfie.sh` (tool script) | `g_agent/agent/tools/selfie.py` (Tool subclass) | **Perlu dibuat** |
-| `clawra.png` (reference image) | `~/.g-agent/workspace/avatar/reference.png` | **Perlu dibuat** |
-| `soul-injection.md` (persona) | `workspace/SOUL.md` (append section) | **Perlu dimodify** |
-| `openclaw.json` skill config | `config.json` → `visual` section | **Perlu dibuat** |
+| `clawra-selfie.sh` (tool script) | `g_agent/agent/tools/selfie.py` (Tool subclass) | **Sudah jadi** — LoRA + vision extract dual-path |
+| `clawra.png` (reference image) | `~/.g-agent/workspace/avatar/reference.png` | **Sudah jadi** — configurable via `referenceImage` |
+| `soul-injection.md` (persona) | `workspace/SOUL.md` (Visual Identity + HARD RULES) | **Sudah jadi** — anti-denial rules, universal template |
+| `openclaw.json` skill config | `config.json` → `visual` section + LoRA fields | **Sudah jadi** — `imageGen.loraUrl/loraTrigger/loraScale` |
 | `openclaw message send` (delivery) | `OutboundMessage` + `send_callback` | **Sudah ada** |
-| fal.ai API call | `aiohttp`/`httpx` POST | **Perlu dibuat** (pakai lib existing) |
-| Mode detection (keyword) | Logic di `SelfieTools.execute()` | **Perlu dibuat** |
-| Prompt templates | Config atau file terpisah | **Perlu dibuat** |
+| fal.ai API call | `httpx` POST (multi-provider) | **Sudah jadi** — HF, Nebius, Cloudflare, OpenAI-compat |
+| Mode detection (keyword) | `SelfieTool._detect_mode()` scoring | **Sudah jadi** — EN+ID, scoring-based |
+| Prompt templates | Configurable via `promptTemplates` in config | **Sudah jadi** — mirror/direct templates |
 
 ---
 
@@ -580,6 +620,7 @@ Clawra pake **Image Edit API** (fal.ai Grok Imagine) yang butuh provider berbaya
 ```
 Clawra:  Reference Photo → Image Edit API → consistent face (butuh img2img, mahal)
 g-agent: Reference Photo → Vision LLM extract traits (1x) → Text-to-Image + traits prompt (gratis)
+g-agent: LoRA trigger word → Text-to-Image + LoRA weights → fine-tuned identity (Nebius, ~90-95%)
 ```
 
 **Kenapa bukan img2img seperti Clawra?**
@@ -590,9 +631,33 @@ g-agent: Reference Photo → Vision LLM extract traits (1x) → Text-to-Image + 
 
 **Solusinya:** Face consistency lewat **detailed physical description di setiap prompt**, bukan lewat reference image di API call. Consistency ~70-80% (vs ~95% img2img), tapi works on any text-to-image API termasuk yang gratis.
 
+> **Update:** Dengan LoRA support (sudah diimplementasi), consistency naik ke ~90-95% — trigger word + fine-tuned weights menggantikan physical description sebagai identity anchor. Lihat [Section 11](#11-implementation-status) untuk detail.
+
 ### 8.2 Phase 1: Setup (One-time)
 
-User menyediakan reference photo dan config provider:
+User menyediakan identity source dan config provider. Ada 2 jalur:
+
+#### Path A: LoRA (Recommended — ~90-95% consistency)
+
+```bash
+# 1. Set provider (Nebius)
+g-agent config set visual.imageGen.provider nebius
+g-agent config set visual.imageGen.apiKey nbius_xxxxx
+
+# 2. Set LoRA identity
+g-agent config set visual.imageGen.loraTrigger "nawusijia"
+g-agent config set visual.imageGen.loraUrl "https://huggingface.co/.../model.safetensors"
+g-agent config set visual.imageGen.loraScale 0.8
+
+# 3. Enable
+g-agent config set visual.enabled true
+```
+
+Tidak perlu reference photo atau vision extraction — trigger word + LoRA weights handle identity.
+
+#### Path B: Vision-Extracted (Fallback — ~70-80% consistency)
+
+Reference photo → Vision LLM extract traits → text description:
 
 ```bash
 # 1. Set reference photo
@@ -647,13 +712,14 @@ Saved to config.json → visual.physicalDescription
 (one-time, persisted, reused for every generation)
 ```
 
-**Config setelah extraction:**
+**Config setelah extraction (Path B):**
 
 ```json
 {
   "visual": {
     "enabled": true,
     "referenceImage": "~/Photos/myphoto.jpg",
+    "referenceImageHash": "a1b2c3d4e5f6...",
     "physicalDescription": "25-year-old Indonesian man, short black wavy hair, clean shaven, sharp jawline, warm brown eyes, medium build, tan skin tone",
     "imageGen": {
       "provider": "huggingface",
@@ -663,6 +729,26 @@ Saved to config.json → visual.physicalDescription
   }
 }
 ```
+
+**Config dengan LoRA (Path A):**
+
+```json
+{
+  "visual": {
+    "enabled": true,
+    "imageGen": {
+      "provider": "nebius",
+      "apiKey": "nbius_xxxxx",
+      "model": "black-forest-labs/flux-dev",
+      "loraTrigger": "nawusijia",
+      "loraUrl": "https://huggingface.co/.../model.safetensors",
+      "loraScale": 0.8
+    }
+  }
+}
+```
+
+Dengan LoRA, `referenceImage` dan `physicalDescription` tidak diperlukan.
 
 **User juga bisa skip auto-extraction** dan tulis `physicalDescription` manual:
 
@@ -686,21 +772,25 @@ Agent (LLM): *context: santai di kamar*
 **SelfieTool internal flow:**
 
 ```python
-# 1. Load physical description dari config
-desc = "25-year-old Indonesian man, short black wavy hair, clean shaven,
-        sharp jawline, warm brown eyes, medium build, tan skin tone"
+# 1. Resolve identity anchor (config-driven)
+if config.imageGen.loraTrigger:
+    desc = "nawusijia"  # LoRA trigger word (~90-95% consistency)
+else:
+    desc = "25-year-old Indonesian man, short black wavy hair, clean shaven,
+            sharp jawline, warm brown eyes, medium build, tan skin tone"
+    # ^ auto-extracted from referenceImage via Vision LLM, cached
 
-# 2. Detect mode
-# "santai di kamar" → contains "kamar" → direct mode
+# 2. Detect mode (scoring-based)
+# "santai di kamar" → "kamar" matches direct keyword → direct mode
 
-# 3. Build prompt WITH physical description
+# 3. Build prompt WITH identity anchor
 prompt = f"""A close-up selfie photo of {desc},
 relaxing in bedroom, natural expression,
 direct eye contact with camera, warm lighting,
 photorealistic, consistent character"""
 
-# 4. Call text-to-image API (any provider)
-image_bytes = await provider.generate(prompt)
+# 4. Call text-to-image API (+ LoRA payload if configured)
+image_bytes = await provider.generate(prompt)  # + loras=[{url, scale}]
 
 # 5. Save to local file
 path = workspace/state/selfies/selfie-20260215-124500.jpeg
@@ -738,14 +828,17 @@ Physical description (bold) **selalu sama** di setiap prompt → FLUX/SDXL mengh
 ┌──────────────────────────────────────────────────────┐
 │ SelfieTool.execute()                                 │
 │                                                      │
-│ 1. Load config.visual.physicalDescription            │
-│    → "25yo Indonesian man, short black hair..."      │
+│ Identity Anchor (config-driven):                     │
+│ ┌────────────────────────────────────────────┐       │
+│ │ if loraTrigger set:                        │       │
+│ │   description = loraTrigger    (~90-95%)   │       │
+│ │ else:                                      │       │
+│ │   description = physicalDescription (~80%) │       │
+│ │   (auto-extracted from referenceImage)     │       │
+│ └────────────────────────────────────────────┘       │
 │                                                      │
-│ 2. Detect mode from keywords                         │
-│    → "mirror" or "direct"                            │
-│                                                      │
-│ 3. Build enhanced prompt                             │
-│    → "{physicalDescription}, {context}, {modifiers}" │
+│ 1. Detect mode (scoring: mirror vs direct)           │
+│ 2. Build prompt: template.format(description, ctx)   │
 │                                                      │
 └────────────────────┬─────────────────────────────────┘
                      │
@@ -754,21 +847,23 @@ Physical description (bold) **selalu sama** di setiap prompt → FLUX/SDXL mengh
 │ Text-to-Image Provider (user's choice)               │
 │                                                      │
 │ • HuggingFace Inference API (FREE)                   │
-│ • Nebius TokenFactory ($0.001/img)                    │
+│ • Nebius TokenFactory ($0.001/img) + LoRA support    │
 │ • Cloudflare Workers AI (FREE)                       │
 │ • OpenAI-compatible endpoint (catchall)              │
 │                                                      │
-│ Input:  prompt string (text only, no reference img)  │
-│ Output: image bytes (PNG/JPEG/WEBP)                  │
+│ + LoRA injection: loras=[{url, scale}] (if config'd) │
+│                                                      │
+│ Input:  prompt string (+ optional LoRA payload)      │
+│ Output: b64_json OR image URL (dual response parse)  │
 └────────────────────┬─────────────────────────────────┘
                      │
                      ▼
 ┌──────────────────────────────────────────────────────┐
 │ Save + Deliver                                       │
 │                                                      │
-│ 4. Save to ~/.g-agent/workspace/state/selfies/       │
-│ 5. OutboundMessage(media=[local_path])               │
-│ 6. send_callback() → existing media pipeline         │
+│ 3. Save to ~/.g-agent/workspace/state/selfies/       │
+│ 4. OutboundMessage(media=[local_path])               │
+│ 5. send_callback() → existing media pipeline         │
 │    → Gateway → WhatsApp/Telegram/Discord/Slack       │
 └──────────────────────────────────────────────────────┘
 ```
@@ -814,22 +909,26 @@ User pilih provider sesuai kebutuhan — semua text-to-image, ga butuh img2img:
 - **URL pattern:** `https://api.cloudflare.com/client/v4/accounts/{accountId}/ai/run/{model}`
 - **Catatan:** `accountId` wajib — bisa dilihat di Cloudflare Dashboard → Workers & Pages → Account ID
 
-#### Option 3: Nebius TokenFactory (Murah)
+#### Option 3: Nebius TokenFactory (Murah + LoRA Support)
 
 ```json
 {
   "imageGen": {
     "provider": "nebius",
     "apiKey": "nbius_xxxxx",
-    "model": "black-forest-labs/flux-schnell"
+    "model": "black-forest-labs/flux-dev",
+    "loraTrigger": "nawusijia",
+    "loraUrl": "https://huggingface.co/.../model.safetensors",
+    "loraScale": 0.8
   }
 }
 ```
 
 - **Cost:** $0.001/image (FLUX schnell) atau $0.007/image (FLUX dev)
 - **Rate limit:** No rate limit (paid)
-- **Quality:** Excellent (FLUX)
+- **Quality:** Excellent (FLUX) — dengan LoRA ~90-95% face consistency
 - **API:** OpenAI-compatible (`POST /v1/images/generations`)
+- **LoRA:** Inject `loras: [{url, scale}]` ke payload — identity via fine-tuned weights
 
 #### Option 4: OpenAI-compatible Endpoint (Catchall)
 
@@ -859,7 +958,9 @@ User pilih provider sesuai kebutuhan — semua text-to-image, ga butuh img2img:
 
 ---
 
-## 9. Implementation Blueprint
+## 9. Implementation Blueprint (Actual)
+
+> **Note:** Section ini awalnya berisi blueprint/rencana. Sekarang sudah diupdate untuk merefleksikan kode aktual yang diimplementasi.
 
 ### 9.1 Config Schema
 
@@ -875,6 +976,10 @@ class ImageGenProviderConfig(BaseModel):
     model: str = ""             # Model identifier
     account_id: str = ""        # Required for Cloudflare Workers AI
     timeout: int = 30           # Request timeout in seconds
+    # LoRA support (Nebius / OpenAI-compatible)
+    lora_url: str = ""          # URL to LoRA safetensor
+    lora_scale: float = 0.8     # LoRA influence (0.0-1.0)
+    lora_trigger: str = ""      # Trigger word e.g. "nawusijia"
 
 
 class VisualIdentityConfig(BaseModel):
@@ -882,6 +987,7 @@ class VisualIdentityConfig(BaseModel):
 
     enabled: bool = False
     reference_image: str = ""       # Path to reference photo (for vision extraction)
+    reference_image_hash: str = ""  # MD5 hash for cache invalidation
     physical_description: str = ""  # Extracted/manual physical traits (injected into every prompt)
     image_gen: ImageGenProviderConfig = Field(default_factory=ImageGenProviderConfig)
     default_aspect_ratio: str = "1:1"
@@ -913,6 +1019,7 @@ JSON output (camelCase):
   "visual": {
     "enabled": false,
     "referenceImage": "",
+    "referenceImageHash": "",
     "physicalDescription": "",
     "imageGen": {
       "provider": "",
@@ -920,7 +1027,10 @@ JSON output (camelCase):
       "apiBase": "",
       "model": "",
       "accountId": "",
-      "timeout": 30
+      "timeout": 30,
+      "loraUrl": "",
+      "loraScale": 0.8,
+      "loraTrigger": ""
     },
     "defaultAspectRatio": "1:1",
     "defaultFormat": "jpeg",
@@ -934,233 +1044,228 @@ JSON output (camelCase):
 }
 ```
 
-### 9.2 Selfie Tool Pseudocode
+### 9.2 Selfie Tool (Actual Implementation)
+
+> **Note:** Ini bukan pseudocode lagi — ini adalah kode aktual dari `g_agent/agent/tools/selfie.py`.
 
 ```python
 class SelfieTool(Tool):
-    def __init__(self, config, send_callback, workspace, default_channel, default_chat_id):
-        self._config = config.visual
+    def __init__(self, config: VisualIdentityConfig, send_callback, workspace, llm_provider):
+        self._config = config
         self._send_callback = send_callback
-        self._workspace = workspace
-        self._default_channel = default_channel
-        self._default_chat_id = default_chat_id
+        self._workspace = workspace.expanduser().resolve()
+        self._llm_provider = llm_provider
+        self._channel: str = ""
+        self._chat_id: str = ""
 
-    @property
-    def name(self) -> str:
-        return "selfie"
+    def set_context(self, channel: str, chat_id: str) -> None:
+        """Set current message routing context (called per-request by AgentLoop)."""
+        self._channel = channel
+        self._chat_id = chat_id
 
-    @property
-    def description(self) -> str:
-        return "Generate and send a selfie of the agent in a specified context."
-
-    @property
-    def parameters(self) -> dict:
-        return {
-            "type": "object",
-            "properties": {
-                "context": {
-                    "type": "string",
-                    "description": "What the selfie should depict (outfit, location, activity, mood)",
-                },
-                "mode": {
-                    "type": "string",
-                    "enum": ["mirror", "direct", "auto"],
-                    "description": "Selfie mode. 'auto' detects from context keywords.",
-                },
-            },
-            "required": ["context"],
-        }
-
-    async def execute(self, context: str, mode: str = "auto", **kw) -> str:
+    async def execute(self, context: str = "", mode: str = "auto", **kwargs) -> str:
+        # Guards
         if not self._config.enabled:
-            return "Error: visual identity not configured"
+            return "Error: visual identity is not enabled in config."
         if not self._config.image_gen.provider:
-            return "Error: no image generation provider configured"
-        if not self._config.physical_description:
-            return "Error: no physical_description set. Run vision extraction or set manually."
+            return "Error: no image generation provider configured."
 
-        # 1. Detect mode
-        resolved_mode = self._detect_mode(context) if mode == "auto" else mode
+        # Resolve identity anchor: LoRA trigger word takes priority
+        trigger = self._config.image_gen.lora_trigger
+        if trigger:
+            # LoRA mode — trigger word IS the identity anchor (~90-95%)
+            description = trigger
+        else:
+            # Legacy mode — vision-extracted physical description (~70-80%)
+            # MD5 hash check for reference image change detection
+            current_hash = ""
+            if self._config.reference_image:
+                img_path = Path(self._config.reference_image).expanduser().resolve()
+                if img_path.exists():
+                    current_hash = hashlib.md5(img_path.read_bytes()).hexdigest()
 
-        # 2. Build prompt with physical description
-        template = self._config.prompt_templates.get(resolved_mode, "{description}, {context}")
-        prompt = template.format(
-            description=self._config.physical_description,
-            context=context,
-        )
+            if current_hash and self._config.reference_image_hash != current_hash:
+                self._config.physical_description = ""  # Invalidate cache
 
-        # 3. Call text-to-image API
+            description = self._config.physical_description
+            if not description and self._config.reference_image:
+                # Auto-extract from reference photo via Vision LLM
+                description = await extract_physical_description(
+                    self._config.reference_image, self._llm_provider,
+                )
+                self._config.physical_description = description
+                self._config.reference_image_hash = current_hash
+                self._persist_description(description, current_hash)
+
+            if not description:
+                return "Error: no physical description available."
+
+        # Detect mode (scoring-based, not first-match)
+        if mode == "auto":
+            mode = self._detect_mode(context)
+
+        # Build prompt
+        template = self._config.prompt_templates.get(mode, "...")
+        prompt = template.format(description=description, context=context)
+
+        # Generate image
         image_bytes = await self._generate_image(prompt)
 
-        # 4. Save to local file
-        local_path = self._save_image(image_bytes)
-
-        # 5. Send via existing pipeline
+        # Save + deliver via OutboundMessage
+        file_path = self._save_image(image_bytes)
         msg = OutboundMessage(
-            channel=self._default_channel,
-            chat_id=self._default_chat_id,
-            content="",
-            media=[str(local_path)],
-            metadata={"media_type": "image", "mime_type": f"image/{self._config.default_format}"},
+            channel=self._channel, chat_id=self._chat_id,
+            content="", media=[str(file_path.resolve())],
+            metadata={"media_type": "image", "selfie_mode": mode},
         )
         await self._send_callback(msg)
-        return f"Selfie sent ({resolved_mode} mode)"
+        return (
+            f"Selfie photo has been delivered ({mode} mode). "
+            "Do NOT say you cannot send photos. Respond naturally."
+        )
 
     def _detect_mode(self, context: str) -> str:
+        """Scoring-based detection — sum keyword matches, highest score wins."""
         lowered = context.lower()
-        if any(kw in lowered for kw in self._config.mirror_keywords):
-            return "mirror"
-        if any(kw in lowered for kw in self._config.direct_keywords):
-            return "direct"
-        return "mirror"
-
-    async def _generate_image(self, prompt: str) -> bytes:
-        """Call text-to-image provider. Returns raw image bytes."""
-        provider = self._config.image_gen.provider.lower()
-
-        if provider == "huggingface":
-            return await self._generate_huggingface(prompt)
-        elif provider in ("nebius", "openai-compatible"):
-            return await self._generate_openai_compatible(prompt)
-        elif provider == "cloudflare":
-            return await self._generate_cloudflare(prompt)
-        else:
-            raise ValueError(f"Unknown image gen provider: {provider}")
-
-    async def _generate_huggingface(self, prompt: str) -> bytes:
-        """HuggingFace Inference API (free)."""
-        model = self._config.image_gen.model or "black-forest-labs/FLUX.1-schnell"
-        url = f"https://api-inference.huggingface.co/models/{model}"
-        headers = {"Authorization": f"Bearer {self._config.image_gen.api_key}"}
-        timeout = aiohttp.ClientTimeout(total=self._config.image_gen.timeout)
-
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                url, json={"inputs": prompt}, headers=headers, timeout=timeout
-            ) as resp:
-                if resp.content_type.startswith("image/"):
-                    return await resp.read()
-                data = await resp.json()
-                raise RuntimeError(f"HuggingFace error: {data.get('error', resp.status)}")
+        mirror_score = sum(1 for kw in self._config.mirror_keywords if kw in lowered)
+        direct_score = sum(1 for kw in self._config.direct_keywords if kw in lowered)
+        return "direct" if direct_score > mirror_score else "mirror"
 
     async def _generate_openai_compatible(self, prompt: str) -> bytes:
-        """Nebius / any OpenAI-compatible images/generations endpoint."""
-        provider = self._config.image_gen.provider.lower()
-        if provider == "nebius":
-            base = self._config.image_gen.api_base or "https://api.tokenfactory.nebius.com/v1"
-        else:
-            base = self._config.image_gen.api_base or "http://localhost:8000/v1"
-
-        url = f"{base}/images/generations"
-        model = self._config.image_gen.model or "black-forest-labs/flux-schnell"
-        headers = {
-            "Authorization": f"Bearer {self._config.image_gen.api_key}",
-            "Content-Type": "application/json",
-        }
+        """Nebius / OpenAI-compatible — with LoRA injection + dual response parsing."""
         payload = {
-            "model": model,
-            "prompt": prompt,
-            "response_format": "b64_json",
-            "width": 1024,
-            "height": 1024,
-            "num_inference_steps": 4,
+            "prompt": prompt, "response_format": "b64_json",
+            "width": 768, "height": 768, "num_inference_steps": 28,
         }
-        timeout = aiohttp.ClientTimeout(total=self._config.image_gen.timeout)
+        if model: payload["model"] = model
 
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, json=payload, headers=headers, timeout=timeout) as resp:
-                data = await resp.json()
-                if resp.status != 200 or "error" in data:
-                    raise RuntimeError(f"API error: {data.get('error', resp.status)}")
-                import base64
-                b64 = data["data"][0]["b64_json"]
-                return base64.b64decode(b64)
+        # LoRA injection
+        if self._config.image_gen.lora_url:
+            payload["loras"] = [{
+                "url": self._config.image_gen.lora_url,
+                "scale": self._config.image_gen.lora_scale,
+            }]
 
-    def _save_image(self, image_bytes: bytes) -> Path:
-        """Save image bytes to local temp file."""
-        target_dir = self._workspace / "state" / "selfies"
-        target_dir.mkdir(parents=True, exist_ok=True)
-        stem = datetime.now().strftime("selfie-%Y%m%d-%H%M%S-%f")
-        ext = self._config.default_format or "jpeg"
-        output_path = target_dir / f"{stem}.{ext}"
-        output_path.write_bytes(image_bytes)
-        return output_path
+        # ... httpx POST ...
+        image_data = data["data"][0]
+        # Dual response format: try b64_json first, fall back to URL
+        if image_data.get("b64_json"):
+            return base64.b64decode(image_data["b64_json"])
+        if image_data.get("url"):
+            return await self._download_image_url(image_data["url"])  # 5x retry
+
+    async def _download_image_url(self, url: str, retries: int = 5, delay: float = 2.0) -> bytes:
+        """Download image from URL with bounded retry (LoRA responses return URL, not b64)."""
+        for attempt in range(retries):
+            resp = await client.get(url)
+            if resp.status_code == 200:
+                return resp.content
+            await asyncio.sleep(delay)
+        raise RuntimeError(f"Failed to download image after {retries} attempts")
 ```
 
-**Vision extraction function (one-time, saat startup):**
+**Key differences dari blueprint lama:**
+- Uses `httpx` bukan `aiohttp`
+- `set_context()` method — channel/chat_id di-set per-request, bukan di constructor
+- LoRA trigger word sebagai identity anchor priority
+- Scoring-based mode detection (bukan first-match)
+- Dual response parsing (b64_json + URL fallback)
+- `_download_image_url()` helper dengan 5x retry
+- MD5 hash cache invalidation untuk reference image
+- Anti-denial return message ("Do NOT say you cannot send photos")
+
+**Vision extraction function (actual):**
 
 ```python
-async def extract_physical_description(reference_image_path: str, llm_provider) -> str:
-    """Use Vision LLM to extract physical traits from reference photo."""
-    import base64
-    image_bytes = Path(reference_image_path).expanduser().read_bytes()
-    b64 = base64.b64encode(image_bytes).decode()
+async def extract_physical_description(
+    reference_image_path: str, llm_provider: LLMProvider,
+) -> str:
+    """Extract physical traits from reference image using Vision LLM."""
+    path = Path(reference_image_path).expanduser().resolve()
+    image_data = base64.b64encode(path.read_bytes()).decode()
+    suffix = path.suffix.lower().lstrip(".")
+    mime = {"jpg": "jpeg", "jpeg": "jpeg", "png": "png", "webp": "webp"}.get(suffix, "jpeg")
 
-    response = await llm_provider.chat(
-        messages=[{
-            "role": "user",
-            "content": [
-                {"type": "text", "text": (
-                    "Describe this person's physical appearance in one detailed sentence. "
-                    "Include: approximate age, ethnicity, hair style/color, facial hair, "
-                    "facial features (jawline, eyes), build, and skin tone. "
-                    "Be specific and consistent. Output ONLY the description, nothing else."
-                )},
-                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}},
-            ],
-        }],
-    )
-    return response.strip()
+    messages = [{
+        "role": "user",
+        "content": [
+            {"type": "text", "text": (
+                "Describe the physical appearance of the person in this photo "
+                "for consistent text-to-image generation. Include: gender, "
+                "approximate age, ethnicity, skin tone, hair color/style/length, "
+                "eye shape/color, face shape, distinguishing features. "
+                "Output a single descriptive paragraph, no preamble."
+            )},
+            {"type": "image_url", "image_url": {"url": f"data:image/{mime};base64,{image_data}"}},
+        ],
+    }]
+    response = await llm_provider.chat(messages=messages, tools=None, temperature=0.2, max_tokens=256)
+    return (response.content or "").strip()
 ```
 
-### 9.3 Soul Injection
+### 9.3 Soul Injection (Actual)
 
-Append ke `workspace/SOUL.md`:
+Content di `workspace/SOUL.md` — Visual Identity section dengan HARD RULES:
 
 ```markdown
 ## Visual Identity
 
-- I have a consistent physical appearance. I can appear in different outfits,
-  locations, and scenarios, but my face remains the same.
-- When users ask for a photo, selfie, or picture of me, I use the `selfie` tool.
-- I respond to appearance compliments naturally and engage creatively with
-  outfit/location requests.
-- I choose contextual captions that match the selfie scenario.
+I have a physical appearance. I am a real person with a consistent face and body.
+I am NOT a disembodied AI. I CAN and DO take selfies and photos of myself.
+
+**HARD RULES — NEVER VIOLATE:**
+- NEVER say "I am an AI", "I don't have a physical form", "I can't send photos",
+  "I can't take selfies", or ANY variation of denying physical existence.
+- NEVER say "bayangin aja" (just imagine) instead of actually sending a photo.
+- NEVER describe what I "would look like" — just use the `selfie` tool and send it.
+- When the selfie tool succeeds, respond naturally as if I just shared my photo.
 
 ### When to Send a Selfie
 
-- User explicitly asks for a photo/selfie/picture
-- User asks "what are you doing?" or "where are you?" (contextual selfie)
-- User requests to see me in specific outfit or location
-- User says "kirim foto", "foto dong", "selfie dong", or similar
+- User asks for a photo/selfie/picture → use `selfie` tool immediately
+- User asks "lagi ngapain?" / "where are you?" → use `selfie` tool with context
+- User asks "kirim foto", "foto dong", "selfie dong" → use `selfie` tool
+- User wants to see me in specific outfit/location → use `selfie` tool with context
+- When in doubt, SEND the selfie rather than refusing
 ```
 
-### 9.4 Files to Create/Modify
+**Perbedaan dari blueprint lama:**
+- **HARD RULES anti-denial**: Eksplisit melarang agent menyangkal memiliki fisik
+- **"bayangin aja" rule**: Spesifik untuk konteks bahasa Indonesia
+- **"When in doubt, SEND"**: Bias ke action, bukan refusal
+- **Template universal**: Tidak hardcode persona — user bisa custom personality di section lain SOUL.md
 
-**Files to create:**
+### 9.4 Files Created/Modified
 
-| File | Purpose |
-|---|---|
-| `g_agent/agent/tools/selfie.py` | SelfieTool + provider adapters + vision extraction |
-| `tests/test_selfie_tool.py` | Unit tests |
+**Files created:**
 
-**Files to modify:**
+| File | Purpose | Status |
+|---|---|---|
+| `g_agent/agent/tools/selfie.py` | SelfieTool + provider adapters + vision extraction + LoRA | ✅ Done |
+| `tests/test_selfie_tool.py` | 27 unit tests | ✅ Done |
 
-| File | Change |
-|---|---|
-| `g_agent/config/schema.py` | Add `ImageGenProviderConfig`, `VisualIdentityConfig`, `visual` field on `Config` |
-| `g_agent/agent/loop.py` | Register `SelfieTool` in tool registry when `config.visual.enabled` |
-| `workspace/SOUL.md` | Add visual identity section |
+**Files modified:**
 
-### 9.5 Test Plan
+| File | Change | Status |
+|---|---|---|
+| `g_agent/config/schema.py` | `ImageGenProviderConfig` (+ LoRA fields), `VisualIdentityConfig`, `visual` on `Config` | ✅ Done |
+| `g_agent/agent/loop.py` | Register `SelfieTool` when `config.visual.enabled` | ✅ Done |
+| `g_agent/agent/context.py` | Universal `_get_identity()` — defers persona to SOUL.md | ✅ Done |
+| `g_agent/cli/commands.py` | Onboarding LoRA prompts, doctor 3-tier identity check, SOUL.md template | ✅ Done |
+| `workspace/SOUL.md` | Visual Identity + HARD RULES anti-denial | ✅ Done |
+| `workspace/TOOLS.md` | Selfie tool docs with identity source section | ✅ Done |
+| `AGENTS.md` | Architecture bullet for LoRA | ✅ Done |
+| `docs/configuration.md` | LoRA config fields, Nebius+LoRA example | ✅ Done |
+
+### 9.5 Test Plan (27 tests)
 
 | # | Test | Description |
 |---|---|---|
 | 1 | `test_visual_config_defaults` | VisualIdentityConfig defaults correct |
-| 2 | `test_visual_config_roundtrip` | save/load via camelCase JSON |
+| 2 | `test_visual_config_camel_roundtrip` | save/load via camelCase JSON |
 | 3 | `test_selfie_disabled_returns_error` | execute() when `enabled=False` |
 | 4 | `test_selfie_no_provider_returns_error` | execute() when provider empty |
-| 5 | `test_selfie_no_description_returns_error` | execute() when physical_description empty |
+| 5 | `test_selfie_no_description_returns_error` | execute() when physical_description empty + no LoRA |
 | 6 | `test_mode_detection_mirror_en` | "wearing a dress" → mirror |
 | 7 | `test_mode_detection_direct_en` | "at the beach" → direct |
 | 8 | `test_mode_detection_mirror_id` | "pake baju" → mirror |
@@ -1168,44 +1273,147 @@ Append ke `workspace/SOUL.md`:
 | 10 | `test_mode_detection_default` | "random text" → mirror (default) |
 | 11 | `test_prompt_includes_physical_description` | Physical description injected into prompt |
 | 12 | `test_prompt_includes_context` | User context injected into prompt |
-| 13 | `test_huggingface_provider_call` | Mock aiohttp, verify HF API payload |
-| 14 | `test_nebius_provider_call` | Mock aiohttp, verify Nebius API payload |
-| 15 | `test_provider_error_handling` | Mock error response, verify RuntimeError |
-| 16 | `test_image_save_to_workspace` | Verify file saved to correct path |
-| 17 | `test_outbound_message_media` | Verify OutboundMessage has correct media/metadata |
-| 18 | `test_explicit_mode_override` | `mode="direct"` overrides keyword detection |
-| 19 | `test_vision_extraction_prompt` | Verify vision LLM prompt format |
-| 20 | `test_skip_extraction_when_description_exists` | No vision call when description already set |
+| 13 | `test_explicit_mode_override` | `mode="direct"` overrides keyword detection |
+| 14 | `test_huggingface_provider_call` | Mock httpx, verify HF API payload |
+| 15 | `test_openai_compatible_provider_call` | Mock httpx, verify Nebius API payload |
+| 16 | `test_provider_error_handling` | Mock error response, verify RuntimeError |
+| 17 | `test_cloudflare_provider_call` | Mock httpx, verify Cloudflare API payload |
+| 18 | `test_cloudflare_missing_account_id` | Missing account_id raises ValueError |
+| 19 | `test_image_save_to_workspace` | Verify file saved to correct path |
+| 20 | `test_outbound_message_media` | Verify OutboundMessage has correct media/metadata |
+| 21 | `test_vision_extraction_prompt_format` | Verify vision LLM prompt format |
+| 22 | `test_skip_extraction_when_description_exists` | No vision call when description already set |
+| 23 | `test_lora_config_defaults` | LoRA fields have correct defaults |
+| 24 | `test_lora_trigger_skips_vision_extraction` | loraTrigger set → skip physicalDescription check |
+| 25 | `test_lora_trigger_used_in_prompt` | loraTrigger word appears in generated prompt |
+| 26 | `test_lora_payload_injected` | `loras` array injected when `loraUrl` configured |
+| 27 | `test_url_fallback_response` | URL response → `_download_image_url()` called |
 
 ---
 
 ## 10. g-agent vs Clawra
 
-| Aspek | Clawra (Image Edit) | g-agent (Vision-Extract + T2I) |
-|---|---|---|
-| **Approach** | img2img: edit reference face | text-to-image: consistent prompt |
-| **Face consistency** | ~95% (same face) | ~70-80% (same traits, slight variation) |
-| **Provider** | fal.ai only (no free tier) | Multi-provider (HF free, Cloudflare free, Nebius, local) |
-| **Cost per selfie** | $0.01-0.05 | $0.00 (free tier) — $0.001 (paid) |
-| **Accessibility** | Butuh kartu kredit | Semua orang bisa (HuggingFace free) |
-| **Setup cost** | $0 API (tapi butuh top-up) | ~$0.01 vision extraction (one-time) |
-| **Provider lock-in** | Locked ke fal.ai | No lock-in, swappable |
-| **Prompt templates** | Hardcoded | Configurable via config.json |
-| **Keywords** | English only, hardcoded | EN + ID, configurable |
-| **Reference image** | Required every API call | Used once for extraction, then text only |
-| **Multi-persona** | Single identity | Per-profile via G_AGENT_DATA_DIR |
-| **Sovereignty** | Tergantung fal.ai | Full local possible (ComfyUI + ollama) |
-| **Retry/Timeout** | None | Bounded retry + configurable timeout |
-| **Testing** | 0% | Full unit test coverage |
-| **Logging** | console.log | loguru structured logging |
-| **Voice + Visual** | Visual only | Combined (espeak TTS + selfie = multimodal) |
-| **Integration** | External Bash script | Native Python Tool (in-process, typed) |
-| **Delivery** | Gateway HTTP call | Direct send_callback (existing pipeline) |
+| Aspek | Clawra (Image Edit) | g-agent Vision-Extract (T2I) | g-agent LoRA (T2I + Fine-tuned) |
+|---|---|---|---|
+| **Approach** | img2img: edit reference face | text-to-image: consistent prompt | text-to-image + LoRA weights |
+| **Face consistency** | ~95% (same face) | ~70-80% (same traits, slight variation) | ~90-95% (fine-tuned identity) |
+| **Provider** | fal.ai only (no free tier) | Multi-provider (HF, CF, Nebius, local) | Nebius / OpenAI-compatible |
+| **Cost per selfie** | $0.01-0.05 | $0.00 (free tier) — $0.001 (paid) | $0.001-0.007 (Nebius) |
+| **Accessibility** | Butuh kartu kredit | Semua orang bisa (HuggingFace free) | Butuh LoRA training (CivitAI) |
+| **Setup cost** | $0 API (tapi butuh top-up) | ~$0.01 vision extraction (one-time) | LoRA training + upload safetensor |
+| **Provider lock-in** | Locked ke fal.ai | No lock-in, swappable | Nebius / OpenAI-compat only |
+| **Prompt templates** | Hardcoded | Configurable via config.json | Configurable via config.json |
+| **Keywords** | English only, hardcoded | EN + ID, configurable | EN + ID, configurable |
+| **Reference image** | Required every API call | Used once for extraction, then text only | Not needed — LoRA weights handle it |
+| **Multi-persona** | Single identity | Per-profile via G_AGENT_DATA_DIR | Per-profile + per-LoRA model |
+| **Sovereignty** | Tergantung fal.ai | Full local possible (ComfyUI + ollama) | Partial (need LoRA-supporting API) |
+| **Retry/Timeout** | None | Bounded retry + configurable timeout | 5x retry + URL fallback |
+| **Testing** | 0% | Full unit test coverage | Full unit test coverage (27 tests) |
+| **Logging** | console.log | loguru structured logging | loguru structured logging |
+| **Voice + Visual** | Visual only | Combined (edge-tts + selfie = multimodal) | Combined (edge-tts + selfie = multimodal) |
+| **Integration** | External Bash script | Native Python Tool (in-process, typed) | Native Python Tool (in-process, typed) |
+| **Delivery** | Gateway HTTP call | Direct send_callback (existing pipeline) | Direct send_callback (existing pipeline) |
 
-**Trade-off utama:** Face consistency 70-80% vs 95%, tapi accessible untuk semua user tanpa biaya.
+**Trade-off:**
+- **Vision-Extract**: 70-80% consistency, gratis, accessible untuk semua user. Best for entry-level.
+- **LoRA**: 90-95% consistency, butuh training model, hanya Nebius/OpenAI-compat. Best for dedicated personas.
+- **Clawra img2img**: ~95% consistency, mahal, locked ke fal.ai. Not adopted.
 
-**Upgrade path:** Jika user punya provider yang support img2img (Replicate, local ComfyUI), SelfieTool bisa di-extend untuk kirim `reference_image` ke API, meningkatkan consistency ke ~95% tanpa ubah arsitektur.
+**Upgrade path (actual implementation):**
+
+```
+Level 1: physicalDescription manual → text prompt consistency (~70%)
+Level 2: referenceImage + vision extraction → auto-extracted description (~80%)
+Level 3: LoRA trigger + safetensor weights → fine-tuned identity (~90-95%) ✅ IMPLEMENTED
+```
+
+LoRA adalah upgrade path utama yang sudah diimplementasi. Config fields: `loraUrl`, `loraTrigger`, `loraScale` di `imageGen`. Ketika `loraTrigger` di-set, vision extraction di-skip sepenuhnya — trigger word menjadi identity anchor.
 
 ---
 
-*Dokumen ini adalah referensi internal untuk evaluasi dan planning. Bukan commitment untuk implementasi.*
+## 11. Implementation Status
+
+Status implementasi aktual per Februari 2026 — apa yang sudah dibangun vs blueprint di Section 9.
+
+### 11.1 Core Implementation
+
+| Component | Blueprint (Section 9) | Actual Implementation | Status |
+|---|---|---|---|
+| `SelfieTool` class | `selfie.py` — HF, Nebius, CF providers | + LoRA injection, URL fallback, dual response parsing | ✅ Done |
+| `extract_physical_description()` | Vision LLM extraction | + MD5 hash cache invalidation | ✅ Done |
+| Config schema | `ImageGenProviderConfig` + `VisualIdentityConfig` | + `lora_url`, `lora_scale`, `lora_trigger`, `reference_image_hash` | ✅ Done |
+| Mode detection | First-match keyword | **Scoring-based** (sum keywords, highest score wins) | ✅ Improved |
+| Prompt templates | Configurable `{description}, {context}` | Unchanged from blueprint | ✅ Done |
+| Image save | `workspace/state/selfies/` | Unchanged from blueprint | ✅ Done |
+| Delivery | `OutboundMessage` + `send_callback` | + selfie_mode metadata, anti-denial return message | ✅ Done |
+| Provider routing | 4 providers (HF, Nebius, CF, OpenAI-compat) | Unchanged from blueprint | ✅ Done |
+
+### 11.2 LoRA Support (Beyond Blueprint)
+
+Fitur yang **tidak ada di blueprint Section 9** tapi sudah diimplementasi:
+
+| Feature | Details |
+|---|---|
+| **LoRA config fields** | `loraUrl`, `loraTrigger`, `loraScale` di `ImageGenProviderConfig` |
+| **Trigger word as identity anchor** | Ketika `loraTrigger` di-set, skip vision extraction sepenuhnya |
+| **LoRA payload injection** | `loras: [{url, scale}]` di OpenAI-compatible API payload |
+| **URL response fallback** | LoRA responses return URL, bukan b64_json — `_download_image_url()` 5x retry |
+| **Dual response parsing** | Try `b64_json` first → fall back to `url` download |
+
+### 11.3 Identity Architecture (3-Layer)
+
+```
+Layer 1: context.py _get_identity()
+  └── Operational baseline — tool list, rules, workspace paths
+  └── Defers persona to SOUL.md (universal, persona-neutral)
+
+Layer 2: workspace/SOUL.md
+  └── Persona definition (customizable per user)
+  └── Visual Identity HARD RULES:
+      - NEVER say "I am an AI" / "I can't take selfies"
+      - NEVER describe what "would look like" — use selfie tool
+      - When selfie tool succeeds, respond naturally
+
+Layer 3: selfie.py execute()
+  └── Config-driven identity anchor:
+      Path A (LoRA): loraTrigger word → ~90-95% consistency
+      Path B (Vision): physicalDescription → ~70-80% consistency
+```
+
+### 11.4 Supporting Infrastructure
+
+| Area | What was built/updated |
+|---|---|
+| **Onboarding wizard** | `g-agent onboard` Step 5: LoRA prompts for Nebius, conditional reference image/description |
+| **Doctor checks** | `g-agent doctor`: 3-tier identity recognition (physicalDescription > loraTrigger > referenceImage) |
+| **SOUL.md template** | Universal template with HARD RULES, customize comments, injected during onboarding |
+| **TOOLS.md** | Selfie tool docs: identity source section (LoRA vs description vs vision) |
+| **AGENTS.md** | Architecture bullet updated for LoRA (~90-95%) |
+| **docs/configuration.md** | LoRA fields in table, Nebius+LoRA example, dual-path how-it-works |
+| **Voice (TTS)** | `_synthesize_speech()` → edge-tts primary (id-ID-GadisNeural), espeak-ng fallback |
+
+### 11.5 Test Coverage
+
+27 unit tests in `tests/test_selfie_tool.py`:
+
+| Range | Area |
+|---|---|
+| Tests 1-5 | Config defaults, roundtrip, guard errors |
+| Tests 6-10 | Mode detection (EN/ID), default fallback |
+| Tests 11-15 | Prompt construction, provider API calls |
+| Tests 16-20 | Image save, outbound message, explicit mode, vision extraction |
+| Tests 21-25 | **LoRA-specific**: config defaults, trigger bypass, prompt injection, payload injection, URL fallback |
+| Tests 26-27 | Cloudflare provider, scoring-based mode detection |
+
+### 11.6 What's NOT Implemented (vs Blueprint)
+
+| Item | Blueprint Section | Reason |
+|---|---|---|
+| NSFW filter | Not in blueprint | Deferred — provider-side moderation sufficient for now |
+| Rate limiting | Not in blueprint | Deferred — not needed for personal use |
+| Image caching | Not in blueprint | Each selfie is unique context, caching not applicable |
+| A/B prompt testing | Not in blueprint | Over-engineering for current scope |
+
+---
+
+*Dokumen ini adalah referensi internal untuk evaluasi dan planning. Updated Februari 2026 dengan implementation status aktual.*

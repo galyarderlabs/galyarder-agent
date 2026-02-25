@@ -473,8 +473,14 @@ class AgentLoop:
                         }
                         for tc in response.tool_calls
                     ]
+                    # Strip content when selfie tool is called to prevent
+                    # denial text ("I'm an AI") from poisoning conversation
+                    tool_names = {tc.name for tc in response.tool_calls}
+                    assistant_content = response.content
+                    if "selfie" in tool_names:
+                        assistant_content = ""
                     messages = self.context.add_assistant_message(
-                        messages, response.content, tool_call_dicts
+                        messages, assistant_content, tool_call_dicts
                     )
 
                     # Execute tools

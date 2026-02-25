@@ -10,6 +10,10 @@ from g_agent.bus.queue import MessageBus
 from g_agent.providers.base import LLMProvider, LLMResponse, ToolCallRequest
 
 
+async def _fake_synthesize_speech(self, text, media_type):
+    return "/tmp/synth.ogg"
+
+
 class DummyProvider(LLMProvider):
     def __init__(self, responses: list[LLMResponse] | None = None, error: Exception | None = None):
         super().__init__(api_key=None, api_base=None)
@@ -355,7 +359,7 @@ def test_agent_loop_auto_sends_voice_on_telegram_without_message_tool(
     monkeypatch.setenv("G_AGENT_DATA_DIR", str(tmp_path / "data"))
     monkeypatch.setattr(
         "g_agent.agent.tools.message.MessageTool._synthesize_speech",
-        lambda self, text, media_type: "/tmp/synth.ogg",
+        _fake_synthesize_speech,
     )
     provider = DummyProvider(
         responses=[
@@ -409,7 +413,7 @@ def test_agent_loop_auto_sends_voice_for_natural_voice_phrase(
     monkeypatch.setenv("G_AGENT_DATA_DIR", str(tmp_path / "data"))
     monkeypatch.setattr(
         "g_agent.agent.tools.message.MessageTool._synthesize_speech",
-        lambda self, text, media_type: "/tmp/synth.ogg",
+        _fake_synthesize_speech,
     )
     provider = DummyProvider(
         responses=[
@@ -502,7 +506,7 @@ def test_agent_loop_auto_voice_does_not_echo_denial_text_as_caption(
     monkeypatch.setenv("G_AGENT_DATA_DIR", str(tmp_path / "data"))
     monkeypatch.setattr(
         "g_agent.agent.tools.message.MessageTool._synthesize_speech",
-        lambda self, text, media_type: "/tmp/synth.ogg",
+        _fake_synthesize_speech,
     )
     provider = DummyProvider(
         responses=[
@@ -559,7 +563,7 @@ def test_agent_loop_auto_voice_uses_contextual_reply_instead_of_static_template(
     monkeypatch.setenv("G_AGENT_DATA_DIR", str(tmp_path / "data"))
     monkeypatch.setattr(
         "g_agent.agent.tools.message.MessageTool._synthesize_speech",
-        lambda self, text, media_type: "/tmp/synth.ogg",
+        _fake_synthesize_speech,
     )
     provider = DummyProvider(
         responses=[
@@ -611,7 +615,7 @@ def test_agent_loop_auto_voice_handles_pake_suara_phrase_with_about_me_context(
     monkeypatch.setenv("G_AGENT_DATA_DIR", str(tmp_path / "data"))
     monkeypatch.setattr(
         "g_agent.agent.tools.message.MessageTool._synthesize_speech",
-        lambda self, text, media_type: "/tmp/synth.ogg",
+        _fake_synthesize_speech,
     )
     provider = DummyProvider(
         responses=[
@@ -666,7 +670,7 @@ def test_agent_loop_auto_voice_handles_indonesian_text_only_denial_phrase(
     monkeypatch.setenv("G_AGENT_DATA_DIR", str(tmp_path / "data"))
     monkeypatch.setattr(
         "g_agent.agent.tools.message.MessageTool._synthesize_speech",
-        lambda self, text, media_type: "/tmp/synth.ogg",
+        _fake_synthesize_speech,
     )
     provider = DummyProvider(
         responses=[
@@ -720,7 +724,7 @@ def test_agent_loop_auto_voice_recovers_from_approve_all_meta_reply(
     monkeypatch.setenv("G_AGENT_DATA_DIR", str(tmp_path / "data"))
     monkeypatch.setattr(
         "g_agent.agent.tools.message.MessageTool._synthesize_speech",
-        lambda self, text, media_type: "/tmp/synth.ogg",
+        _fake_synthesize_speech,
     )
     provider = DummyProvider(
         responses=[
@@ -784,7 +788,7 @@ def test_agent_loop_does_not_auto_send_voice_for_non_delivery_voice_topic(
     monkeypatch.setenv("G_AGENT_DATA_DIR", str(tmp_path / "data"))
     monkeypatch.setattr(
         "g_agent.agent.tools.message.MessageTool._synthesize_speech",
-        lambda self, text, media_type: "/tmp/synth.ogg",
+        _fake_synthesize_speech,
     )
     provider = DummyProvider(responses=[LLMResponse(content="Kemungkinan suara kamu lagi serak karena capek.")])
 
@@ -862,7 +866,7 @@ def test_agent_loop_does_not_auto_send_voice_when_user_negates_voice_request(
     monkeypatch.setenv("G_AGENT_DATA_DIR", str(tmp_path / "data"))
     monkeypatch.setattr(
         "g_agent.agent.tools.message.MessageTool._synthesize_speech",
-        lambda self, text, media_type: "/tmp/synth.ogg",
+        _fake_synthesize_speech,
     )
     provider = DummyProvider(
         responses=[LLMResponse(content="Siap, gue jawab via teks tanpa voice note.")]

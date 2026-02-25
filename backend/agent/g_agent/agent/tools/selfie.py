@@ -124,27 +124,49 @@ class SelfieTool(Tool):
         if not self._config.image_gen.provider:
             return "Error: no image generation provider configured."
 
-        # Lazy vision extraction
-        description = self._config.physical_description
-        if not description and self._config.reference_image:
-            try:
-                description = await extract_physical_description(
-                    self._config.reference_image,
-                    self._llm_provider,
-                )
-                self._config.physical_description = description
-                self._persist_description(description)
-                logger.info("Extracted physical description from reference image")
-            except Exception as e:
-                logger.error(f"Vision extraction failed: {e}")
-                return f"Error: failed to extract physical description: {e}"
+        # Resolve identity anchor: LoRA trigger word takes priority
+        trigger = self._config.image_gen.lora_trigger
+        if trigger:
+            # LoRA mode — trigger word IS the identity anchor
+            description = trigger
+            logger.debug(f"Using LoRA trigger as identity anchor: {trigger}")
+        else:
+            # Legacy mode — vision-extracted physical description
+            current_hash = ""
+            if self._config.reference_image:
+                try:
+                    img_path = Path(self._config.reference_image).expanduser().resolve()
+                    if img_path.exists():
+                        import hashlib
+                        current_hash = hashlib.md5(img_path.read_bytes()).hexdigest()
+                except Exception as e:
+                    logger.warning(f"Failed to calculate image hash: {e}")
 
-        if not description:
-            return (
-                "Error: no physical description available. "
-                "Ask the user to provide a reference photo path via "
-                "'g-agent onboard' or set visual.physicalDescription in config."
-            )
+            if current_hash and self._config.reference_image_hash != current_hash:
+                logger.info("Reference image changed. Invalidating physical description cache.")
+                self._config.physical_description = ""
+
+            description = self._config.physical_description
+            if not description and self._config.reference_image:
+                try:
+                    description = await extract_physical_description(
+                        self._config.reference_image,
+                        self._llm_provider,
+                    )
+                    self._config.physical_description = description
+                    self._config.reference_image_hash = current_hash
+                    self._persist_description(description, current_hash)
+                    logger.info("Extracted physical description from reference image")
+                except Exception as e:
+                    logger.error(f"Vision extraction failed: {e}")
+                    return f"Error: failed to extract physical description: {e}"
+
+            if not description:
+                return (
+                    "Error: no physical description available. "
+                    "Configure lora_trigger in image_gen, provide a reference photo "
+                    "via 'g-agent onboard', or set visual.physicalDescription in config."
+                )
 
         # Detect mode
         if mode == "auto":
@@ -209,13 +231,14 @@ class SelfieTool(Tool):
             return "direct"
         return "mirror"
 
-    def _persist_description(self, description: str) -> None:
-        """Persist extracted description back to config file."""
+    def _persist_description(self, description: str, ref_hash: str = "") -> None:
+        """Persist extracted description and image hash back to config file."""
         try:
             from g_agent.config.loader import load_config, save_config
 
             config = load_config()
             config.visual.physical_description = description
+            config.visual.reference_image_hash = ref_hash
             save_config(config)
         except Exception as e:
             logger.warning(f"Failed to persist physical description: {e}")
@@ -264,15 +287,53 @@ class SelfieTool(Tool):
             model = "black-forest-labs/flux-dev"
         url = f"{api_base}/images/generations"
         headers = {"Authorization": f"Bearer {self._config.image_gen.api_key}"}
-        payload: dict[str, Any] = {"prompt": prompt, "response_format": "b64_json"}
+        payload: dict[str, Any] = {
+            "prompt": prompt,
+            "response_format": "b64_json",
+            "width": 768,
+            "height": 768,
+            "num_inference_steps": 28,
+        }
         if model:
             payload["model"] = model
+
+        # Inject LoRA if configured
+        if self._config.image_gen.lora_url:
+            payload["loras"] = [{
+                "url": self._config.image_gen.lora_url,
+                "scale": self._config.image_gen.lora_scale,
+            }]
+
         async with httpx.AsyncClient(timeout=self._config.image_gen.timeout) as client:
             resp = await client.post(url, headers=headers, json=payload)
             resp.raise_for_status()
             data = resp.json()
-            b64 = data["data"][0]["b64_json"]
-            return base64.b64decode(b64)
+            image_data = data["data"][0]
+            # Try b64_json first, fall back to URL (LoRA responses may return URL)
+            if image_data.get("b64_json"):
+                return base64.b64decode(image_data["b64_json"])
+            if image_data.get("url"):
+                return await self._download_image_url(image_data["url"])
+            raise RuntimeError(f"No image data in response: {list(image_data.keys())}")
+
+    async def _download_image_url(
+        self, url: str, retries: int = 5, delay: float = 2.0,
+    ) -> bytes:
+        """Download image from URL with retry."""
+        import asyncio
+
+        async with httpx.AsyncClient(timeout=30) as client:
+            for attempt in range(retries):
+                resp = await client.get(url)
+                if resp.status_code == 200:
+                    return resp.content
+                logger.warning(
+                    f"Image download attempt {attempt + 1}/{retries} "
+                    f"failed: HTTP {resp.status_code}"
+                )
+                if attempt < retries - 1:
+                    await asyncio.sleep(delay)
+        raise RuntimeError(f"Failed to download image after {retries} attempts")
 
     async def _generate_cloudflare(self, prompt: str) -> bytes:
         """Generate image via Cloudflare Workers AI."""

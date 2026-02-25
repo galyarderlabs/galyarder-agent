@@ -138,7 +138,7 @@ class MessageTool(Tool):
         else:
             resolved_media_type = ""
             if requested_media_type in {"voice", "audio"} and content_text:
-                generated = self._synthesize_speech(content_text, requested_media_type)
+                generated = await self._synthesize_speech(content_text, requested_media_type)
                 if generated:
                     media_path_text = generated
                     resolved_media_type = _infer_media_type(generated)
@@ -148,8 +148,8 @@ class MessageTool(Tool):
                         mime_text = _infer_audio_mime(media_path_text, resolved_media_type)
                 else:
                     return (
-                        "Error: voice synthesis unavailable. Install espeak-ng/espeak "
-                        "(plus ffmpeg for voice-note OGG) or provide media_path explicitly."
+                        "Error: voice synthesis unavailable. Install edge-tts "
+                        "(pip install edge-tts) or provide media_path explicitly."
                     )
             elif requested_media_type == "image" and content_text:
                 generated = self._render_image_card(content_text)
@@ -215,12 +215,8 @@ class MessageTool(Tool):
         except Exception as e:
             return f"Error sending message: {str(e)}"
 
-    def _synthesize_speech(self, text: str, media_type: str) -> str | None:
-        """Best-effort local TTS using espeak/espeak-ng (+ optional ffmpeg conversion)."""
-        engine = shutil.which("espeak-ng") or shutil.which("espeak")
-        if not engine:
-            return None
-
+    async def _synthesize_speech(self, text: str, media_type: str) -> str | None:
+        """TTS synthesis: edge-tts (primary) → espeak-ng (fallback)."""
         target_dir = (
             self._workspace / "state" / "tts"
             if self._workspace
@@ -228,6 +224,48 @@ class MessageTool(Tool):
         )
         target_dir.mkdir(parents=True, exist_ok=True)
         stem = datetime.now().strftime("tts-%Y%m%d-%H%M%S-%f")
+
+        # Primary: edge-tts (Microsoft Neural TTS — natural quality)
+        result = await self._tts_edge(text, media_type, target_dir, stem)
+        if result:
+            return result
+
+        # Fallback: espeak-ng (robotic but works offline)
+        return self._tts_espeak(text, media_type, target_dir, stem)
+
+    async def _tts_edge(
+        self, text: str, media_type: str, target_dir: Path, stem: str,
+    ) -> str | None:
+        """Neural TTS via edge-tts. Produces mp3, converts to ogg for voice notes."""
+        try:
+            import edge_tts
+        except ImportError:
+            return None
+
+        mp3_path = target_dir / f"{stem}.mp3"
+        try:
+            communicate = edge_tts.Communicate(text, voice="id-ID-GadisNeural")
+            await communicate.save(str(mp3_path))
+        except Exception:
+            return None
+
+        if not mp3_path.exists():
+            return None
+
+        if media_type == "voice":
+            ogg_path = self._convert_to_ogg(mp3_path, target_dir, stem)
+            if ogg_path:
+                return ogg_path
+        return str(mp3_path.resolve())
+
+    def _tts_espeak(
+        self, text: str, media_type: str, target_dir: Path, stem: str,
+    ) -> str | None:
+        """Legacy espeak-ng fallback."""
+        engine = shutil.which("espeak-ng") or shutil.which("espeak")
+        if not engine:
+            return None
+
         wav_path = target_dir / f"{stem}.wav"
         try:
             subprocess.run(
@@ -240,33 +278,38 @@ class MessageTool(Tool):
         except (OSError, subprocess.SubprocessError):
             return None
 
+        if not wav_path.exists():
+            return None
+
         if media_type == "voice":
-            ffmpeg = shutil.which("ffmpeg")
-            if ffmpeg:
-                ogg_path = target_dir / f"{stem}.ogg"
-                try:
-                    subprocess.run(
-                        [
-                            ffmpeg,
-                            "-y",
-                            "-i",
-                            str(wav_path),
-                            "-c:a",
-                            "libopus",
-                            "-b:a",
-                            "48k",
-                            str(ogg_path),
-                        ],
-                        check=True,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        text=True,
-                    )
-                    if ogg_path.exists():
-                        return str(ogg_path.resolve())
-                except (OSError, subprocess.SubprocessError):
-                    return str(wav_path.resolve()) if wav_path.exists() else None
-        return str(wav_path.resolve()) if wav_path.exists() else None
+            ogg_path = self._convert_to_ogg(wav_path, target_dir, stem)
+            if ogg_path:
+                return ogg_path
+            return str(wav_path.resolve())
+        return str(wav_path.resolve())
+
+    def _convert_to_ogg(self, input_path: Path, target_dir: Path, stem: str) -> str | None:
+        """Convert audio to OGG/Opus for Telegram voice notes."""
+        ffmpeg = shutil.which("ffmpeg")
+        if not ffmpeg:
+            return None
+        ogg_path = target_dir / f"{stem}.ogg"
+        try:
+            subprocess.run(
+                [
+                    ffmpeg, "-y", "-i", str(input_path),
+                    "-c:a", "libopus", "-b:a", "48k",
+                    str(ogg_path),
+                ],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            if ogg_path.exists():
+                return str(ogg_path.resolve())
+        except (OSError, subprocess.SubprocessError):
+            pass
+        return None
 
     def _render_image_card(self, text: str) -> str | None:
         """Best-effort image card rendering using ImageMagick."""

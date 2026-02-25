@@ -172,7 +172,10 @@ The `visual` section enables AI-generated selfie photos with consistent appearan
 
 ### Setup
 
-1. Provide a reference photo or write a physical description manually
+1. Choose an identity method:
+   - **LoRA (recommended for Nebius):** Provide a LoRA safetensor URL + trigger word. Highest consistency (~90-95%).
+   - **Reference photo:** Provide a photo, vision LLM auto-extracts physical traits.
+   - **Manual description:** Write a physical description directly.
 2. Configure an image generation provider
 3. Enable the feature
 
@@ -218,6 +221,25 @@ The `visual` section enables AI-generated selfie photos with consistent appearan
 }
 ```
 
+### Example: Nebius + LoRA (best consistency)
+
+```json
+{
+  "visual": {
+    "enabled": true,
+    "imageGen": {
+      "provider": "nebius",
+      "apiKey": "your-nebius-api-key",
+      "loraUrl": "https://civitai.com/api/download/models/XXXXX?type=Model&format=SafeTensor",
+      "loraTrigger": "your_trigger_word",
+      "loraScale": 0.8
+    }
+  }
+}
+```
+
+When `loraTrigger` is set, `physicalDescription` and `referenceImage` are not needed — the trigger word + LoRA weights handle identity consistency.
+
 ### Fields
 
 | Field | Type | Default | Description |
@@ -231,6 +253,9 @@ The `visual` section enables AI-generated selfie photos with consistent appearan
 | `imageGen.model` | string | `""` | Model identifier |
 | `imageGen.accountId` | string | `""` | Cloudflare account ID |
 | `imageGen.timeout` | int | `30` | Request timeout (seconds) |
+| `imageGen.loraUrl` | string | `""` | URL to LoRA safetensor (Nebius) |
+| `imageGen.loraScale` | float | `0.8` | LoRA influence strength (0.0-1.0) |
+| `imageGen.loraTrigger` | string | `""` | LoRA trigger word (replaces physicalDescription when set) |
 | `defaultFormat` | string | `"jpeg"` | Output image format |
 | `promptTemplates` | object | (builtin) | `mirror` and `direct` prompt templates |
 | `mirrorKeywords` | list | (builtin) | Keywords triggering mirror selfie mode |
@@ -238,6 +263,12 @@ The `visual` section enables AI-generated selfie photos with consistent appearan
 
 ### How it works
 
+**Path A — LoRA (recommended):**
+1. **Config:** Set `loraTrigger` and `loraUrl` in `imageGen`
+2. **Every selfie:** Trigger word is injected into prompt template → sent with LoRA weights to Nebius
+3. **Delivery:** Generated image saved locally → sent via media pipeline
+
+**Path B — Vision extraction (legacy):**
 1. **One-time setup:** Vision LLM extracts physical traits from reference photo → saved to `physicalDescription`
 2. **Every selfie:** Physical description is injected into prompt template → sent to text-to-image provider
 3. **Delivery:** Generated image saved locally → sent via existing media pipeline (Telegram/WhatsApp/etc.)
