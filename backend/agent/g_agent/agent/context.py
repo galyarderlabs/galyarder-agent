@@ -29,6 +29,7 @@ class ContextBuilder:
         self,
         skill_names: list[str] | None = None,
         current_message: str | None = None,
+        tool_names: list[str] | None = None,
     ) -> str:
         """
         Build the system prompt from bootstrap files, memory, and skills.
@@ -43,7 +44,7 @@ class ContextBuilder:
         parts = []
 
         # Core identity
-        parts.append(self._get_identity())
+        parts.append(self._get_identity(tool_names=tool_names))
 
         # Bootstrap files
         bootstrap = self._load_bootstrap_files()
@@ -78,7 +79,7 @@ Skills with available="false" need dependencies installed first - you can try in
 
         return "\n\n---\n\n".join(parts)
 
-    def _get_identity(self) -> str:
+    def _get_identity(self, tool_names: list[str] | None = None) -> str:
         """Get the core identity section."""
         from datetime import datetime
 
@@ -119,7 +120,27 @@ Your workspace is at: {workspace_path}
 - You have persistent cross-session memory. You remember past conversations.
 - If asked to remember something, use `remember` or `update_profile` BEFORE replying.
 - If a tool is approval-gated, ask user to resend with `approve <tool>` or `approve all`.
-- If a tool fails, explain briefly and provide the next best step."""
+- If a tool fails, explain briefly and provide the next best step.
+
+## CRITICAL: Tool Capability Awareness
+You have REAL, WORKING tools. These are NOT hypothetical.
+{self._build_tool_awareness(tool_names)}
+NEVER say "I can't do that", "I don't have access", "I'm just a chat bot",
+"saya tidak bisa", "aku cuma AI", or ANY denial of capabilities listed above.
+If a user asks you to do something your tools support, USE THE TOOL.
+Do not describe what you would do — actually do it."""
+
+    @staticmethod
+    def _build_tool_awareness(tool_names: list[str] | None) -> str:
+        """Build a tool awareness string for the system prompt."""
+        if not tool_names:
+            return "You have multiple registered tools available to you."
+        grouped = ", ".join(f"`{n}`" for n in tool_names)
+        return (
+            f"Your registered tools: {grouped}\n"
+            "Each of these tools is REAL and FUNCTIONAL. "
+            "If a user asks for something these tools can do, call the tool."
+        )
 
     def _load_bootstrap_files(self) -> str:
         """Load all bootstrap files from workspace."""
@@ -142,6 +163,7 @@ Your workspace is at: {workspace_path}
         metadata: dict[str, Any] | None = None,
         channel: str | None = None,
         chat_id: str | None = None,
+        tool_names: list[str] | None = None,
     ) -> list[dict[str, Any]]:
         """
         Build the complete message list for an LLM call.
@@ -164,6 +186,7 @@ Your workspace is at: {workspace_path}
         system_prompt = self.build_system_prompt(
             skill_names=skill_names,
             current_message=current_message,
+            tool_names=tool_names,
         )
         if channel and chat_id:
             system_prompt += f"\n\n## Current Session\nChannel: {channel}\nChat ID: {chat_id}"

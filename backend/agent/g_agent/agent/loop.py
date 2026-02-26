@@ -442,6 +442,7 @@ class AgentLoop:
                 metadata=msg.metadata if msg.metadata else None,
                 channel=msg.channel,
                 chat_id=msg.chat_id,
+                tool_names=self.tools.tool_names,
             )
 
             # Agent loop
@@ -475,6 +476,7 @@ class AgentLoop:
                     metadata=msg.metadata if msg.metadata else None,
                     channel=msg.channel,
                     chat_id=msg.chat_id,
+                    tool_names=self.tools.tool_names,
                 )
 
             while iteration < self.max_iterations:
@@ -757,6 +759,7 @@ class AgentLoop:
             metadata=msg.metadata if msg.metadata else None,
             channel=origin_channel,
             chat_id=origin_chat_id,
+            tool_names=self.tools.tool_names,
         )
 
         # Agent loop (limited for announce handling)
