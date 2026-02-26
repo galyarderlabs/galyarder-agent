@@ -1939,8 +1939,9 @@ def google_exchange(
         try:
             err_data = response.json()
             detail = f" ({err_data.get('error', '')}: {err_data.get('error_description', '')})"
-        except Exception:
-            pass
+        except Exception as parse_err:
+            # Ignore JSON parse errors but log for debugging; HTTP status is still reported below.
+            console.print(f"[dim]Warning: could not parse Google error JSON: {parse_err}[/dim]")
         _cli_fail(
             f"Token exchange failed (HTTP {response.status_code}){detail}.",
             "Re-run `g-agent google auth-url` and complete consent flow again.",
