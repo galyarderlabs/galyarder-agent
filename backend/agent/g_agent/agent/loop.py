@@ -454,6 +454,29 @@ class AgentLoop:
             message_delivery_origin_text = ""
             approved_tools, approve_all = self._extract_approval_intent(msg.content)
 
+            # Replay pending approvals from previous turn
+            pending_replay_context = await self._replay_pending_approvals(
+                session=session,
+                approved_tools=approved_tools,
+                approve_all=approve_all,
+                channel=msg.channel,
+                sender_id=msg.sender_id,
+            )
+            if pending_replay_context:
+                effective_content = (
+                    f"{effective_content}\n\n"
+                    f"[System: The following previously-pending tool calls have "
+                    f"now been executed with approval:\n{pending_replay_context}]"
+                )
+                messages = self.context.build_messages(
+                    history=session.get_history(),
+                    current_message=effective_content,
+                    media=msg.media if msg.media else None,
+                    metadata=msg.metadata if msg.metadata else None,
+                    channel=msg.channel,
+                    chat_id=msg.chat_id,
+                )
+
             while iteration < self.max_iterations:
                 iteration += 1
                 self.runtime.append_event(task_id, "llm_call", f"iteration={iteration}")
@@ -511,6 +534,7 @@ class AgentLoop:
                             sender_id=msg.sender_id,
                             approved_tools=approved_tools,
                             approve_all=approve_all,
+                            session=session,
                         )
                         executed_tools.append(tool_call.name)
                         executed_tool_results.append((tool_call.name, str(result)))
@@ -1637,6 +1661,7 @@ class AgentLoop:
         sender_id: str,
         approved_tools: set[str],
         approve_all: bool,
+        session: Any | None = None,
     ) -> str:
         """Execute a tool call after policy/approval checks."""
         if not isinstance(tool_args, dict):
@@ -1665,6 +1690,8 @@ class AgentLoop:
         if decision == "deny":
             return _record(f"Error: tool '{tool_name}' blocked by policy.")
         if decision == "ask" and not (approve_all or tool_name in approved_tools):
+            if session is not None:
+                self._store_pending_approval(session, tool_name, tool_args)
             return _record(
                 f"Approval required for tool '{tool_name}'. "
                 f"Resend your request with `approve {tool_name}` (or `approve all`)."
@@ -1695,6 +1722,68 @@ class AgentLoop:
                 return _record(str(next_result))
             last_result = str(next_result)
         return _record(last_result)
+
+    def _store_pending_approval(
+        self,
+        session: Any,
+        tool_name: str,
+        tool_args: dict[str, Any],
+    ) -> None:
+        """Store a denied tool call for later replay when approved."""
+        pending: list[dict[str, Any]] = session.metadata.get("pending_approvals", [])
+        pending.append({
+            "tool_name": tool_name,
+            "tool_args": tool_args,
+        })
+        # Keep only last 5 to prevent unbounded growth
+        session.metadata["pending_approvals"] = pending[-5:]
+        self.sessions.save(session)
+        logger.info(f"Stored pending approval for '{tool_name}' in session {session.key}")
+
+    async def _replay_pending_approvals(
+        self,
+        session: Any,
+        approved_tools: set[str],
+        approve_all: bool,
+        channel: str,
+        sender_id: str,
+    ) -> str:
+        """Replay stored pending tool calls if user has now approved them.
+
+        Returns a formatted string of results for LLM context injection,
+        or empty string if nothing was replayed.
+        """
+        pending: list[dict[str, Any]] = session.metadata.get("pending_approvals", [])
+        if not pending:
+            return ""
+        if not approve_all and not approved_tools:
+            return ""
+
+        replayed: list[str] = []
+        remaining: list[dict[str, Any]] = []
+
+        for entry in pending:
+            t_name = entry.get("tool_name", "")
+            t_args = entry.get("tool_args", {})
+            if not isinstance(t_args, dict):
+                t_args = {}
+
+            if approve_all or t_name in approved_tools:
+                logger.info(f"Replaying pending tool call: {t_name}")
+                try:
+                    result = await self.tools.execute(t_name, t_args)
+                    replayed.append(f"- {t_name}: {result}")
+                except Exception as exc:
+                    replayed.append(f"- {t_name}: Error: {exc}")
+            else:
+                remaining.append(entry)
+
+        session.metadata["pending_approvals"] = remaining
+        self.sessions.save(session)
+
+        if not replayed:
+            return ""
+        return "\n".join(replayed)
 
     def _should_reflect(self, user_content: str, used_tools: bool, draft: str | None) -> bool:
         """Decide whether to run a reflection pass."""

@@ -1006,3 +1006,108 @@ def test_agent_loop_does_not_auto_send_voice_when_user_negates_voice_request(
     assert result == "Siap, gue jawab via teks tanpa voice note."
     visible_captured = [m for m in captured if getattr(m, "content", "") or getattr(m, "media", [])]
     assert visible_captured == []
+
+
+def test_agent_loop_replays_pending_approval_on_followup_message(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """When exec is denied for approval, the pending call is stored.
+
+    On follow-up message with 'approve all', the stored call is replayed
+    and results are injected as context for the LLM.
+    """
+    monkeypatch.setenv("G_AGENT_DATA_DIR", str(tmp_path / "data"))
+
+    # First call: LLM tries to call exec, gets denied
+    # Second call: LLM responds with the denial message
+    first_pass_provider = DummyProvider(
+        responses=[
+            LLMResponse(
+                content="",
+                tool_calls=[
+                    ToolCallRequest(
+                        id="tc1",
+                        name="exec",
+                        arguments={"command": "free -h && uptime"},
+                    ),
+                ],
+            ),
+            LLMResponse(
+                content=(
+                    "Butuh izin dulu buat jalanin command. "
+                    "Ketik approve exec atau approve all."
+                ),
+            ),
+        ]
+    )
+
+    loop = AgentLoop(
+        bus=MessageBus(),
+        provider=first_pass_provider,
+        workspace=tmp_path,
+        model="dummy-model",
+        max_iterations=3,
+        enable_reflection=False,
+        approval_mode="confirm",
+        risky_tools=["exec"],
+    )
+
+    # First message — exec gets denied
+    result1 = asyncio.run(
+        loop.process_direct(
+            content="cek ram dan cpu usage",
+            session_key="whatsapp:081388649050",
+            channel="whatsapp",
+            chat_id="081388649050",
+            sender_id="081388649050",
+        )
+    )
+
+    # Verify session has pending approval stored
+    session = loop.sessions.get_or_create("whatsapp:081388649050")
+    pending = session.metadata.get("pending_approvals", [])
+    assert len(pending) == 1, f"Expected 1 pending approval, got {len(pending)}: {pending}"
+    assert pending[0]["tool_name"] == "exec"
+    assert pending[0]["tool_args"] == {"command": "free -h && uptime"}
+
+    # Second message — user approves
+    second_pass_provider = DummyProvider(
+        responses=[
+            LLMResponse(
+                content="RAM: 12GB/16GB used. CPU load: 0.5. Sistem kamu aman.",
+            ),
+        ]
+    )
+    loop.provider = second_pass_provider
+    loop.models = ["dummy-model"]
+
+    # Monkeypatch exec tool to return fake system info
+    async def _fake_exec(name, args):
+        if name == "exec":
+            return (
+                "              total        used        free\n"
+                "Mem:           15Gi       12Gi       3.0Gi\n"
+                "Load average: 0.50, 0.45, 0.40"
+            )
+        return "ok"
+
+    loop.tools.execute = _fake_exec
+
+    result2 = asyncio.run(
+        loop.process_direct(
+            content="approve all",
+            session_key="whatsapp:081388649050",
+            channel="whatsapp",
+            chat_id="081388649050",
+            sender_id="081388649050",
+        )
+    )
+
+    # Verify pending approvals are cleared
+    session = loop.sessions.get_or_create("whatsapp:081388649050")
+    remaining = session.metadata.get("pending_approvals", [])
+    assert remaining == [], f"Expected empty pending, got {remaining}"
+
+    # LLM should have received the exec results and responded with system info
+    assert "aman" in result2.lower() or "ram" in result2.lower()
+
