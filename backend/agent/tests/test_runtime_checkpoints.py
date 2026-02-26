@@ -1053,7 +1053,7 @@ def test_agent_loop_replays_pending_approval_on_followup_message(
     )
 
     # First message — exec gets denied
-    result1 = asyncio.run(
+    asyncio.run(
         loop.process_direct(
             content="cek ram dan cpu usage",
             session_key="whatsapp:081388649050",
