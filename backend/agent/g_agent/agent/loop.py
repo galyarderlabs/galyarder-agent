@@ -1693,8 +1693,8 @@ class AgentLoop:
             if session is not None:
                 self._store_pending_approval(session, tool_name, tool_args)
             return _record(
-                f"Approval required for tool '{tool_name}'. "
-                f"Resend your request with `approve {tool_name}` (or `approve all`)."
+                f"butuh izin dulu buat jalanin '{tool_name}'. "
+                f"ketik `approve {tool_name}` atau `approve all` buat lanjut."
             )
         attempts_used = 1
         result = await self.tools.execute(tool_name, tool_args)
