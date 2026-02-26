@@ -6,6 +6,7 @@ import textwrap
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Awaitable, Callable
+import logging
 
 from g_agent.agent.tools.base import Tool
 from g_agent.bus.events import OutboundMessage
@@ -310,7 +311,10 @@ class MessageTool(Tool):
             if ogg_path.exists():
                 return str(ogg_path.resolve())
         except (OSError, subprocess.SubprocessError):
-            pass
+            logging.getLogger(__name__).warning(
+                "Failed to convert %s to OGG at %s using ffmpeg", input_path, ogg_path,
+                exc_info=True,
+            )
         return None
 
     def _render_image_card(self, text: str) -> str | None:
