@@ -1874,7 +1874,7 @@ def google_auth_url(
         "scope": scopes,
     }
     url = f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
-    console.print("Open this URL, authorize, then copy the `code`:")
+    console.print("Open this URL, authorize, then paste the full redirect URL or just the `code`:")
     console.print(url)
 
 
@@ -1900,8 +1900,25 @@ def google_exchange(
             "Set integrations.google.clientId and integrations.google.clientSecret first.",
         )
 
+    # User may paste full redirect URL instead of bare code.
+    # Extract `code` query param if input looks like a URL.
+    raw_code = code.strip()
+    if raw_code.startswith(("http://", "https://")):
+        from urllib.parse import parse_qs, urlparse
+
+        parsed = urlparse(raw_code)
+        code_values = parse_qs(parsed.query).get("code", [])
+        if code_values:
+            raw_code = code_values[0]
+            console.print(f"[dim]Extracted code from redirect URL.[/dim]")
+        else:
+            _cli_fail(
+                "Could not extract 'code' parameter from URL.",
+                "Copy only the code value, or paste the full redirect URL.",
+            )
+
     payload = {
-        "code": code.strip(),
+        "code": raw_code,
         "client_id": google_cfg.client_id,
         "client_secret": google_cfg.client_secret,
         "redirect_uri": redirect_uri,
@@ -1917,8 +1934,15 @@ def google_exchange(
         )
 
     if response.status_code != 200:
+        # Show Google's error body for debugging
+        detail = ""
+        try:
+            err_data = response.json()
+            detail = f" ({err_data.get('error', '')}: {err_data.get('error_description', '')})"
+        except Exception:
+            pass
         _cli_fail(
-            f"Token exchange failed (HTTP {response.status_code}).",
+            f"Token exchange failed (HTTP {response.status_code}){detail}.",
             "Re-run `g-agent google auth-url` and complete consent flow again.",
         )
 
