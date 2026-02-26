@@ -413,7 +413,9 @@ def _interactive_setup(config: Any) -> Any:
                     try:
                         config.visual.image_gen.lora_scale = float(lora_scale)
                     except ValueError:
-                        pass
+                        console.print(
+                            "  [yellow]Invalid LoRA scale provided; keeping previous value.[/yellow]"
+                        )
 
         # Identity source: LoRA trigger OR reference image / description
         if not config.visual.image_gen.lora_trigger:
