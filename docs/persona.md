@@ -13,6 +13,8 @@ All persona files live in `~/.g-agent/workspace/`:
 | `AGENTS.md` | Agent instructions, guidelines, and behavior constraints |
 | `USER.md` | User preferences (timezone, language, communication style) |
 | `memory/PROFILE.md` | Agent's identity fields (name, timezone, language) |
+| `TOOLS.md` | Tool-specific instructions and constraints |
+| `HEARTBEAT.md` | Proactive action rules (scheduled messages, reminders) |
 | `memory/MEMORY.md` | Long-term facts persisted across sessions |
 
 These files are created automatically by `g-agent onboard` with sensible defaults.

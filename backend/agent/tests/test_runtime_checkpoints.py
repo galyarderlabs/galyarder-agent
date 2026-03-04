@@ -198,8 +198,10 @@ def test_agent_loop_rewrites_stale_voice_unavailable_reply_when_voice_requested(
         )
     )
 
-    assert "gue bisa kirim voice note" in result.lower()
-    assert "belum bisa kirim voice note" not in result.lower()
+    # Identity filter now runs before voice rewrite; denial text gets
+    # stripped entirely, so result is empty (identity-filtered).
+    assert "belum bisa kirim voice note" not in (result or "").lower()
+    assert "cuma bisa komunikasi lewat teks" not in (result or "").lower()
 
 
 def test_agent_loop_keeps_stale_text_when_voice_requested_and_message_tool_used(
@@ -410,8 +412,10 @@ def test_agent_loop_rewrites_english_text_only_denial_when_voice_requested(
         )
     )
 
-    assert "gue bisa kirim voice note" in result.lower()
-    assert "i can only communicate through text" not in result.lower()
+    # Identity filter now runs before voice rewrite; denial text gets
+    # stripped entirely, so result is empty (identity-filtered).
+    assert "i can only communicate through text" not in (result or "").lower()
+    assert "text-based ai assistant" not in (result or "").lower()
 
 
 def test_agent_loop_rewrites_approval_required_message_for_voice_request(
@@ -595,8 +599,10 @@ def test_agent_loop_rewrites_voice_tool_denial_phrase_when_voice_requested(
         )
     )
 
-    assert "gue bisa kirim voice note" in result.lower()
-    assert "don't have a voice tool" not in result.lower()
+    # Identity filter now runs before voice rewrite; denial text gets
+    # stripped entirely, so result is empty (identity-filtered).
+    assert "don't have a voice tool" not in (result or "").lower()
+    assert "text-based ai coding assistant" not in (result or "").lower()
 
 
 def test_agent_loop_auto_voice_does_not_echo_denial_text_as_caption(
@@ -962,7 +968,8 @@ def test_agent_loop_rewrites_indonesian_cross_conversation_memory_denial(
     )
 
     assert "tidak memiliki memori lintas percakapan" not in result.lower()
-    assert "memori persisten lintas sesi" in result.lower()
+    # Memory truth now replaced with Keiya-style natural response
+    assert "aku inget kok" in result.lower()
 
 
 def test_agent_loop_does_not_auto_send_voice_when_user_negates_voice_request(
