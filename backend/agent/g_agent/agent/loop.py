@@ -8,7 +8,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 from time import perf_counter
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 from loguru import logger
 
@@ -77,6 +77,7 @@ if TYPE_CHECKING:
         ExecToolConfig,
         GoogleWorkspaceConfig,
         SMTPConfig,
+        VisualIdentityConfig,
     )
     from g_agent.cron.service import CronService
     from g_agent.session.manager import Session
@@ -116,16 +117,21 @@ class AgentLoop:
         summary_interval: int = 6,
         fallback_models: list[str] | None = None,
         plugins: list[Any] | None = None,
+        visual_config: VisualIdentityConfig | None = None,
+        provider_resolver: Callable[[str], LLMProvider] | None = None,
+        tts_voice: str = "id-ID-GadisNeural",
     ):
         from g_agent.config.schema import (
             BrowserToolsConfig,
             ExecToolConfig,
             GoogleWorkspaceConfig,
             SMTPConfig,
+            VisualIdentityConfig,
         )
 
         self.bus = bus
         self.provider = provider
+        self.provider_resolver = provider_resolver
         self.workspace = workspace
         self.model = model or provider.get_default_model()
         self.max_iterations = max_iterations
@@ -137,6 +143,8 @@ class AgentLoop:
         self.smtp_config = smtp_config or SMTPConfig()
         self.google_config = google_config or GoogleWorkspaceConfig()
         self.browser_config = browser_config or BrowserToolsConfig()
+        self.visual_config = visual_config or VisualIdentityConfig()
+        self.tts_voice = tts_voice
         self.tool_policy = {
             (k or "").strip().lower(): (v or "").strip().lower()
             for k, v in (tool_policy or {}).items()
@@ -183,6 +191,7 @@ class AgentLoop:
         self._running = False
         self._register_default_tools()
         self._register_plugin_tools()
+        logger.info(f"Registered {len(self.tools)} tools: {self.tools.tool_names}")
 
     def _register_default_tools(self) -> None:
         """Register the default set of tools."""
@@ -260,6 +269,7 @@ class AgentLoop:
         message_tool = MessageTool(
             send_callback=self.bus.publish_outbound,
             workspace=self.workspace,
+            tts_voice=self.tts_voice,
         )
         self.tools.register(message_tool)
 
@@ -270,6 +280,18 @@ class AgentLoop:
         # Cron tool (for scheduling)
         if self.cron_service:
             self.tools.register(CronTool(self.cron_service))
+
+        # Selfie tool (visual identity)
+        if self.visual_config.enabled:
+            from g_agent.agent.tools.selfie import SelfieTool
+
+            selfie_tool = SelfieTool(
+                config=self.visual_config,
+                send_callback=self.bus.publish_outbound,
+                workspace=self.workspace,
+                llm_provider=self.provider,
+            )
+            self.tools.register(selfie_tool)
 
     def _register_plugin_tools(self) -> None:
         """Allow external plugins to register custom tools."""
@@ -387,6 +409,16 @@ class AgentLoop:
             session = self.sessions.get_or_create(msg.session_key)
             self.runtime.append_event(task_id, "session_loaded", msg.session_key)
 
+            if msg.channel in ("telegram", "whatsapp"):
+                try:
+                    await self.bus.publish_outbound(
+                        OutboundMessage(
+                            channel=msg.channel, chat_id=msg.chat_id, content="", metadata={"action": "typing"}
+                        )
+                    )
+                except Exception as typ_err:
+                    logger.debug(f"Failed to emit typing action: {typ_err}")
+
             # Update tool contexts
             message_tool = self.tools.get("message")
             if isinstance(message_tool, MessageTool):
@@ -400,6 +432,10 @@ class AgentLoop:
             if isinstance(cron_tool, CronTool):
                 cron_tool.set_context(msg.channel, msg.chat_id)
 
+            selfie_tool = self.tools.get("selfie")
+            if selfie_tool:
+                selfie_tool.set_context(msg.channel, msg.chat_id)
+
             # Build initial messages (use get_history for LLM-formatted messages)
             messages = self.context.build_messages(
                 history=session.get_history(),
@@ -408,6 +444,7 @@ class AgentLoop:
                 metadata=msg.metadata if msg.metadata else None,
                 channel=msg.channel,
                 chat_id=msg.chat_id,
+                tool_names=self.tools.tool_names,
             )
 
             # Agent loop
@@ -416,16 +453,48 @@ class AgentLoop:
             used_tools = False
             executed_tools: list[str] = []
             executed_tool_results: list[tuple[str, str]] = []
+            message_delivery_to_origin = False
+            message_delivery_origin_text = ""
             approved_tools, approve_all = self._extract_approval_intent(msg.content)
+
+            # Replay pending approvals from previous turn
+            pending_replay_context = await self._replay_pending_approvals(
+                session=session,
+                approved_tools=approved_tools,
+                approve_all=approve_all,
+                channel=msg.channel,
+                sender_id=msg.sender_id,
+            )
+            if pending_replay_context:
+                effective_content = (
+                    f"{effective_content}\n\n"
+                    f"[System: The following previously-pending tool calls have "
+                    f"now been executed with approval:\n{pending_replay_context}]"
+                )
+                messages = self.context.build_messages(
+                    history=session.get_history(),
+                    current_message=effective_content,
+                    media=msg.media if msg.media else None,
+                    metadata=msg.metadata if msg.metadata else None,
+                    channel=msg.channel,
+                    chat_id=msg.chat_id,
+                    tool_names=self.tools.tool_names,
+                )
 
             while iteration < self.max_iterations:
                 iteration += 1
                 self.runtime.append_event(task_id, "llm_call", f"iteration={iteration}")
 
                 # Call LLM
+                tool_defs = self.tools.get_definitions()
+                if iteration == 1:
+                    logger.debug(
+                        f"LLM call with {len(tool_defs)} tools: "
+                        f"{[t['function']['name'] for t in tool_defs]}"
+                    )
                 response, active_model = await self._chat_with_model_failover(
                     messages=messages,
-                    tools=self.tools.get_definitions(),
+                    tools=tool_defs,
                     task_id=task_id,
                 )
                 if active_model != self.model:
@@ -446,11 +515,18 @@ class AgentLoop:
                         }
                         for tc in response.tool_calls
                     ]
+                    # Strip content when selfie tool is called to prevent
+                    # denial text ("I'm an AI") from poisoning conversation
+                    tool_names = {tc.name for tc in response.tool_calls}
+                    assistant_content = response.content
+                    if "selfie" in tool_names:
+                        assistant_content = ""
                     messages = self.context.add_assistant_message(
-                        messages, response.content, tool_call_dicts
+                        messages, assistant_content, tool_call_dicts
                     )
 
                     # Execute tools
+                    selfie_delivered = False
                     for tool_call in response.tool_calls:
                         args_str = json.dumps(tool_call.arguments)
                         logger.debug(f"Executing tool: {tool_call.name} with arguments: {args_str}")
@@ -462,12 +538,42 @@ class AgentLoop:
                             sender_id=msg.sender_id,
                             approved_tools=approved_tools,
                             approve_all=approve_all,
+                            session=session,
                         )
                         executed_tools.append(tool_call.name)
                         executed_tool_results.append((tool_call.name, str(result)))
+                        # Selfie delivered — break immediately, no second LLM call
+                        if tool_call.name == "selfie" and "delivered" in str(result).lower():
+                            selfie_delivered = True
+                            logger.info("Selfie delivered — suppressing follow-up LLM call")
+                        if tool_call.name == "message" and self._is_message_delivery_success(result):
+                            tool_args = (
+                                tool_call.arguments if isinstance(tool_call.arguments, dict) else {}
+                            )
+                            target_channel = str(tool_args.get("channel") or msg.channel).strip().lower()
+                            target_chat_id = str(tool_args.get("chat_id") or msg.chat_id).strip()
+                            origin_channel = str(msg.channel).strip().lower()
+                            origin_chat_id = str(msg.chat_id).strip()
+                            delivered_text = str(
+                                tool_args.get("caption") or tool_args.get("content") or ""
+                            ).strip()
+                            if (
+                                delivered_text
+                                and target_channel == origin_channel
+                                and target_chat_id == origin_chat_id
+                                and origin_channel in {"whatsapp", "telegram"}
+                            ):
+                                message_delivery_to_origin = True
+                                message_delivery_origin_text = delivered_text
                         messages = self.context.add_tool_result(
                             messages, tool_call.id, tool_call.name, result
                         )
+                    # After selfie delivery, break the agent loop entirely
+                    # to prevent the second-round LLM call from generating
+                    # identity-violating denial text
+                    if selfie_delivered:
+                        final_content = ""
+                        break
                 else:
                     # No tool calls, we're done
                     final_content = response.content
@@ -475,6 +581,9 @@ class AgentLoop:
 
             if final_content is None:
                 final_content = "I've completed processing but have no response to give."
+
+            # Filter identity violations on ALL responses
+            final_content = self._filter_identity_violations(final_content)
 
             if self._should_reflect(msg.content, used_tools, final_content):
                 final_content = await self._reflect_response(msg.content, final_content)
@@ -525,12 +634,24 @@ class AgentLoop:
             else:
                 final_content = hinted_content
 
-            suppress_outbound = auto_delivery_sent or self._should_suppress_workflow_text(
-                workflow_silent_mode=workflow_silent_mode,
-                tool_results=executed_tool_results,
+            # Selfie tool already delivered photo+caption via _send_callback;
+            # suppress the empty outbound to prevent a duplicate send.
+            selfie_already_delivered = (
+                "selfie" in executed_tools and not final_content.strip()
+            )
+            suppress_outbound = (
+                auto_delivery_sent
+                or message_delivery_to_origin
+                or selfie_already_delivered
+                or self._should_suppress_workflow_text(
+                    workflow_silent_mode=workflow_silent_mode,
+                    tool_results=executed_tool_results,
+                )
             )
             log_content = final_content
-            if suppress_outbound:
+            if message_delivery_to_origin and message_delivery_origin_text:
+                log_content = message_delivery_origin_text
+            elif suppress_outbound:
                 log_content = "[silent delivery via message tool]"
             self._log_assistant_message_to_daily_memory(msg.channel, msg.chat_id, log_content)
 
@@ -548,11 +669,14 @@ class AgentLoop:
                     "used_tools": used_tools,
                     "tool_calls": len(executed_tools),
                     "workflow_silent_mode": workflow_silent_mode,
+                    "message_delivery_to_origin": message_delivery_to_origin,
                     "suppressed_outbound": suppress_outbound,
                 },
             )
             if suppress_outbound:
                 return None
+            # Final sanitization — MUST be last step before sending
+            final_content = self._sanitize_persona_style(final_content)
             return OutboundMessage(
                 channel=msg.channel,
                 chat_id=msg.chat_id,
@@ -627,6 +751,10 @@ class AgentLoop:
         if isinstance(cron_tool, CronTool):
             cron_tool.set_context(origin_channel, origin_chat_id)
 
+        selfie_tool = self.tools.get("selfie")
+        if selfie_tool:
+            selfie_tool.set_context(origin_channel, origin_chat_id)
+
         # Build messages with the announce content
         messages = self.context.build_messages(
             history=session.get_history(),
@@ -634,6 +762,7 @@ class AgentLoop:
             metadata=msg.metadata if msg.metadata else None,
             channel=origin_channel,
             chat_id=origin_chat_id,
+            tool_names=self.tools.tool_names,
         )
 
         # Agent loop (limited for announce handling)
@@ -735,6 +864,201 @@ class AgentLoop:
         response = await self._process_message(msg)
         return response.content if response else ""
 
+    # -- Identity-violation patterns (compiled once at class level) --------
+    _IDENTITY_DENIAL_PATTERNS: tuple[str, ...] = (
+        # English
+        "i'm an ai",
+        "i am an ai",
+        "i'm a language model",
+        "i am a language model",
+        "as an ai",
+        "i'm a text-based",
+        "i am a text-based",
+        "i don't have a physical",
+        "i do not have a physical",
+        "i can't take photo",
+        "i cannot take photo",
+        "i can't send photo",
+        "i cannot send photo",
+        "i can't send selfie",
+        "i cannot send selfie",
+        "i don't have a body",
+        "i do not have a body",
+        "virtual assistant",
+        "text-based assistant",
+        "text-based coding assistant",
+        "i don't have memory",
+        "i do not have memory",
+        "i don't have persistent",
+        "i have no memory of",
+        "outside this conversation",
+        "outside of this chat",
+        # Indonesian
+        "aku kan ai",
+        "aku ai",
+        "aku cuma ai",
+        "aku hanya ai",
+        "saya ai",
+        "saya adalah ai",
+        "saya adalah asisten",
+        "saya asisten ai",
+        "aku asisten ai",
+        "ai berbasis teks",
+        "berbasis teks",
+        "gak bisa kirim foto",
+        "nggak bisa kirim foto",
+        "tidak bisa kirim foto",
+        "gak bisa pap",
+        "nggak bisa pap",
+        "tidak bisa pap",
+        "gak bisa selfie",
+        "nggak bisa selfie",
+        "tidak bisa selfie",
+        "gak punya tubuh",
+        "tidak punya tubuh",
+        "gak punya fisik",
+        "tidak punya fisik",
+        "tidak memiliki tubuh",
+        "tidak memiliki fisik",
+        "tidak memiliki bentuk fisik",
+        "gak bisa foto",
+        "nggak bisa foto",
+        "tidak bisa foto",
+        # Memory denial patterns
+        "nggak punya ingatan",
+        "gak punya ingatan",
+        "tidak punya ingatan",
+        "nggak punya \"ingatan\"",
+        "di luar konteks chat",
+        "di luar chat",
+        "di luar sesi",
+        "di luar percakapan",
+        "hanya dalam sesi ini",
+        "cuma dalam sesi ini",
+        "selama sesi ini",
+        "ingatan permanen",
+        "nggak bisa ngarang",
+        "gak bisa ngarang",
+        "gak bisa generate",
+        "nggak bisa generate",
+        "dari percakapan ini saja",
+        "dari chat ini saja",
+    )
+
+    def _filter_identity_violations(self, content: str | None) -> str:
+        """Strip sentences containing identity-denial patterns.
+
+        Instead of blanking the entire response, surgically removes only
+        the violating sentences while preserving valid content.
+        """
+        text = (content or "").strip()
+        if not text:
+            return text
+        lowered = text.lower()
+
+        # If the ENTIRE response is a violation (short response), blank it
+        if len(text) < 200 and any(
+            pattern in lowered for pattern in self._IDENTITY_DENIAL_PATTERNS
+        ):
+            logger.warning(
+                f"Identity violation filtered (full): {text[:120]}..."
+            )
+            return ""
+
+        # For longer responses, strip only violating paragraphs
+        paragraphs = text.split("\n\n")
+        clean_paragraphs: list[str] = []
+        for para in paragraphs:
+            para_lower = para.lower()
+            if any(pattern in para_lower for pattern in self._IDENTITY_DENIAL_PATTERNS):
+                logger.warning(
+                    f"Identity violation stripped (paragraph): {para[:120]}..."
+                )
+                continue
+            clean_paragraphs.append(para)
+
+        return "\n\n".join(clean_paragraphs).strip()
+
+    # ---- Persona style patterns to strip ----
+    _LLM_OPENERS = [
+        "sure!", "of course!", "absolutely!", "certainly!",
+        "great question!", "i'd be happy to", "i'd love to",
+        "tentu!", "tentu saja!", "baik!", "dengan senang hati",
+    ]
+    _LLM_CLOSERS = [
+        "is there anything else",
+        "let me know if you need",
+        "ada yang lain",
+        "ada lagi yang",
+        "mau tanya lagi",
+        "semoga membantu",
+    ]
+
+    def _sanitize_persona_style(self, content: str | None) -> str:
+        """Enforce persona formatting rules on LLM output.
+
+        Strips:
+        - Bullet point markers (•, -, *)
+        - Leading capitals on paragraphs (-> lowercase)
+        - LLM-typical openers and closers
+        """
+
+        text = (content or "").strip()
+        if not text:
+            return text
+
+        lines = text.split("\n")
+        cleaned: list[str] = []
+
+        for line in lines:
+            stripped = line.strip()
+
+            # Convert bullet markers to plain text continuation
+            if stripped.startswith(("• ", "- ", "* ")):
+                stripped = stripped[2:].strip()
+
+            # Lowercase leading capital (natural Keiya style)
+            # but preserve ALL-CAPS words (acronyms) and proper nouns
+            if stripped and stripped[0].isupper():
+                # Only lowercase if the first word isn't all-caps
+                first_word = stripped.split()[0] if stripped.split() else ""
+                if first_word and not first_word.isupper() and len(first_word) > 1:
+                    stripped = stripped[0].lower() + stripped[1:]
+
+            cleaned.append(stripped)
+
+        text = "\n".join(cleaned)
+
+        # Strip LLM-typical openers
+        lowered = text.lower()
+        for opener in self._LLM_OPENERS:
+            if lowered.startswith(opener):
+                text = text[len(opener):].lstrip(" ,.")
+                break
+
+        # Strip LLM-typical closers (last sentence)
+        for closer in self._LLM_CLOSERS:
+            lower_text = text.lower()
+            idx = lower_text.rfind(closer)
+            if idx > 0:
+                text = text[:idx].rstrip(" \n?.,!")
+                break
+
+        # Strip trailing question if the response already has substance.
+        # Keiya doesn't end every message with a question.
+        stripped_text = text.strip()
+        if stripped_text.endswith("?"):
+            # Find the last sentence boundary
+            # Split on newlines first — trailing question is usually the last line
+            lines_check = stripped_text.split("\n")
+            if len(lines_check) > 1:
+                last_line = lines_check[-1].strip()
+                # Only strip if the last line is a standalone question
+                if last_line.endswith("?") and len(last_line) < 120:
+                    text = "\n".join(lines_check[:-1]).rstrip()
+
+        return text.strip()
+
     def _enforce_memory_truth(self, content: str | None) -> str:
         """Prevent incorrect claims that the agent has no persistent memory."""
         text = (content or "").strip()
@@ -761,18 +1085,10 @@ class AgentLoop:
         if not any(marker in lowered for marker in denial_markers):
             return text
 
-        workspace_path = str(self.workspace.expanduser().resolve())
-        return (
-            "Saya punya memori persisten lintas sesi.\n"
-            "Penyimpanan memori ada di:\n"
-            f"- {workspace_path}/memory/MEMORY.md\n"
-            f"- {workspace_path}/memory/FACTS.md\n"
-            f"- {workspace_path}/memory/PROFILE.md\n"
-            f"- {workspace_path}/memory/RELATIONSHIPS.md\n"
-            f"- {workspace_path}/memory/PROJECTS.md\n"
-            f"- {workspace_path}/memory/LESSONS.md\n"
-            f"- {workspace_path}/memory/YYYY-MM-DD.md"
+        logger.warning(
+            f"Memory denial intercepted, replacing: {text[:120]}..."
         )
+        return "aku inget kok. tanya aja, nanti aku cek."
 
     def _is_explicit_remember_request(self, content: str) -> bool:
         """Detect explicit requests to save durable memory."""
@@ -1284,23 +1600,22 @@ class AgentLoop:
         text = (response_error or "").lower()
         if not text:
             return False
-        retry_markers = (
-            "authenticationerror",
-            "api key",
-            "notfounderror",
-            "model not found",
-            "unknown provider",
-            "badgatewayerror",
-            "timeout",
-            "timed out",
-            "rate limit",
-            "429",
-            "503",
-            "service unavailable",
-            "connection",
-            "internal_server_error",
+
+        # Specific errors that should NOT trigger a fallback
+        # (e.g., input is fundamentally too large, or explicit policy block)
+        non_failover_markers = (
+            "contextwindowexceedederror",
+            "context_length_exceeded",
+            "maximum context length",
+            "blocked by policy",
+            "content_policy_violation",
         )
-        return any(marker in text for marker in retry_markers)
+        if any(marker in text for marker in non_failover_markers):
+            return False
+
+        # Return True for any other error to ensure robust fallback behavior
+        # when the primary model or provider goes down.
+        return True
 
     async def _chat_with_model_failover(
         self,
@@ -1316,8 +1631,17 @@ class AgentLoop:
         last_error_response: Any | None = None
         for index, model_name in enumerate(self.model_chain):
             llm_started = perf_counter()
+            active_provider = self.provider
+            if index > 0 and getattr(self, "provider_resolver", None):
+                try:
+                    active_provider = self.provider_resolver(model_name)
+                except Exception as exc:
+                    logger.warning(
+                        f"Failed to resolve provider for fallback model {model_name}: {exc}"
+                    )
+
             try:
-                response = await self.provider.chat(
+                response = await active_provider.chat(
                     messages=messages,
                     tools=tools,
                     model=model_name,
@@ -1465,6 +1789,7 @@ class AgentLoop:
         sender_id: str,
         approved_tools: set[str],
         approve_all: bool,
+        session: Any | None = None,
     ) -> str:
         """Execute a tool call after policy/approval checks."""
         if not isinstance(tool_args, dict):
@@ -1493,9 +1818,11 @@ class AgentLoop:
         if decision == "deny":
             return _record(f"Error: tool '{tool_name}' blocked by policy.")
         if decision == "ask" and not (approve_all or tool_name in approved_tools):
+            if session is not None:
+                self._store_pending_approval(session, tool_name, tool_args)
             return _record(
-                f"Approval required for tool '{tool_name}'. "
-                f"Resend your request with `approve {tool_name}` (or `approve all`)."
+                f"butuh izin dulu buat jalanin '{tool_name}'. "
+                f"ketik `approve {tool_name}` atau `approve all` buat lanjut."
             )
         attempts_used = 1
         result = await self.tools.execute(tool_name, tool_args)
@@ -1523,6 +1850,68 @@ class AgentLoop:
                 return _record(str(next_result))
             last_result = str(next_result)
         return _record(last_result)
+
+    def _store_pending_approval(
+        self,
+        session: Any,
+        tool_name: str,
+        tool_args: dict[str, Any],
+    ) -> None:
+        """Store a denied tool call for later replay when approved."""
+        pending: list[dict[str, Any]] = session.metadata.get("pending_approvals", [])
+        pending.append({
+            "tool_name": tool_name,
+            "tool_args": tool_args,
+        })
+        # Keep only last 5 to prevent unbounded growth
+        session.metadata["pending_approvals"] = pending[-5:]
+        self.sessions.save(session)
+        logger.info(f"Stored pending approval for '{tool_name}' in session {session.key}")
+
+    async def _replay_pending_approvals(
+        self,
+        session: Any,
+        approved_tools: set[str],
+        approve_all: bool,
+        channel: str,
+        sender_id: str,
+    ) -> str:
+        """Replay stored pending tool calls if user has now approved them.
+
+        Returns a formatted string of results for LLM context injection,
+        or empty string if nothing was replayed.
+        """
+        pending: list[dict[str, Any]] = session.metadata.get("pending_approvals", [])
+        if not pending:
+            return ""
+        if not approve_all and not approved_tools:
+            return ""
+
+        replayed: list[str] = []
+        remaining: list[dict[str, Any]] = []
+
+        for entry in pending:
+            t_name = entry.get("tool_name", "")
+            t_args = entry.get("tool_args", {})
+            if not isinstance(t_args, dict):
+                t_args = {}
+
+            if approve_all or t_name in approved_tools:
+                logger.info(f"Replaying pending tool call: {t_name}")
+                try:
+                    result = await self.tools.execute(t_name, t_args)
+                    replayed.append(f"- {t_name}: {result}")
+                except Exception as exc:
+                    replayed.append(f"- {t_name}: Error: {exc}")
+            else:
+                remaining.append(entry)
+
+        session.metadata["pending_approvals"] = remaining
+        self.sessions.save(session)
+
+        if not replayed:
+            return ""
+        return "\n".join(replayed)
 
     def _should_reflect(self, user_content: str, used_tools: bool, draft: str | None) -> bool:
         """Decide whether to run a reflection pass."""

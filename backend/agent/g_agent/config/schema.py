@@ -285,6 +285,80 @@ class ExecToolConfig(BaseModel):
     timeout: int = 60
 
 
+class ImageGenProviderConfig(BaseModel):
+    """Image generation provider configuration."""
+
+    provider: str = ""  # huggingface, nebius, cloudflare, openai-compatible
+    api_key: str = ""
+    api_base: str = ""
+    model: str = ""
+    account_id: str = ""  # Required for Cloudflare Workers AI
+    timeout: int = 30
+    # LoRA support (Nebius)
+    lora_url: str = ""  # URL to LoRA safetensor
+    lora_scale: float = 0.8  # LoRA influence (0.0-1.0)
+    lora_trigger: str = ""  # Trigger word e.g. "nawusijia"
+
+
+class VisualIdentityConfig(BaseModel):
+    """Visual identity / selfie generation configuration."""
+
+    enabled: bool = False
+    reference_image: str = ""
+    reference_image_hash: str = ""
+    physical_description: str = ""
+    image_gen: ImageGenProviderConfig = Field(default_factory=ImageGenProviderConfig)
+    default_format: str = "jpeg"
+    prompt_templates: dict[str, str] = Field(
+        default_factory=lambda: {
+            "mirror": (
+                "A mirror selfie of {description}, {context}, "
+                "phone visible in mirror, photorealistic, consistent character"
+            ),
+            "direct": (
+                "A close-up selfie photo of {description}, {context}, "
+                "direct eye contact with camera, natural expression, "
+                "photorealistic, consistent character"
+            ),
+        }
+    )
+    mirror_keywords: list[str] = Field(
+        default_factory=lambda: [
+            "outfit",
+            "wearing",
+            "clothes",
+            "dress",
+            "suit",
+            "fashion",
+            "full-body",
+            "mirror",
+            "baju",
+            "pake",
+            "pakai",
+            "celana",
+            "jaket",
+        ]
+    )
+    direct_keywords: list[str] = Field(
+        default_factory=lambda: [
+            "cafe",
+            "restaurant",
+            "beach",
+            "park",
+            "city",
+            "close-up",
+            "portrait",
+            "face",
+            "eyes",
+            "smile",
+            "pantai",
+            "kafe",
+            "kantor",
+            "kamar",
+        ]
+    )
+
+
 class PluginsConfig(BaseModel):
     """Plugin runtime policy."""
 
@@ -311,6 +385,7 @@ class ToolsConfig(BaseModel):
             "message",
         ]
     )
+    tts_voice: str = "id-ID-GadisNeural"  # edge-tts voice name
     approval_mode: str = "off"  # off|confirm
 
 
@@ -324,6 +399,7 @@ class Config(BaseSettings):
     proactive: ProactiveConfig = Field(default_factory=ProactiveConfig)
     gateway: GatewayConfig = Field(default_factory=GatewayConfig)
     tools: ToolsConfig = Field(default_factory=ToolsConfig)
+    visual: VisualIdentityConfig = Field(default_factory=VisualIdentityConfig)
 
     @property
     def workspace_path(self) -> Path:

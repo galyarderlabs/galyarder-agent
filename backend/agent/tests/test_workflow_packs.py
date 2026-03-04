@@ -96,12 +96,12 @@ class ApprovalAwareSilentPackProvider(LLMProvider):
             if item.get("role") != "tool":
                 continue
             content = str(item.get("content", ""))
-            if "Approval required for tool 'message'" in content:
+            if "butuh izin dulu buat jalanin 'message'" in content:
                 approval_denied = True
                 break
 
         if approval_denied:
-            return LLMResponse(content="Approval required for tool 'message'. Resend with approve message.")
+            return LLMResponse(content="butuh izin dulu buat jalanin 'message'. ketik approve message buat lanjut.")
         return LLMResponse(content="This should be suppressed in silent mode.")
 
     def get_default_model(self) -> str:
@@ -269,5 +269,5 @@ def test_agent_loop_pack_voice_silent_returns_approval_hint_when_message_not_app
         )
     )
 
-    assert "approval required" in result.lower()
+    assert "butuh izin" in result.lower()
     assert "approve message" in result.lower()

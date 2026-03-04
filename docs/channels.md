@@ -48,8 +48,9 @@ Set `bridgeToken` to add a shared-secret auth gate on the WebSocket bridge. The 
 ### Voice notes
 
 - Incoming voice/audio transcription uses Groq Whisper (`providers.groq.apiKey` or `GROQ_API_KEY`).
-- Generated `media_type: "voice"` replies require `espeak-ng`/`espeak` + `ffmpeg` for OGG/Opus voice-note format.
-- If `ffmpeg` is unavailable, g-agent auto-falls back to regular `audio` output.
+- Generated `media_type: "voice"` replies use `edge-tts` (Microsoft Neural TTS, default voice `id-ID-GadisNeural`). Install via `pip install edge-tts`.
+- Falls back to `espeak-ng`/`espeak` if edge-tts is not installed.
+- `ffmpeg` is required for OGG/Opus voice-note format (Telegram). If unavailable, g-agent auto-falls back to mp3/wav `audio` output.
 
 ## Email
 

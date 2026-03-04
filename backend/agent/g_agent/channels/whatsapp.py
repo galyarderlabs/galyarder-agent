@@ -29,6 +29,9 @@ class WhatsAppChannel(BaseChannel):
         self.groq_api_key = groq_api_key
         self._ws = None
         self._connected = False
+        self._request_seq = 0
+        self._ack_timeout_s = 15.0
+        self._pending_send_acks: dict[str, asyncio.Future[dict]] = {}
 
     async def start(self) -> None:
         """Start the WhatsApp channel by connecting to the bridge."""
@@ -63,6 +66,7 @@ class WhatsAppChannel(BaseChannel):
             except Exception as e:
                 self._connected = False
                 self._ws = None
+                self._fail_all_pending_acks(f"bridge connection error: {e}")
                 logger.warning(f"WhatsApp bridge connection error: {e}")
 
                 if self._running:
@@ -73,43 +77,80 @@ class WhatsAppChannel(BaseChannel):
         """Stop the WhatsApp channel."""
         self._running = False
         self._connected = False
+        self._fail_all_pending_acks("channel stopping")
 
         if self._ws:
             await self._ws.close()
             self._ws = None
 
     async def send(self, msg: OutboundMessage) -> None:
-        """Send a message through WhatsApp."""
+        """Send a message through WhatsApp and wait for bridge ACK."""
         if not self._ws or not self._connected:
             raise RuntimeError("WhatsApp bridge not connected")
 
-        try:
-            metadata = msg.metadata if isinstance(msg.metadata, dict) else {}
-            media_items = msg.media if isinstance(msg.media, list) else []
-            media_path = ""
-            if media_items:
-                media_path = str(media_items[0]).strip()
-                if media_path:
-                    path_obj = Path(media_path).expanduser()
-                    if not path_obj.exists() or not path_obj.is_file():
-                        logger.warning(f"WhatsApp outbound media not found: {media_path}")
-                        media_path = ""
-                    else:
-                        media_path = str(path_obj.resolve())
+        metadata = msg.metadata if isinstance(msg.metadata, dict) else {}
 
-            payload = {
-                "type": "send",
-                "to": msg.chat_id,
-                "text": msg.content,
-            }
-            if media_path:
-                payload["mediaPath"] = media_path
-                payload["mediaType"] = str(metadata.get("media_type", "")).strip()
-                payload["mimeType"] = str(metadata.get("mime_type", "")).strip()
-                payload["caption"] = str(metadata.get("caption", "")).strip() or msg.content
+        # Handle action commands (typing indicator) — fire-and-forget, no ACK needed
+        action = str(metadata.get("action", "")).strip()
+        if action:
+            payload = {"type": "action", "to": msg.chat_id, "action": action}
             await self._ws.send(json.dumps(payload))
+            return
+
+        media_items = msg.media if isinstance(msg.media, list) else []
+        media_path = ""
+        if media_items:
+            media_path = str(media_items[0]).strip()
+            if media_path:
+                path_obj = Path(media_path).expanduser()
+                if not path_obj.exists() or not path_obj.is_file():
+                    raise FileNotFoundError(f"WhatsApp outbound media not found: {media_path}")
+                media_path = str(path_obj.resolve())
+            else:
+                raise FileNotFoundError(f"WhatsApp outbound media not found: {media_items[0]}")
+
+        request_id = self._next_request_id()
+        payload = {
+            "type": "send",
+            "to": msg.chat_id,
+            "text": msg.content,
+            "request_id": request_id,
+        }
+        if media_path:
+            payload["mediaPath"] = media_path
+            payload["mediaType"] = str(metadata.get("media_type", "")).strip()
+            payload["mimeType"] = str(metadata.get("mime_type", "")).strip()
+            payload["caption"] = str(metadata.get("caption", "")).strip() or msg.content
+
+        logger.bind(
+            request_id=request_id,
+            chat_id=msg.chat_id,
+            has_media=bool(media_path),
+            media_path=media_path,
+            media_type=payload.get("mediaType", ""),
+        ).info("WhatsApp send request")
+
+        try:
+            await self._ws.send(json.dumps(payload))
+            ack = await self._wait_for_send_ack(request_id=request_id, timeout_s=self._ack_timeout_s)
+        except TimeoutError as e:
+            logger.error(f"WhatsApp send ack timeout: request_id={request_id} error={e}")
+            raise RuntimeError(str(e)) from e
         except Exception as e:
-            logger.error(f"Error sending WhatsApp message: {e}")
+            logger.error(f"Error sending WhatsApp message: request_id={request_id} error={e}")
+            raise
+
+        ack_type = str(ack.get("type", "")).strip().lower()
+        if ack_type == "sent":
+            logger.info(f"WhatsApp send ack received: request_id={request_id} status=sent")
+            return
+
+        error_text = str(ack.get("error", "bridge send failed")).strip() or "bridge send failed"
+        category = str(ack.get("category", "send_error")).strip() or "send_error"
+        logger.error(
+            f"WhatsApp send ack error: request_id={request_id} category={category} error={error_text}"
+        )
+        raise RuntimeError(error_text)
 
     async def _handle_bridge_message(self, raw: str) -> None:
         """Handle a message from the bridge."""
@@ -188,6 +229,24 @@ class WhatsAppChannel(BaseChannel):
                 },
             )
 
+        elif msg_type in {"sent", "error"}:
+            request_id = str(data.get("request_id") or data.get("requestId") or "").strip()
+            if request_id:
+                future = self._pending_send_acks.pop(request_id, None)
+                if future is None:
+                    logger.warning(f"WhatsApp bridge ack for unknown request_id={request_id}: {data}")
+                    return
+                if not future.done():
+                    future.set_result(data)
+                return
+
+            if msg_type == "error":
+                logger.error(f"WhatsApp bridge error: {data.get('error')}")
+            else:
+                # Expected for fire-and-forget actions (typing indicators)
+                logger.debug(f"WhatsApp bridge sent ack without request_id: {data}")
+            return
+
         elif msg_type == "status":
             # Connection status update
             status = data.get("status")
@@ -197,13 +256,37 @@ class WhatsAppChannel(BaseChannel):
                 self._connected = True
             elif status == "disconnected":
                 self._connected = False
+                self._fail_all_pending_acks("bridge disconnected")
 
         elif msg_type == "qr":
             # QR code for authentication
             logger.info("Scan QR code in the bridge terminal to connect WhatsApp")
 
-        elif msg_type == "error":
-            logger.error(f"WhatsApp bridge error: {data.get('error')}")
+    def _next_request_id(self) -> str:
+        """Generate monotonic request id for bridge send correlation."""
+        self._request_seq += 1
+        return f"req-{self._request_seq}"
+
+    async def _wait_for_send_ack(self, *, request_id: str, timeout_s: float) -> dict:
+        """Wait for bridge sent/error ACK tied to request_id."""
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future[dict] = loop.create_future()
+        self._pending_send_acks[request_id] = future
+        try:
+            return await asyncio.wait_for(future, timeout=timeout_s)
+        except asyncio.TimeoutError as e:
+            self._pending_send_acks.pop(request_id, None)
+            raise TimeoutError(f"timeout waiting ack for request_id={request_id}") from e
+
+    def _fail_all_pending_acks(self, reason: str) -> None:
+        """Fail all pending ACK futures when bridge/session goes down."""
+        if not self._pending_send_acks:
+            return
+        error = RuntimeError(reason)
+        for future in list(self._pending_send_acks.values()):
+            if not future.done():
+                future.set_exception(error)
+        self._pending_send_acks.clear()
 
     def _jid_to_identity(self, jid: str) -> str:
         """Convert JID into stable sender identity for allowlist checks."""

@@ -106,6 +106,7 @@ class LiteLLMProvider(LLMProvider):
         model: str | None = None,
         max_tokens: int = 4096,
         temperature: float = 0.7,
+        timeout: float | None = 120.0,
     ) -> LLMResponse:
         """
         Send a chat completion request via LiteLLM.
@@ -116,6 +117,7 @@ class LiteLLMProvider(LLMProvider):
             model: Model identifier (e.g., 'anthropic/claude-sonnet-4-5').
             max_tokens: Maximum tokens in response.
             temperature: Sampling temperature.
+            timeout: Maximum time to wait for a response in seconds.
 
         Returns:
             LLMResponse with content and/or tool calls.
@@ -128,6 +130,8 @@ class LiteLLMProvider(LLMProvider):
             "max_tokens": max_tokens,
             "temperature": temperature,
         }
+        if timeout is not None:
+            kwargs["timeout"] = timeout
 
         # Apply model-specific overrides (e.g. kimi-k2.5 temperature)
         self._apply_model_overrides(model, kwargs)
