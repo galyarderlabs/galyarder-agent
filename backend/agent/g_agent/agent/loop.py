@@ -1354,7 +1354,7 @@ class AgentLoop:
             )
 
         voice_match = re.search(
-            r"\b(--voice|voice note|voice-note|pesan suara|pake voice|pakai voice|pake suara|pakai suara|dengan suara|kirim voice|kirim vn|use voice)\b",
+            r"\b(--voice|voice note|voice-note|pesan suara|pake voice|pakai voice|pake suara|pakai suara|dengan suara|kirim voice|kirim vn|use voice|send vn|send voice|pake vn|pakai vn|bikin vn|kamu vn|lu vn|lo vn)\b|(?:^|\s)(vn)(?:\s|$)",
             content,
         )
         if voice_match:
@@ -1433,6 +1433,18 @@ class AgentLoop:
             "approval required for tool 'message'",
             "approve message",
             "approve all",
+            "nggak bisa kirim vn/voice note langsung",
+            "nggak bisa kirim vn/audio langsung",
+            "bisa bantu bikinin teks vn",
+            "versi yang enak dibacain",
+            "script) atau versi",
+            "bikinin teks vn-nya",
+            "aku nggak bisa kirim",
+            "gue nggak bisa kirim",
+            "ga bisa kirim vn",
+            "gabisa kirim vn",
+            "gabisa kirim voice",
+            "ga bisa kirim voice",
         )
         if not any(marker in lowered for marker in stale_markers):
             return text
