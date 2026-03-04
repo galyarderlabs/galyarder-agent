@@ -40,10 +40,15 @@ class Agent:
         provider_factories = collect_provider_factories(self.config, resolved_plugins)
         resolved_provider = provider or self._build_provider(route, provider_factories)
 
+        def provider_resolver(model_name: str) -> LLMProvider:
+            fallback_route = self.config.resolve_model_route(model_name)
+            return self._build_provider(fallback_route, provider_factories)
+
         self.bus = MessageBus()
         self.loop = AgentLoop(
             bus=self.bus,
             provider=resolved_provider,
+            provider_resolver=provider_resolver,
             workspace=self.config.workspace_path,
             model=route.model,
             max_iterations=self.config.agents.defaults.max_tool_iterations,

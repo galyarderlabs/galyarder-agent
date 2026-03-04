@@ -134,49 +134,53 @@ class SelfieTool(Tool):
         if not self._config.image_gen.provider:
             return "Error: no image generation provider configured."
 
-        # Resolve identity anchor: LoRA trigger word takes priority
+        # Resolve identity anchor: Combine physical description with LoRA trigger if available
+        current_hash = ""
+        if self._config.reference_image:
+            try:
+                img_path = Path(self._config.reference_image).expanduser().resolve()
+                if img_path.exists():
+                    import hashlib
+                    current_hash = hashlib.md5(img_path.read_bytes()).hexdigest()
+            except Exception as e:
+                logger.warning(f"Failed to calculate image hash: {e}")
+
+        if current_hash and self._config.reference_image_hash != current_hash:
+            logger.info("Reference image changed. Invalidating physical description cache.")
+            self._config.physical_description = ""
+
+        base_description = self._config.physical_description
+        
         trigger = self._config.image_gen.lora_trigger
         if trigger:
-            # LoRA mode — trigger word IS the identity anchor
-            description = trigger
-            logger.debug(f"Using LoRA trigger as identity anchor: {trigger}")
+            logger.debug(f"Using LoRA trigger alongside physical description: {trigger}")
+            if base_description:
+                description = f"{trigger}, {base_description}"
+            else:
+                description = trigger
         else:
-            # Legacy mode — vision-extracted physical description
-            current_hash = ""
-            if self._config.reference_image:
-                try:
-                    img_path = Path(self._config.reference_image).expanduser().resolve()
-                    if img_path.exists():
-                        import hashlib
-                        current_hash = hashlib.md5(img_path.read_bytes()).hexdigest()
-                except Exception as e:
-                    logger.warning(f"Failed to calculate image hash: {e}")
+            description = base_description
 
-            if current_hash and self._config.reference_image_hash != current_hash:
-                logger.info("Reference image changed. Invalidating physical description cache.")
-                self._config.physical_description = ""
-
-            description = self._config.physical_description
-            if not description and self._config.reference_image:
-                try:
-                    description = await extract_physical_description(
-                        self._config.reference_image,
-                        self._llm_provider,
-                    )
-                    self._config.physical_description = description
-                    self._config.reference_image_hash = current_hash
-                    self._persist_description(description, current_hash)
-                    logger.info("Extracted physical description from reference image")
-                except Exception as e:
-                    logger.error(f"Vision extraction failed: {e}")
-                    return f"Error: failed to extract physical description: {e}"
-
-            if not description:
-                return (
-                    "Error: no physical description available. "
-                    "Configure lora_trigger in image_gen, provide a reference photo "
-                    "via 'g-agent onboard', or set visual.physicalDescription in config."
+        if not description and self._config.reference_image:
+            try:
+                description = await extract_physical_description(
+                    self._config.reference_image,
+                    self._llm_provider,
                 )
+                self._config.physical_description = description
+                self._config.reference_image_hash = current_hash
+                self._persist_description(description, current_hash)
+                logger.info("Extracted physical description from reference image")
+            except Exception as e:
+                logger.error(f"Vision extraction failed: {e}")
+                return f"Error: failed to extract physical description: {e}"
+
+        if not description:
+            return (
+                "Error: no physical description available. "
+                "Configure lora_trigger in image_gen, provide a reference photo "
+                "via 'g-agent onboard', or set visual.physicalDescription in config."
+            )
 
         # Detect mode
         if mode == "auto":
@@ -313,6 +317,9 @@ class SelfieTool(Tool):
                 "url": self._config.image_gen.lora_url,
                 "scale": self._config.image_gen.lora_scale,
             }]
+
+        import json
+        logger.debug(f"Image gen payload: {json.dumps(payload)}")
 
         async with httpx.AsyncClient(timeout=self._config.image_gen.timeout) as client:
             resp = await client.post(url, headers=headers, json=payload)

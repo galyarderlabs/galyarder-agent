@@ -500,7 +500,7 @@ def test_lora_trigger_skips_vision_extraction(tmp_path, monkeypatch):
 
 
 def test_lora_trigger_used_in_prompt(tmp_path, monkeypatch):
-    """Test 23: LoRA trigger word is used as {description} in prompt template."""
+    """Test 23: LoRA trigger word is used alongside {description} in prompt template."""
     b64_img = base64.b64encode(b"trigger-img").decode()
     json_data = {"data": [{"b64_json": b64_img}]}
     fake_resp = _FakeResponse(
@@ -515,7 +515,7 @@ def test_lora_trigger_used_in_prompt(tmp_path, monkeypatch):
     )
 
     config = _make_config(
-        physical_description="old description that should be ignored",
+        physical_description="a specific detailed description",
         image_gen=ImageGenProviderConfig(
             provider="nebius",
             api_key="neb-test",
@@ -526,10 +526,10 @@ def test_lora_trigger_used_in_prompt(tmp_path, monkeypatch):
     tool, _ = _make_tool(config=config, tmp_path=tmp_path)
     asyncio.run(tool.execute(context="wearing a red dress"))
 
-    # Trigger word should be in prompt, NOT the old description
+    # Trigger word and description should be combined in prompt
     prompt = fake_client.last_json["prompt"]
     assert "mytrigger" in prompt
-    assert "old description that should be ignored" not in prompt
+    assert "a specific detailed description" in prompt
 
 
 def test_lora_payload_injected(tmp_path, monkeypatch):

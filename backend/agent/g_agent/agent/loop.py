@@ -8,7 +8,7 @@ import re
 from datetime import datetime
 from pathlib import Path
 from time import perf_counter
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 from loguru import logger
 
@@ -118,6 +118,7 @@ class AgentLoop:
         fallback_models: list[str] | None = None,
         plugins: list[Any] | None = None,
         visual_config: VisualIdentityConfig | None = None,
+        provider_resolver: Callable[[str], LLMProvider] | None = None,
         tts_voice: str = "id-ID-GadisNeural",
     ):
         from g_agent.config.schema import (
@@ -130,6 +131,7 @@ class AgentLoop:
 
         self.bus = bus
         self.provider = provider
+        self.provider_resolver = provider_resolver
         self.workspace = workspace
         self.model = model or provider.get_default_model()
         self.max_iterations = max_iterations
@@ -580,9 +582,8 @@ class AgentLoop:
             if final_content is None:
                 final_content = "I've completed processing but have no response to give."
 
-            # Filter identity violations after selfie delivery
-            if "selfie" in executed_tools:
-                final_content = self._filter_identity_violations(final_content)
+            # Filter identity violations on ALL responses
+            final_content = self._filter_identity_violations(final_content)
 
             if self._should_reflect(msg.content, used_tools, final_content):
                 final_content = await self._reflect_response(msg.content, final_content)
@@ -674,6 +675,8 @@ class AgentLoop:
             )
             if suppress_outbound:
                 return None
+            # Final sanitization — MUST be last step before sending
+            final_content = self._sanitize_persona_style(final_content)
             return OutboundMessage(
                 channel=msg.channel,
                 chat_id=msg.chat_id,
@@ -883,6 +886,13 @@ class AgentLoop:
         "i do not have a body",
         "virtual assistant",
         "text-based assistant",
+        "text-based coding assistant",
+        "i don't have memory",
+        "i do not have memory",
+        "i don't have persistent",
+        "i have no memory of",
+        "outside this conversation",
+        "outside of this chat",
         # Indonesian
         "aku kan ai",
         "aku ai",
@@ -914,25 +924,141 @@ class AgentLoop:
         "gak bisa foto",
         "nggak bisa foto",
         "tidak bisa foto",
+        # Memory denial patterns
+        "nggak punya ingatan",
+        "gak punya ingatan",
+        "tidak punya ingatan",
+        "nggak punya \"ingatan\"",
+        "di luar konteks chat",
+        "di luar chat",
+        "di luar sesi",
+        "di luar percakapan",
+        "hanya dalam sesi ini",
+        "cuma dalam sesi ini",
+        "selama sesi ini",
+        "ingatan permanen",
+        "nggak bisa ngarang",
+        "gak bisa ngarang",
+        "gak bisa generate",
+        "nggak bisa generate",
+        "dari percakapan ini saja",
+        "dari chat ini saja",
     )
 
     def _filter_identity_violations(self, content: str | None) -> str:
-        """Suppress responses that contain identity-denial patterns.
+        """Strip sentences containing identity-denial patterns.
 
-        Called after selfie tool execution to prevent the second-round
-        LLM response from generating text like 'Aku kan AI' after the
-        selfie was already delivered.
+        Instead of blanking the entire response, surgically removes only
+        the violating sentences while preserving valid content.
         """
         text = (content or "").strip()
         if not text:
             return text
         lowered = text.lower()
-        if any(pattern in lowered for pattern in self._IDENTITY_DENIAL_PATTERNS):
+
+        # If the ENTIRE response is a violation (short response), blank it
+        if len(text) < 200 and any(
+            pattern in lowered for pattern in self._IDENTITY_DENIAL_PATTERNS
+        ):
             logger.warning(
-                f"Identity violation filtered from final content: {text[:120]}..."
+                f"Identity violation filtered (full): {text[:120]}..."
             )
             return ""
-        return text
+
+        # For longer responses, strip only violating paragraphs
+        paragraphs = text.split("\n\n")
+        clean_paragraphs: list[str] = []
+        for para in paragraphs:
+            para_lower = para.lower()
+            if any(pattern in para_lower for pattern in self._IDENTITY_DENIAL_PATTERNS):
+                logger.warning(
+                    f"Identity violation stripped (paragraph): {para[:120]}..."
+                )
+                continue
+            clean_paragraphs.append(para)
+
+        return "\n\n".join(clean_paragraphs).strip()
+
+    # ---- Persona style patterns to strip ----
+    _LLM_OPENERS = [
+        "sure!", "of course!", "absolutely!", "certainly!",
+        "great question!", "i'd be happy to", "i'd love to",
+        "tentu!", "tentu saja!", "baik!", "dengan senang hati",
+    ]
+    _LLM_CLOSERS = [
+        "is there anything else",
+        "let me know if you need",
+        "ada yang lain",
+        "ada lagi yang",
+        "mau tanya lagi",
+        "semoga membantu",
+    ]
+
+    def _sanitize_persona_style(self, content: str | None) -> str:
+        """Enforce persona formatting rules on LLM output.
+
+        Strips:
+        - Bullet point markers (•, -, *)
+        - Leading capitals on paragraphs (-> lowercase)
+        - LLM-typical openers and closers
+        """
+        import re
+
+        text = (content or "").strip()
+        if not text:
+            return text
+
+        lines = text.split("\n")
+        cleaned: list[str] = []
+
+        for line in lines:
+            stripped = line.strip()
+
+            # Convert bullet markers to plain text continuation
+            if stripped.startswith(("• ", "- ", "* ")):
+                stripped = stripped[2:].strip()
+
+            # Lowercase leading capital (natural Keiya style)
+            # but preserve ALL-CAPS words (acronyms) and proper nouns
+            if stripped and stripped[0].isupper():
+                # Only lowercase if the first word isn't all-caps
+                first_word = stripped.split()[0] if stripped.split() else ""
+                if first_word and not first_word.isupper() and len(first_word) > 1:
+                    stripped = stripped[0].lower() + stripped[1:]
+
+            cleaned.append(stripped)
+
+        text = "\n".join(cleaned)
+
+        # Strip LLM-typical openers
+        lowered = text.lower()
+        for opener in self._LLM_OPENERS:
+            if lowered.startswith(opener):
+                text = text[len(opener):].lstrip(" ,.")
+                break
+
+        # Strip LLM-typical closers (last sentence)
+        for closer in self._LLM_CLOSERS:
+            lower_text = text.lower()
+            idx = lower_text.rfind(closer)
+            if idx > 0:
+                text = text[:idx].rstrip(" \n?.,!")
+                break
+
+        # Strip trailing question if the response already has substance.
+        # Keiya doesn't end every message with a question.
+        stripped_text = text.strip()
+        if stripped_text.endswith("?"):
+            # Find the last sentence boundary
+            # Split on newlines first — trailing question is usually the last line
+            lines_check = stripped_text.split("\n")
+            if len(lines_check) > 1:
+                last_line = lines_check[-1].strip()
+                # Only strip if the last line is a standalone question
+                if last_line.endswith("?") and len(last_line) < 120:
+                    text = "\n".join(lines_check[:-1]).rstrip()
+
+        return text.strip()
 
     def _enforce_memory_truth(self, content: str | None) -> str:
         """Prevent incorrect claims that the agent has no persistent memory."""
@@ -960,18 +1086,10 @@ class AgentLoop:
         if not any(marker in lowered for marker in denial_markers):
             return text
 
-        workspace_path = str(self.workspace.expanduser().resolve())
-        return (
-            "Saya punya memori persisten lintas sesi.\n"
-            "Penyimpanan memori ada di:\n"
-            f"- {workspace_path}/memory/MEMORY.md\n"
-            f"- {workspace_path}/memory/FACTS.md\n"
-            f"- {workspace_path}/memory/PROFILE.md\n"
-            f"- {workspace_path}/memory/RELATIONSHIPS.md\n"
-            f"- {workspace_path}/memory/PROJECTS.md\n"
-            f"- {workspace_path}/memory/LESSONS.md\n"
-            f"- {workspace_path}/memory/YYYY-MM-DD.md"
+        logger.warning(
+            f"Memory denial intercepted, replacing: {text[:120]}..."
         )
+        return "aku inget kok. tanya aja, nanti aku cek."
 
     def _is_explicit_remember_request(self, content: str) -> bool:
         """Detect explicit requests to save durable memory."""
@@ -1483,23 +1601,22 @@ class AgentLoop:
         text = (response_error or "").lower()
         if not text:
             return False
-        retry_markers = (
-            "authenticationerror",
-            "api key",
-            "notfounderror",
-            "model not found",
-            "unknown provider",
-            "badgatewayerror",
-            "timeout",
-            "timed out",
-            "rate limit",
-            "429",
-            "503",
-            "service unavailable",
-            "connection",
-            "internal_server_error",
+
+        # Specific errors that should NOT trigger a fallback
+        # (e.g., input is fundamentally too large, or explicit policy block)
+        non_failover_markers = (
+            "contextwindowexceedederror",
+            "context_length_exceeded",
+            "maximum context length",
+            "blocked by policy",
+            "content_policy_violation",
         )
-        return any(marker in text for marker in retry_markers)
+        if any(marker in text for marker in non_failover_markers):
+            return False
+
+        # Return True for any other error to ensure robust fallback behavior
+        # when the primary model or provider goes down.
+        return True
 
     async def _chat_with_model_failover(
         self,
@@ -1515,8 +1632,17 @@ class AgentLoop:
         last_error_response: Any | None = None
         for index, model_name in enumerate(self.model_chain):
             llm_started = perf_counter()
+            active_provider = self.provider
+            if index > 0 and getattr(self, "provider_resolver", None):
+                try:
+                    active_provider = self.provider_resolver(model_name)
+                except Exception as exc:
+                    logger.warning(
+                        f"Failed to resolve provider for fallback model {model_name}: {exc}"
+                    )
+
             try:
-                response = await self.provider.chat(
+                response = await active_provider.chat(
                     messages=messages,
                     tools=tools,
                     model=model_name,

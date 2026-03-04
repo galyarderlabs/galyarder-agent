@@ -123,14 +123,16 @@ class ProactiveStateStore:
         state["version"] = 1
         return self._write(state)
 
-    def prune(self, older_than_days: int = 14) -> None:
+    def prune(self, older_than_days: int = 14, now_utc: datetime = None) -> None:
         if older_than_days <= 0:
             return
         state = self._read()
         reminders = state.get("calendar_reminders")
         if not isinstance(reminders, dict) or not reminders:
             return
-        threshold = datetime.now(timezone.utc) - timedelta(days=older_than_days)
+            
+        current_time = now_utc if now_utc is not None else datetime.now(timezone.utc)
+        threshold = current_time - timedelta(days=older_than_days)
         fresh: dict[str, str] = {}
         for key, iso_time in reminders.items():
             try:
@@ -197,6 +199,6 @@ def compute_due_calendar_reminders(
             }
         )
 
-    state_store.prune(older_than_days=21)
+    state_store.prune(older_than_days=21, now_utc=now_utc)
     due.sort(key=lambda item: item["start_utc"])
     return due

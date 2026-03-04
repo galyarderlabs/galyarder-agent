@@ -285,3 +285,41 @@ def test_agent_loop_does_not_fallback_on_non_retryable_error(tmp_path, monkeypat
     assert active_model == "primary-model"
     assert response.finish_reason == "error"
     assert provider.calls == ["primary-model"]
+
+def test_agent_loop_provider_resolver_is_called(tmp_path, monkeypatch):
+    monkeypatch.setenv("G_AGENT_DATA_DIR", str(tmp_path / "data"))
+    
+    provider1 = RouteTestProvider({
+        "primary-model": LLMResponse(content="Error calling LLM: litellm.APIError", finish_reason="error")
+    })
+    
+    provider2 = RouteTestProvider({
+        "backup-model": LLMResponse(content="ok from fallback provider")
+    })
+    
+    def mock_resolver(model_name: str):
+        if model_name == "backup-model":
+            return provider2
+        return provider1
+
+    loop = AgentLoop(
+        bus=MessageBus(),
+        provider=provider1,
+        provider_resolver=mock_resolver,
+        workspace=tmp_path,
+        model="primary-model",
+        fallback_models=["backup-model"],
+        enable_reflection=False,
+    )
+    
+    response, active_model = asyncio.run(
+        loop._chat_with_model_failover(
+            messages=[{"role": "user", "content": "test"}],
+            tools=None,
+        )
+    )
+    
+    assert active_model == "backup-model"
+    assert response.content == "ok from fallback provider"
+    assert provider1.calls == ["primary-model"]
+    assert provider2.calls == ["backup-model"]

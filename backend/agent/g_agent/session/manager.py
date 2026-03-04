@@ -205,12 +205,18 @@ class SessionManager:
         return sorted(sessions, key=lambda x: x.get("updated_at", ""), reverse=True)
 
     def archive(self, key: str) -> bool:
-        """Archive session (copy to archive dir, then delete original)."""
+        """Archive session (extract memory digest, copy to archive dir, then delete)."""
         import shutil
 
         path = self._get_session_path(key)
         if not path.exists():
             return False
+
+        # Extract memory digest before wiping
+        session = self.get_or_create(key)
+        if session.messages:
+            self._extract_and_save_digest(session)
+
         archive_dir = self.sessions_dir / "archive"
         archive_dir.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -219,6 +225,89 @@ class SessionManager:
         shutil.copy2(path, archive_path)
         self.delete(key)
         return True
+
+    def _extract_and_save_digest(self, session: Session) -> None:
+        """Extract conversation highlights and append to memory/INBOX.md."""
+        digest = self._build_digest(session)
+        if not digest:
+            return
+
+        memory_dir = self.workspace / "memory"
+        memory_dir.mkdir(parents=True, exist_ok=True)
+        inbox_path = memory_dir / "INBOX.md"
+
+        header = (
+            f"\n---\n## Session: {session.key} "
+            f"({session.created_at.strftime('%Y-%m-%d %H:%M')} → "
+            f"{session.updated_at.strftime('%Y-%m-%d %H:%M')})\n\n"
+        )
+
+        try:
+            with open(inbox_path, "a", encoding="utf-8") as f:
+                f.write(header)
+                f.write(digest)
+                f.write("\n")
+            logger.info(f"Memory digest saved for session '{session.key}'")
+        except OSError as e:
+            logger.warning(f"Failed to save memory digest for '{session.key}': {e}")
+
+    @staticmethod
+    def _build_digest(session: Session, max_chars: int = 2000) -> str:
+        """Build a structured digest from session messages.
+
+        Instead of dumping raw messages, extracts:
+        - Key facts the user shared (names, timezone, preferences)
+        - Topics discussed
+        - Recent context (last few exchanges for continuity)
+        """
+        user_messages: list[str] = []
+        assistant_messages: list[str] = []
+
+        for msg in session.messages:
+            role = msg.get("role", "")
+            content = (msg.get("content") or "").strip()
+            if not content or content.startswith("[silent"):
+                continue
+            if role == "user":
+                user_messages.append(content)
+            elif role == "assistant":
+                assistant_messages.append(content)
+
+        if not user_messages:
+            return ""
+
+        parts: list[str] = []
+
+        # Section 1: Stats
+        parts.append(f"**Messages**: {len(user_messages)} user, {len(assistant_messages)} AI")
+
+        # Section 2: All user messages (compact, truncated per-message)
+        parts.append("\n### User said")
+        for msg in user_messages:
+            line = msg.replace("\n", " ").strip()
+            if len(line) > 150:
+                line = line[:147] + "..."
+            parts.append(f"- {line}")
+
+        # Section 3: Last 5 exchanges for recent context
+        pairs: list[str] = []
+        tail = list(zip(user_messages[-5:], assistant_messages[-5:]))
+        if tail:
+            parts.append("\n### Recent exchanges")
+            for u, a in tail:
+                u_short = u[:120] + "..." if len(u) > 120 else u
+                a_short = a[:200] + "..." if len(a) > 200 else a
+                pairs.append(f"- **U**: {u_short}\n  **A**: {a_short}")
+            parts.extend(pairs)
+
+        result = "\n".join(parts)
+
+        # Hard cap
+        if len(result) > max_chars:
+            result = result[:max_chars].rsplit("\n", 1)[0]
+            result += "\n- *(truncated)*"
+
+        return result
 
     def archive_all(self) -> int:
         """Archive all sessions. Returns count archived."""

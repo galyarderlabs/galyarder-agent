@@ -731,6 +731,17 @@ def gateway(
         provider_factories=provider_factories,
     )
 
+    def _resolver(model_name: str) -> Any:
+        fallback_route = config.resolve_model_route(model_name)
+        fallback_api_key = fallback_route.api_key
+        if not fallback_api_key and fallback_route.provider not in {"vllm", "bedrock"}:
+            fallback_api_key = config.get_api_key(fallback_route.model)
+        return build_provider(
+            fallback_route.model_copy(update={"api_key": fallback_api_key}),
+            config,
+            provider_factories=provider_factories,
+        )
+
     # Create cron service first (callback set after agent creation)
     cron_store_path = get_data_dir() / "cron" / "jobs.json"
     cron = CronService(cron_store_path)
@@ -739,6 +750,7 @@ def gateway(
     agent = AgentLoop(
         bus=bus,
         provider=provider,
+        provider_resolver=_resolver,
         workspace=config.workspace_path,
         model=route.model,
         max_iterations=config.agents.defaults.max_tool_iterations,
@@ -948,6 +960,7 @@ def gateway(
                     f"http://{metrics_host}:{metrics_server.bound_port}{metrics_server.path} "
                     f"({metrics_server.default_format})"
                 )
+            cron.seed_default_jobs()
             await cron.start()
             await heartbeat.start()
             await asyncio.gather(
@@ -1024,9 +1037,21 @@ def agent(
         provider_factories=provider_factories,
     )
 
+    def _resolver(model_name: str) -> Any:
+        fallback_route = config.resolve_model_route(model_name)
+        fallback_api_key = fallback_route.api_key
+        if not fallback_api_key and fallback_route.provider not in {"vllm", "bedrock"}:
+            fallback_api_key = config.get_api_key(fallback_route.model)
+        return build_provider(
+            fallback_route.model_copy(update={"api_key": fallback_api_key}),
+            config,
+            provider_factories=provider_factories,
+        )
+
     agent_loop = AgentLoop(
         bus=bus,
         provider=provider,
+        provider_resolver=_resolver,
         workspace=config.workspace_path,
         model=route.model,
         brave_api_key=config.tools.web.search.api_key or None,

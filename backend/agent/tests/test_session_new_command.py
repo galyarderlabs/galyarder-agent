@@ -148,3 +148,37 @@ def test_new_command_no_archive_deletes_directly(tmp_path, monkeypatch):
     # No archive directory should exist
     archive_dir = sm.sessions_dir / "archive"
     assert not archive_dir.exists() or len(list(archive_dir.glob("*.jsonl"))) == 0
+
+
+# ── Archive memory digest tests ──────────────────────────────────────
+
+
+def test_archive_writes_inbox_digest(tmp_path):
+    sm = _make_session_manager(tmp_path)
+    session = sm.get_or_create("cli:default")
+    session.add_message("user", "remind me to buy milk")
+    session.add_message("assistant", "Got it, I'll remind you to buy milk.")
+    session.add_message("user", "my timezone is Asia/Jakarta")
+    sm.save(session)
+
+    sm.archive("cli:default")
+
+    inbox = sm.workspace / "memory" / "INBOX.md"
+    assert inbox.exists()
+    content = inbox.read_text()
+    assert "buy milk" in content
+    assert "Asia/Jakarta" in content
+    assert "Session: cli:default" in content
+
+
+def test_archive_empty_session_no_digest(tmp_path):
+    sm = _make_session_manager(tmp_path)
+    # Create session with no messages
+    session = sm.get_or_create("cli:empty")
+    sm.save(session)
+
+    sm.archive("cli:empty")
+
+    inbox = sm.workspace / "memory" / "INBOX.md"
+    assert not inbox.exists()
+

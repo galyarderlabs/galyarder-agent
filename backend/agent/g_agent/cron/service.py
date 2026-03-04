@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import random
 import time
 import uuid
 from datetime import datetime
@@ -149,11 +150,63 @@ class CronService:
 
         self.store_path.write_text(json.dumps(data, indent=2))
 
+    def seed_default_jobs(self) -> None:
+        """Seed default internal cron jobs if they don't exist."""
+        store = self._load_store()
+        existing_names = {j.name for j in store.jobs}
+
+        now = _now_ms()
+        changed = False
+
+        defaults = [
+            (
+                "pd-daily-memory",
+                "30 23 * * *",
+                "Process memory/INBOX.md (raw session digests) and today's interactions. Integrate key facts, user preferences, and unresolved tasks into MEMORY.md. Clear INBOX.md after processing. Keep entries concise — only long-term relevant information.",
+            ),
+            (
+                "pd-weekly-memory",
+                "0 20 * * 0",
+                "Review the past week's interactions. Extract actionable feedback and strictly update LESSONS.md and PROFILE.md. Delete outdated lessons that we have clearly internalized.",
+            ),
+            (
+                "pd-monthly-memory",
+                "0 20 28 * *",
+                "Perform a monthly high-level review. Abstract the current state into PROJECTS.md and RELATIONSHIPS.md to ensure the agent understands ongoing broad goals.",
+            ),
+        ]
+
+        for name, expr, message in defaults:
+            if name not in existing_names:
+                schedule = CronSchedule(kind="cron", expr=expr)
+                job = CronJob(
+                    id=str(uuid.uuid4())[:8],
+                    name=name,
+                    enabled=True,
+                    schedule=schedule,
+                    payload=CronPayload(
+                        kind="agent_turn",
+                        message=message,
+                        deliver=False,
+                    ),
+                    state=CronJobState(next_run_at_ms=_compute_next_run(schedule, now)),
+                    created_at_ms=now,
+                    updated_at_ms=now,
+                    delete_after_run=False,
+                )
+                store.jobs.append(job)
+                changed = True
+                logger.info(f"Cron: seeded default job '{name}' ({job.id})")
+
+        if changed:
+            self._save_store()
+            self._arm_timer()
+
     async def start(self) -> None:
         """Start the cron service."""
         self._running = True
         self._load_store()
-        self._recompute_next_runs()
+        self._recompute_next_runs(stagger=True)
         self._save_store()
         self._arm_timer()
         logger.info(
@@ -167,14 +220,26 @@ class CronService:
             self._timer_task.cancel()
             self._timer_task = None
 
-    def _recompute_next_runs(self) -> None:
-        """Recompute next run times for all enabled jobs."""
+    def _recompute_next_runs(self, *, stagger: bool = False) -> None:
+        """Recompute next run times for all enabled jobs.
+
+        Args:
+            stagger: When True (boot), add random jitter to ``kind='every'``
+                     jobs so they don't all fire at the exact same moment.
+        """
         if not self._store:
             return
         now = _now_ms()
+        _MAX_JITTER_MS = 60_000  # cap jitter at 60 s
         for job in self._store.jobs:
-            if job.enabled:
-                job.state.next_run_at_ms = _compute_next_run(job.schedule, now)
+            if not job.enabled:
+                continue
+            next_ms = _compute_next_run(job.schedule, now)
+            if stagger and next_ms and job.schedule.kind == "every" and job.schedule.every_ms:
+                cap = min(_MAX_JITTER_MS, job.schedule.every_ms // 2)
+                if cap > 0:
+                    next_ms += random.randint(0, cap)
+            job.state.next_run_at_ms = next_ms
 
     def _get_next_wake_ms(self) -> int | None:
         """Get the earliest next run time across all jobs."""
