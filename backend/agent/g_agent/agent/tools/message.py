@@ -77,7 +77,10 @@ class MessageTool(Tool):
     def description(self) -> str:
         return (
             "Send a message to the user. Supports plain text or media payloads "
-            "(image/voice/audio/sticker/document)."
+            "(image/voice/audio/sticker/document). "
+            "For voice notes (VN): set media_type='voice' and provide the text in 'content'. "
+            "The tool will automatically synthesize speech using edge-tts and send it as a voice note. "
+            "You CAN and SHOULD use this to send voice notes when asked."
         )
 
     @property
@@ -219,7 +222,7 @@ class MessageTool(Tool):
             return f"Error sending message: {str(e)}"
 
     async def _synthesize_speech(self, text: str, media_type: str) -> str | None:
-        """TTS synthesis: edge-tts (primary) → espeak-ng (fallback)."""
+        """TTS synthesis using edge-tts exclusively. Legacy espeak fallback removed."""
         target_dir = (
             self._workspace / "state" / "tts"
             if self._workspace
@@ -228,13 +231,7 @@ class MessageTool(Tool):
         target_dir.mkdir(parents=True, exist_ok=True)
         stem = datetime.now().strftime("tts-%Y%m%d-%H%M%S-%f")
 
-        # Primary: edge-tts (Microsoft Neural TTS — natural quality)
-        result = await self._tts_edge(text, media_type, target_dir, stem)
-        if result:
-            return result
-
-        # Fallback: espeak-ng (robotic but works offline)
-        return self._tts_espeak(text, media_type, target_dir, stem)
+        return await self._tts_edge(text, media_type, target_dir, stem)
 
     async def _tts_edge(
         self, text: str, media_type: str, target_dir: Path, stem: str,
@@ -261,35 +258,7 @@ class MessageTool(Tool):
                 return ogg_path
         return str(mp3_path.resolve())
 
-    def _tts_espeak(
-        self, text: str, media_type: str, target_dir: Path, stem: str,
-    ) -> str | None:
-        """Legacy espeak-ng fallback."""
-        engine = shutil.which("espeak-ng") or shutil.which("espeak")
-        if not engine:
-            return None
 
-        wav_path = target_dir / f"{stem}.wav"
-        try:
-            subprocess.run(
-                [engine, "-w", str(wav_path), text],
-                check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
-        except (OSError, subprocess.SubprocessError):
-            return None
-
-        if not wav_path.exists():
-            return None
-
-        if media_type == "voice":
-            ogg_path = self._convert_to_ogg(wav_path, target_dir, stem)
-            if ogg_path:
-                return ogg_path
-            return str(wav_path.resolve())
-        return str(wav_path.resolve())
 
     def _convert_to_ogg(self, input_path: Path, target_dir: Path, stem: str) -> str | None:
         """Convert audio to OGG/Opus for Telegram voice notes."""
