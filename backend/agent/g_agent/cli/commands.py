@@ -1935,7 +1935,7 @@ def google_exchange(
         code_values = parse_qs(parsed.query).get("code", [])
         if code_values:
             raw_code = code_values[0]
-            console.print(f"[dim]Extracted code from redirect URL.[/dim]")
+            console.print("[dim]Extracted code from redirect URL.[/dim]")
         else:
             _cli_fail(
                 "Could not extract 'code' parameter from URL.",

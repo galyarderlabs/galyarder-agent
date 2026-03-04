@@ -1002,7 +1002,6 @@ class AgentLoop:
         - Leading capitals on paragraphs (-> lowercase)
         - LLM-typical openers and closers
         """
-        import re
 
         text = (content or "").strip()
         if not text:
