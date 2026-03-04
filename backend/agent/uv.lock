@@ -500,6 +500,7 @@ version = "0.1.11"
 source = { editable = "." }
 dependencies = [
     { name = "croniter" },
+    { name = "edge-tts" },
     { name = "httpx" },
     { name = "lark-oapi" },
     { name = "litellm" },
@@ -524,14 +525,11 @@ dev = [
 slack = [
     { name = "slack-sdk" },
 ]
-tts = [
-    { name = "edge-tts" },
-]
 
 [package.metadata]
 requires-dist = [
     { name = "croniter", specifier = ">=2.0.0" },
-    { name = "edge-tts", marker = "extra == 'tts'", specifier = ">=6.1.0" },
+    { name = "edge-tts", specifier = ">=6.1.0" },
     { name = "httpx", specifier = ">=0.25.0" },
     { name = "lark-oapi", specifier = ">=1.0.0" },
     { name = "litellm", specifier = ">=1.0.0" },
@@ -550,7 +548,7 @@ requires-dist = [
     { name = "websocket-client", specifier = ">=1.6.0" },
     { name = "websockets", specifier = ">=12.0" },
 ]
-provides-extras = ["dev", "slack", "tts"]
+provides-extras = ["dev", "slack"]
 
 [[package]]
 name = "h11"

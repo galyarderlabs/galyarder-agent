@@ -1396,6 +1396,12 @@ class AgentLoop:
         stale_markers = (
             "belum bisa kirim voice",
             "belum bisa kirim voice note",
+            "nggak bisa kirim vn",
+            "nggak bisa kirim audio",
+            "nggak bisa kirim voice",
+            "tidak bisa kirim vn",
+            "tidak bisa kirim audio",
+            "tidak bisa kirim voice",
             "cuma bisa komunikasi lewat teks",
             "output gua masih teks",
             "voice note / pesan suara",
