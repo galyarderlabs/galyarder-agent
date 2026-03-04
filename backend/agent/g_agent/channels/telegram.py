@@ -158,6 +158,14 @@ class TelegramChannel(BaseChannel):
                 bot_info = await self._app.bot.get_me()
                 logger.info(f"Telegram bot @{bot_info.username} connected")
 
+                # Auto-register bot commands in Telegram UI
+                from telegram import BotCommand
+
+                await self._app.bot.set_my_commands([
+                    BotCommand("start", "mulai percakapan"),
+                    BotCommand("pack", "daily brief / routine pack"),
+                ])
+
                 # Start polling (this runs until stopped)
                 await self._app.updater.start_polling(
                     allowed_updates=["message"],
