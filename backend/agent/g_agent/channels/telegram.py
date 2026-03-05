@@ -1,8 +1,11 @@
 """Telegram channel implementation using python-telegram-bot."""
 
+from __future__ import annotations
+
 import asyncio
 import re
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from loguru import logger
 from telegram import Update
@@ -11,7 +14,11 @@ from telegram.ext import Application, ContextTypes, MessageHandler, filters
 from g_agent.bus.events import OutboundMessage
 from g_agent.bus.queue import MessageBus
 from g_agent.channels.base import BaseChannel
+from g_agent.channels.slash_commands import SlashCommandDispatcher
 from g_agent.config.schema import TelegramConfig
+
+if TYPE_CHECKING:
+    from g_agent.cron.service import CronService
 
 
 def _markdown_to_telegram_html(text: str) -> str:
@@ -88,12 +95,34 @@ class TelegramChannel(BaseChannel):
 
     name = "telegram"
 
-    def __init__(self, config: TelegramConfig, bus: MessageBus, groq_api_key: str = ""):
+    def __init__(
+        self,
+        config: TelegramConfig,
+        bus: MessageBus,
+        groq_api_key: str = "",
+        *,
+        workspace: Path | None = None,
+        model_name: str = "",
+        brave_api_key: str = "",
+        cron_service: CronService | None = None,
+        tool_names: list[str] | None = None,
+    ):
         super().__init__(config, bus)
         self.config: TelegramConfig = config
         self.groq_api_key = groq_api_key
         self._app: Application | None = None
         self._chat_ids: dict[str, int] = {}  # Map sender_id to chat_id for replies
+
+        # Slash command dispatcher (instant responses, no LLM)
+        self._slash: SlashCommandDispatcher | None = None
+        if workspace:
+            self._slash = SlashCommandDispatcher(
+                workspace,
+                model_name=model_name,
+                brave_api_key=brave_api_key,
+                cron_service=cron_service,
+                tool_names=tool_names or [],
+            )
 
     async def start(self) -> None:
         """Start the Telegram bot with long polling."""
@@ -134,19 +163,10 @@ class TelegramChannel(BaseChannel):
                             | filters.AUDIO
                             | filters.Document.ALL
                             | filters.Sticker.ALL
-                        )
-                        & ~filters.COMMAND,
+                        ),
                         self._on_message,
                     )
                 )
-
-                # Add /start command handler
-                from telegram.ext import CommandHandler
-
-                self._app.add_handler(CommandHandler("start", self._on_start))
-
-                # Route /pack commands through normal message flow
-                self._app.add_handler(CommandHandler("pack", self._on_pack_command))
 
                 logger.info("Starting Telegram bot (polling mode)...")
 
@@ -162,8 +182,21 @@ class TelegramChannel(BaseChannel):
                 from telegram import BotCommand
 
                 await self._app.bot.set_my_commands([
-                    BotCommand("start", "mulai percakapan"),
-                    BotCommand("pack", "daily brief / routine pack"),
+                    BotCommand("start", "Start conversation"),
+                    BotCommand("new", "New session"),
+                    BotCommand("reset", "Clear context & start fresh"),
+                    BotCommand("compact", "Summarize current session"),
+                    BotCommand("context", "Current session info"),
+                    BotCommand("status", "System diagnostics"),
+                    BotCommand("whoami", "Your profile"),
+                    BotCommand("memory", "View stored memories"),
+                    BotCommand("model", "Active model"),
+                    BotCommand("tools", "List active tools"),
+                    BotCommand("cron", "Scheduled jobs"),
+                    BotCommand("packs", "Workflow packs"),
+                    BotCommand("search", "Web search"),
+                    BotCommand("help", "Commands & guide"),
+                    BotCommand("commands", "Full command list"),
                 ])
 
                 # Start polling (this runs until stopped)
@@ -311,49 +344,6 @@ class TelegramChannel(BaseChannel):
             caption = caption[:1024]
         return path, media_type, caption
 
-    async def _on_start(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handle /start command."""
-        if not update.message or not update.effective_user:
-            return
-
-        user = update.effective_user
-        await update.message.reply_text(
-            f"👋 Hi {user.first_name}! I'm g-agent.\n\nSend me a message and I'll respond!"
-        )
-
-    async def _on_pack_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handle /pack command by forwarding it through inbound bus flow."""
-        if not update.message or not update.effective_user:
-            return
-
-        message = update.message
-        user = update.effective_user
-        chat_id = message.chat_id
-
-        sender_id = str(user.id)
-        if user.username:
-            sender_id = f"{sender_id}|{user.username}"
-        self._chat_ids[sender_id] = chat_id
-
-        original_text = message.text or ""
-        payload = original_text if original_text.startswith("/pack") else f"/pack {original_text}"
-        if message.caption:
-            payload = f"{payload} {message.caption}".strip()
-
-        await self._handle_message(
-            sender_id=sender_id,
-            chat_id=str(chat_id),
-            content=payload,
-            media=[],
-            metadata={
-                "message_id": message.message_id,
-                "user_id": user.id,
-                "username": user.username,
-                "first_name": user.first_name,
-                "is_group": message.chat.type != "private",
-                "from_me": False,
-            },
-        )
 
     async def _on_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle incoming messages (text, photos, voice, documents)."""
@@ -371,6 +361,21 @@ class TelegramChannel(BaseChannel):
 
         # Store chat_id for replies
         self._chat_ids[sender_id] = chat_id
+
+        # Intercept slash commands — instant response, bypass LLM
+        if self._slash and message.text and message.text.strip().startswith("/"):
+            session_key = f"telegram:{chat_id}"
+            response = await self._slash.try_handle(
+                message.text, session_key, "telegram", str(chat_id)
+            )
+            if response is not None:
+                try:
+                    await self._app.bot.send_message(
+                        chat_id=chat_id, text=response
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to send slash command response: {e}")
+                return
 
         # Build content from text and/or media
         content_parts = []

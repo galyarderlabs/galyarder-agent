@@ -928,7 +928,13 @@ def gateway(
     )
 
     # Create channel manager
-    channels = ChannelManager(config, bus, plugins=plugins)
+    channels = ChannelManager(
+        config,
+        bus,
+        plugins=plugins,
+        cron_service=cron,
+        tool_names=agent.tools.tool_names,
+    )
 
     if channels.enabled_channels:
         console.print(f"[green]✓[/green] Channels enabled: {', '.join(channels.enabled_channels)}")
