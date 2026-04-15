@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="backend/agent/g-agent_logo.png" alt="Galyarder Agent" width="520">
+  <img src="backend/agent/header.webp" alt="Galyarder Agent header" width="900">
   <h1>Galyarder Agent</h1>
   <p><b>Agentic Intelligence characters for real workflow, can send selfie or mirror with consistency face in ur agents, also have long-term memory about u, automation ur work, and self-hosted model routing.</b></p>
   <p>
@@ -274,7 +274,7 @@ Memory lives in `workspace/memory`:
 ## Architecture
 
 <p align="center">
-  <img src="backend/agent/g-agent_arch.png" alt="g-agent architecture" width="900">
+  <img src="backend/agent/architecture.webp" alt="g-agent architecture" width="900">
 </p>
 
 Execution flow:
