@@ -11,7 +11,7 @@ import os
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from loguru import logger
 
@@ -177,7 +177,7 @@ class SlashCommandDispatcher:
             lines.append(f"\nFirst    : {first_content}")
             lines.append(f"Last     : {last_content}")
 
-        lines.append(f"\n💡 Use /reset to clear & start fresh.")
+        lines.append("\n💡 Use /reset to clear & start fresh.")
 
         return "\n".join(lines)
 
