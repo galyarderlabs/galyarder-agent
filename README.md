@@ -1,7 +1,7 @@
 <div align="center">
   <img src="backend/agent/g-agent_logo.png" alt="Galyarder Agent" width="520">
   <h1>Galyarder Agent</h1>
-  <p><b>Sovereignty-first AI assistant runtime for real daily workflows.</b></p>
+  <p><b>Agentic Intelligence characters for real workflow, can send selfie or mirror with consistency face in ur agents, also have long-term memory about u, automation ur work, and self-hosted model routing.</b></p>
   <p>
     <img src="https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white" alt="Python 3.11+">
     <img src="https://img.shields.io/badge/CLI-g--agent-6f42c1" alt="g-agent CLI">
