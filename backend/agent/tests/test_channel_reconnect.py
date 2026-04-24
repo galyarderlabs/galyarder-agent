@@ -101,6 +101,9 @@ class _FakeBot:
     async def get_me(self):
         return type("BotInfo", (), {"username": "g-agent-test-bot"})()
 
+    async def set_my_commands(self, commands):
+        pass
+
 
 class _FakeMessage:
     def __init__(self, text: str = "", caption: str = "", message_id: int = 1):
@@ -109,6 +112,11 @@ class _FakeMessage:
         self.message_id = message_id
         self.chat_id = 12345
         self.chat = type("Chat", (), {"type": "private"})()
+        self.photo = None
+        self.voice = None
+        self.audio = None
+        self.document = None
+        self.sticker = None
 
 
 class _FakeTelegramApp:
@@ -215,7 +223,7 @@ def test_telegram_pack_command_forwards_as_message(monkeypatch):
             self.message = _FakeMessage(text="/pack daily_brief --voice --silent")
             self.effective_user = _FakeUser()
 
-    asyncio.run(channel._on_pack_command(_FakeUpdate(), object()))
+    asyncio.run(channel._on_message(_FakeUpdate(), object()))
 
     assert len(captured) == 1
     assert captured[0].content == "/pack daily_brief --voice --silent"

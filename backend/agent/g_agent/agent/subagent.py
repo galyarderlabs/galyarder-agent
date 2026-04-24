@@ -51,6 +51,7 @@ class SubagentManager:
         self.exec_config = exec_config or ExecToolConfig()
         self.restrict_to_workspace = restrict_to_workspace
         self._running_tasks: dict[str, asyncio.Task[None]] = {}
+        self._task_origins: dict[str, dict[str, str]] = {}
 
     async def spawn(
         self,
@@ -82,9 +83,14 @@ class SubagentManager:
         # Create background task
         bg_task = asyncio.create_task(self._run_subagent(task_id, task, display_label, origin))
         self._running_tasks[task_id] = bg_task
+        self._task_origins[task_id] = origin
 
         # Cleanup when done
-        bg_task.add_done_callback(lambda _: self._running_tasks.pop(task_id, None))
+        def _cleanup(_: Any) -> None:
+            self._running_tasks.pop(task_id, None)
+            self._task_origins.pop(task_id, None)
+            
+        bg_task.add_done_callback(_cleanup)
 
         logger.info(f"Spawned subagent [{task_id}]: {display_label}")
         return f"Subagent [{display_label}] started (id: {task_id}). I'll notify you when it completes."
@@ -111,6 +117,7 @@ class SubagentManager:
                     working_dir=str(self.workspace),
                     timeout=self.exec_config.timeout,
                     restrict_to_workspace=self.restrict_to_workspace,
+                    path_append=self.exec_config.path_append,
                 )
             )
             tools.register(WebSearchTool(api_key=self.brave_api_key))
@@ -256,6 +263,23 @@ When you have completed the task, provide a clear summary of your findings or ac
     def get_running_count(self) -> int:
         """Return the number of currently running subagents."""
         return len(self._running_tasks)
+
+    def cancel_all_for_origin(self, channel: str, chat_id: str) -> int:
+        """Cancel all subagents that originated from the given channel and chat_id."""
+        cancelled = 0
+        to_cancel = []
+        for task_id, origin in self._task_origins.items():
+            if origin.get("channel") == channel and origin.get("chat_id") == chat_id:
+                to_cancel.append(task_id)
+                
+        for task_id in to_cancel:
+            task = self._running_tasks.get(task_id)
+            if task and not task.done():
+                task.cancel()
+                cancelled += 1
+                logger.info(f"Cancelled subagent [{task_id}] for {channel}:{chat_id}")
+                
+        return cancelled
 
     async def shutdown(self) -> None:
         """Cancel and await all running subagents."""

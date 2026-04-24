@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import re
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -122,6 +123,7 @@ class TelegramChannel(BaseChannel):
                 brave_api_key=brave_api_key,
                 cron_service=cron_service,
                 tool_names=tool_names or [],
+                version=os.environ.get("G_AGENT_VERSION", "dev"),
             )
 
     async def start(self) -> None:
@@ -153,6 +155,7 @@ class TelegramChannel(BaseChannel):
 
                 self._app = builder.build()
 
+                from telegram.ext import CallbackQueryHandler
                 # Add message handler for text, photos, voice, documents
                 self._app.add_handler(
                     MessageHandler(
@@ -167,6 +170,8 @@ class TelegramChannel(BaseChannel):
                         self._on_message,
                     )
                 )
+                self._app.add_handler(CallbackQueryHandler(self._handle_callback_query))
+
 
                 logger.info("Starting Telegram bot (polling mode)...")
 
@@ -201,7 +206,7 @@ class TelegramChannel(BaseChannel):
 
                 # Start polling (this runs until stopped)
                 await self._app.updater.start_polling(
-                    allowed_updates=["message"],
+                    allowed_updates=["message", "callback_query"],
                     drop_pending_updates=True,  # Ignore old messages on startup
                 )
 
@@ -256,6 +261,13 @@ class TelegramChannel(BaseChannel):
                 await self._app.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
                 return
 
+            reply_to_message_id = None
+            if self.config.reply_to_message and msg.reply_to:
+                try:
+                    reply_to_message_id = int(msg.reply_to)
+                except ValueError:
+                    pass
+
             media = self._resolve_outbound_media(msg)
             if media:
                 path, media_type, caption = media
@@ -265,37 +277,51 @@ class TelegramChannel(BaseChannel):
                             chat_id=chat_id,
                             photo=media_file,
                             caption=caption or None,
+                            reply_to_message_id=reply_to_message_id,
                         )
                     elif media_type == "voice":
                         await self._app.bot.send_voice(
                             chat_id=chat_id,
                             voice=media_file,
                             caption=caption or None,
+                            reply_to_message_id=reply_to_message_id,
                         )
                     elif media_type == "audio":
                         await self._app.bot.send_audio(
                             chat_id=chat_id,
                             audio=media_file,
                             caption=caption or None,
+                            reply_to_message_id=reply_to_message_id,
                         )
                     elif media_type == "sticker":
                         await self._app.bot.send_sticker(
                             chat_id=chat_id,
                             sticker=media_file,
+                            reply_to_message_id=reply_to_message_id,
                         )
                         if caption:
-                            await self._app.bot.send_message(chat_id=chat_id, text=caption)
+                            await self._app.bot.send_message(
+                                chat_id=chat_id, 
+                                text=caption,
+                                reply_to_message_id=reply_to_message_id,
+                            )
                     else:
                         await self._app.bot.send_document(
                             chat_id=chat_id,
                             document=media_file,
                             caption=caption or None,
+                            reply_to_message_id=reply_to_message_id,
                         )
                 return
 
             # Convert markdown to Telegram HTML
             html_content = _markdown_to_telegram_html(msg.content)
-            await self._app.bot.send_message(chat_id=chat_id, text=html_content, parse_mode="HTML")
+            await self._app.bot.send_message(
+                chat_id=chat_id, 
+                text=html_content, 
+                parse_mode="HTML",
+                reply_to_message_id=reply_to_message_id
+            )
         except ValueError:
             logger.error(f"Invalid chat_id: {msg.chat_id}")
             raise
@@ -345,6 +371,79 @@ class TelegramChannel(BaseChannel):
         return path, media_type, caption
 
 
+    async def _handle_callback_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle inline button clicks for slash commands."""
+        query = update.callback_query
+        if not query or not query.data:
+            return
+
+        await query.answer()
+
+        user = update.effective_user
+        if not user:
+            logger.warning("Callback query without effective_user, ignoring")
+            return
+
+        sender_id = str(user.id)
+        if user.username:
+            sender_id = f"{sender_id}|{user.username}"
+
+        chat_id = query.message.chat_id if query.message else None
+        if not chat_id:
+            logger.warning("Callback query without chat_id, ignoring")
+            return
+
+        session_key = f"telegram:{chat_id}"
+
+        if not (query.data.startswith("/") and self._slash):
+            return
+
+        # Bypass LLM and route to slash command handler
+        raw_cmd = query.data.strip().split(maxsplit=1)[0][1:].lower()
+        allowed_commands = ["start", "help"]
+        if not self.is_allowed(sender_id) and raw_cmd not in allowed_commands:
+            response: str | dict | None = "⛔ <b>Access denied:</b> <i>you are not authorized to use commands.</i>"
+        else:
+            try:
+                response = self._slash.try_handle(
+                    query.data, session_key, "telegram", str(chat_id),
+                    sender_username=user.username or "",
+                    sender_id=sender_id,
+                )
+            except Exception as e:
+                logger.error(f"Callback slash command failed: {e}")
+                response = f"⚠️ Error: {e}"
+
+        if response is None:
+            return
+
+        text: str = response if isinstance(response, str) else response.get("text", "")
+        reply_markup = None
+        if isinstance(response, dict):
+            buttons = response.get("buttons")
+            if buttons:
+                from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+                kb = []
+                for row in buttons:
+                    kb_row = []
+                    for btn in row:
+                        kb_row.append(InlineKeyboardButton(text=btn["text"], callback_data=btn["data"]))
+                    kb.append(kb_row)
+                reply_markup = InlineKeyboardMarkup(kb)
+
+        # Try editing the original message first; fall back to new message
+        try:
+            await query.edit_message_text(text=text, parse_mode="HTML", reply_markup=reply_markup)
+        except Exception as edit_err:
+            if "Message is not modified" not in str(edit_err):
+                logger.warning(f"edit_message_text failed ({edit_err}), sending new message")
+                try:
+                    await self._app.bot.send_message(
+                        chat_id=chat_id, text=text, parse_mode="HTML", reply_markup=reply_markup
+                    )
+                except Exception as send_err:
+                    logger.error(f"Fallback send_message also failed: {send_err}")
+
     async def _on_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle incoming messages (text, photos, voice, documents)."""
         if not update.message or not update.effective_user:
@@ -364,14 +463,39 @@ class TelegramChannel(BaseChannel):
 
         # Intercept slash commands — instant response, bypass LLM
         if self._slash and message.text and message.text.strip().startswith("/"):
-            session_key = f"telegram:{chat_id}"
-            response = await self._slash.try_handle(
-                message.text, session_key, "telegram", str(chat_id)
-            )
+            raw_cmd = message.text.strip().split(maxsplit=1)[0][1:].lower()
+            
+            # Security gate: only allow list can use most commands
+            allowed_commands = ["start", "help"]
+            if not self.is_allowed(sender_id) and raw_cmd not in allowed_commands:
+                response = "⛔ Access denied: you are not authorized to use commands."
+            else:
+                session_key = f"telegram:{chat_id}"
+                response = self._slash.try_handle(
+                    message.text, session_key, "telegram", str(chat_id),
+                    sender_username=user.username or "",
+                    sender_id=sender_id,
+                )
+
             if response is not None:
+                text = response
+                reply_markup = None
+                if isinstance(response, dict):
+                    text = response.get("text", "")
+                    buttons = response.get("buttons")
+                    if buttons:
+                        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+                        kb = []
+                        for row in buttons:
+                            kb_row = []
+                            for btn in row:
+                                kb_row.append(InlineKeyboardButton(text=btn["text"], callback_data=btn["data"]))
+                            kb.append(kb_row)
+                        reply_markup = InlineKeyboardMarkup(kb)
+                        
                 try:
                     await self._app.bot.send_message(
-                        chat_id=chat_id, text=response
+                        chat_id=chat_id, text=text, parse_mode="HTML", reply_markup=reply_markup
                     )
                 except Exception as e:
                     logger.error(f"Failed to send slash command response: {e}")

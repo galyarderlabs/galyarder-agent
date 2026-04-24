@@ -23,6 +23,7 @@ class CaptureProvider(LLMProvider):
         model: str | None = None,
         max_tokens: int = 4096,
         temperature: float = 0.7,
+        **kwargs,
     ) -> LLMResponse:
         for item in reversed(messages):
             if item.get("role") == "user":
@@ -46,6 +47,7 @@ class SilentPackProvider(LLMProvider):
         model: str | None = None,
         max_tokens: int = 4096,
         temperature: float = 0.7,
+        **kwargs,
     ) -> LLMResponse:
         self.calls += 1
         if self.calls == 1:
@@ -77,6 +79,7 @@ class ApprovalAwareSilentPackProvider(LLMProvider):
         model: str | None = None,
         max_tokens: int = 4096,
         temperature: float = 0.7,
+        **kwargs,
     ) -> LLMResponse:
         self.calls += 1
         if self.calls == 1:

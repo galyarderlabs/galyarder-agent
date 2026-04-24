@@ -20,6 +20,7 @@ class RouteTestProvider(LLMProvider):
         model: str | None = None,
         max_tokens: int = 4096,
         temperature: float = 0.7,
+        **kwargs,
     ) -> LLMResponse:
         model_name = model or self.get_default_model()
         self.calls.append(model_name)

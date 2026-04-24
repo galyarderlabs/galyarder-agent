@@ -9,7 +9,6 @@ from __future__ import annotations
 import math
 import os
 import time
-from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -33,12 +32,14 @@ class SlashCommandDispatcher:
         brave_api_key: str = "",
         cron_service: CronService | None = None,
         tool_names: list[str] | None = None,
+        version: str = "",
     ) -> None:
         self.workspace = workspace
         self.model_name = model_name or "unknown"
         self.brave_api_key = brave_api_key or os.environ.get("BRAVE_API_KEY", "")
         self.cron_service = cron_service
         self.tool_names = tool_names or []
+        self.version = version or "dev"
         self._boot_time = time.monotonic()
 
         # Ordered command registry: (command, aliases, description, usage)
@@ -76,10 +77,14 @@ class SlashCommandDispatcher:
         session_key: str,
         channel: str,
         chat_id: str,
-    ) -> str | None:
+        *,
+        sender_username: str = "",
+        sender_id: str = "",
+    ) -> str | dict | None:
         """Try to handle text as a slash command.
 
-        Returns response string if handled, None if not a command.
+        Returns response string/dict if handled, None if not a command.
+        Dict format: {"text": str, "buttons": [[{"text": str, "data": str}]]}
         """
         stripped = text.strip()
         if not stripped.startswith("/"):
@@ -100,9 +105,12 @@ class SlashCommandDispatcher:
             "compact": lambda: self._cmd_compact(session_key),
             "context": lambda: self._cmd_context(session_key, channel, chat_id),
             "status": lambda: self._cmd_status(session_key),
-            "whoami": lambda: self._cmd_whoami(),
+            "whoami": lambda: self._cmd_whoami(
+                channel=channel, chat_id=chat_id,
+                username=sender_username, user_id=sender_id,
+            ),
             "memory": lambda: self._cmd_memory(args),
-            "model": lambda: self._cmd_model(),
+            "model": lambda: self._cmd_model(args),
             "tools": lambda: self._cmd_tools(),
             "cron": lambda: self._cmd_cron(),
             "packs": lambda: self._cmd_packs(),
@@ -128,7 +136,7 @@ class SlashCommandDispatcher:
     # -- Session Commands --------------------------------------------------
 
     def _cmd_start(self) -> str:
-        return "👋 yo. send me a message, I'm listening."
+        return "👋 <b>yo.</b> send me a message, I'm listening."
 
     def _cmd_reset(self, session_key: str) -> str:
         from g_agent.session.manager import SessionManager
@@ -140,11 +148,10 @@ class SlashCommandDispatcher:
         if msg_count > 0:
             sessions.archive(session_key)
             return (
-                f"🔄 Session Reset\n\n"
-                f"Archived {msg_count} messages → session cleared.\n"
-                f"Starting fresh. Send a message anytime."
+                f"✅ <b>New session started</b> · model: <code>{self.model_name}</code>\n"
+                f"<i>Archived {msg_count} messages.</i>"
             )
-        return "🔄 Session already empty. Send a message to start."
+        return f"✅ <b>Session already empty.</b> · model: <code>{self.model_name}</code>"
 
     def _cmd_compact(self, session_key: str) -> str:
         from g_agent.session.manager import SessionManager
@@ -153,139 +160,138 @@ class SlashCommandDispatcher:
         session = sessions.get_or_create(session_key)
         msg_count = len(session.messages)
 
-        if msg_count == 0:
-            return "📦 Session empty, nothing to compact."
+        if msg_count <= 1:
+            return "📦 Session too short, nothing to compact."
 
-        # Count by role
-        user_msgs = sum(1 for m in session.messages if m.get("role") == "user")
-        assistant_msgs = sum(1 for m in session.messages if m.get("role") == "assistant")
-        tool_msgs = msg_count - user_msgs - assistant_msgs
+        # Calculate before stats
+        total_chars_before = sum(len(str(m.get("content", ""))) for m in session.messages)
+        est_tokens_before = total_chars_before // 4
 
-        # Calculate rough token estimate (1 token ≈ 4 chars)
-        total_chars = sum(len(str(m.get("content", ""))) for m in session.messages)
-        est_tokens = total_chars // 4
+        # Build digest and compress
+        digest = sessions._build_digest(session, max_chars=4000)
+        
+        # Replace history with single summary message
+        session.clear()
+        session.add_message(
+            role="system",
+            content=f"[Session compacted. Previous context:]\n\n{digest}"
+        )
+        sessions.save(session)
+        
+        # Calculate after stats
+        total_chars_after = len(session.messages[0].get("content", ""))
+        est_tokens_after = total_chars_after // 4
 
-        lines = ["📦 Session Summary\n"]
-        lines.append(f"Messages : {msg_count} ({user_msgs} user, {assistant_msgs} assistant, {tool_msgs} system)")
-        lines.append(f"Est tokens: ~{est_tokens:,}")
-        lines.append(f"Created  : {session.created_at.strftime('%Y-%m-%d %H:%M')}")
-        lines.append(f"Updated  : {session.updated_at.strftime('%Y-%m-%d %H:%M')}")
+        return (
+            f"📦 <b>Session Compacted</b>\n"
+            f"<i>Compressed {msg_count} messages into 1 summary.</i>\n"
+            f"<code>Tokens: ~{est_tokens_before:,} → ~{est_tokens_after:,}</code>"
+        )
 
-        if session.messages:
-            first_content = str(session.messages[0].get("content", ""))[:100]
-            last_content = str(session.messages[-1].get("content", ""))[:100]
-            lines.append(f"\nFirst    : {first_content}")
-            lines.append(f"Last     : {last_content}")
-
-        lines.append("\n💡 Use /reset to clear & start fresh.")
-
-        return "\n".join(lines)
-
-    def _cmd_context(self, session_key: str, channel: str, chat_id: str) -> str:
+    def _cmd_context(self, session_key: str, channel: str, chat_id: str) -> dict:
         from g_agent.session.manager import SessionManager
 
-        lines = ["📋 Session Context\n"]
+        lines = ["📋 <b>Session Context</b>\n"]
 
-        lines.append(f"Channel  : {channel}")
-        lines.append(f"Chat ID  : {chat_id}")
-        lines.append(f"Session  : {session_key}")
+        lines.append(f"<code>Channel : {channel}</code>")
+        lines.append(f"<code>Chat ID : {chat_id}</code>")
+        lines.append(f"<code>Session : {session_key}</code>")
 
         try:
             sessions = SessionManager(self.workspace)
             session = sessions.get_or_create(session_key)
-            lines.append(f"Messages : {len(session.messages)}")
-
-            if session.messages:
-                last_msg = session.messages[-1]
-                role = last_msg.get("role", "?")
-                content_preview = str(last_msg.get("content", ""))[:80]
-                lines.append(f"Last     : [{role}] {content_preview}")
-
-            lines.append(f"Created  : {session.created_at.strftime('%Y-%m-%d %H:%M')}")
-            lines.append(f"Updated  : {session.updated_at.strftime('%Y-%m-%d %H:%M')}")
+            lines.append(f"<code>Messages: {len(session.messages)}</code>")
+            lines.append(f"<code>Created : {session.created_at.strftime('%Y-%m-%d %H:%M')}</code>")
+            lines.append(f"<code>Updated : {session.updated_at.strftime('%Y-%m-%d %H:%M')}</code>")
         except Exception as e:
-            lines.append(f"Error    : {e}")
+            lines.append(f"<code>Error   : {e}</code>")
 
-        return "\n".join(lines)
+        return {
+            "text": "\n".join(lines),
+            "buttons": [
+                [
+                    {"text": "📦 Compact", "data": "/compact"},
+                    {"text": "🔄 Reset", "data": "/reset"},
+                    {"text": "📊 Status", "data": "/status"},
+                ],
+            ],
+        }
 
     # -- Info Commands -----------------------------------------------------
 
     def _cmd_status(self, session_key: str) -> str:
         from g_agent.session.manager import SessionManager
 
-        lines = ["📊 System Status\n"]
+        lines: list[str] = []
+
+        # Header with version
+        lines.append(f"🤖 <b>Keiya</b> {self.version}")
 
         # Model
-        lines.append(f"Model    : {self.model_name}")
+        lines.append(f"🧠 Model: <code>{self.model_name}</code>")
 
-        # Uptime
+        # Uptime + Cron on one line
         uptime_s = time.monotonic() - self._boot_time
         hours = int(uptime_s // 3600)
         minutes = int((uptime_s % 3600) // 60)
-        lines.append(f"Uptime   : {hours}h {minutes}m")
+        uptime_str = f"{hours}h {minutes}m"
 
-        # Cron
+        cron_str = "n/a"
         if self.cron_service:
             try:
                 cron_status = self.cron_service.status()
                 job_count = cron_status.get("jobs", 0)
                 enabled = "active" if cron_status.get("enabled") else "stopped"
-                lines.append(f"Cron     : {job_count} jobs ({enabled})")
+                cron_str = f"{job_count} jobs ({enabled})"
             except Exception:
-                lines.append("Cron     : unavailable")
-        else:
-            lines.append("Cron     : not configured")
+                cron_str = "err"
+        lines.append(f"⏱️ Uptime: {uptime_str} · ⏰ Cron: {cron_str}")
 
         # Session
         try:
             sessions = SessionManager(self.workspace)
             session = sessions.get_or_create(session_key)
-            lines.append(f"Session  : {len(session.messages)} messages")
+            msg_count = len(session.messages)
+            lines.append(f"🧵 Session: <code>{session_key}</code> · {msg_count} msgs")
         except Exception:
-            pass
+            lines.append(f"🧵 Session: <code>{session_key}</code>")
 
-        # Memory facts
+        # Memory + Tools on one line
+        mem_str = "n/a"
         try:
             from g_agent.agent.memory import MemoryStore
-
             memory = MemoryStore(self.workspace)
             facts = memory._load_fact_index()
-            lines.append(f"Memory   : {len(facts)} facts stored")
-        except Exception:
-            lines.append("Memory   : unavailable")
-
-        # Tools
-        lines.append(f"Tools    : {len(self.tool_names)} registered")
-
-        # Packs
-        try:
-            from g_agent.agent.workflow_packs import list_workflow_packs
-
-            packs = list_workflow_packs()
-            lines.append(f"Packs    : {len(packs)} available")
+            mem_str = f"{len(facts)} facts"
         except Exception:
             pass
-
-        # Timestamp
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        lines.append(f"\nTimestamp : {now}")
+        lines.append(f"🧠 Memory: {mem_str} · 🔧 Tools: {len(self.tool_names)} registered")
 
         return "\n".join(lines)
 
-    def _cmd_whoami(self) -> str:
-        from g_agent.agent.memory import MemoryStore
+    def _cmd_whoami(
+        self,
+        *,
+        channel: str = "",
+        chat_id: str = "",
+        username: str = "",
+        user_id: str = "",
+    ) -> dict:
+        lines = ["🧭 <b>Identity</b>\n"]
+        lines.append(f"<code>Channel : {channel or 'unknown'}</code>")
+        # user_id may contain "id|username" format from telegram
+        clean_id = user_id.split("|")[0] if user_id else chat_id
+        lines.append(f"<code>User ID : {clean_id}</code>")
+        if username:
+            lines.append(f"<code>Username: @{username}</code>")
+        lines.append(f"<code>Session : {channel}:{chat_id}</code>")
 
-        memory = MemoryStore(self.workspace)
-        profile = memory.read_profile().strip()
-
-        if not profile:
-            return "👤 No profile stored yet."
-
-        preview = profile[:800]
-        if len(profile) > 800:
-            preview += "\n..."
-
-        return f"👤 Profile\n\n{preview}"
+        return {
+            "text": "\n".join(lines),
+            "buttons": [
+                [{"text": "📄 View Profile", "data": "/memory"}],
+            ],
+        }
 
     def _cmd_memory(self, query: str) -> str:
         from g_agent.agent.memory import MemoryStore
@@ -296,18 +302,18 @@ class SlashCommandDispatcher:
         # Profile summary
         profile = memory.read_profile().strip()
         if profile:
-            preview = profile[:500]
+            preview = profile[:500].replace("<", "&lt;").replace(">", "&gt;")
             if len(profile) > 500:
                 preview += "..."
-            sections.append(f"👤 Profile\n{preview}")
+            sections.append(f"👤 <b>Profile</b>\n<pre>{preview}</pre>")
 
         # Today's notes
         today = memory.read_today().strip()
         if today:
-            preview = today[-500:]
+            preview = today[-500:].replace("<", "&lt;").replace(">", "&gt;")
             if len(today) > 500:
                 preview = "..." + preview
-            sections.append(f"📅 Today\n{preview}")
+            sections.append(f"📅 <b>Today</b>\n<pre>{preview}</pre>")
 
         # Long-term memory
         long_term = memory.read_long_term().strip()
@@ -320,55 +326,107 @@ class SlashCommandDispatcher:
                 ]
                 if matches:
                     sections.append(
-                        f"🧠 Memory (matching '{query}')\n" + "\n".join(matches[:10])
+                        f"🧠 <b>Memory (matching '{query}')</b>\n<pre>" + "\n".join(matches[:10]).replace("<", "&lt;").replace(">", "&gt;") + "</pre>"
                     )
                 else:
-                    sections.append(f"🧠 No memories matching '{query}'")
+                    sections.append(f"🧠 <i>No memories matching '{query}'</i>")
             else:
-                preview = long_term[:500]
+                preview = long_term[:500].replace("<", "&lt;").replace(">", "&gt;")
                 if len(long_term) > 500:
                     preview += "..."
-                sections.append(f"🧠 Long-term Memory\n{preview}")
+                sections.append(f"🧠 <b>Long-term Memory</b>\n<pre>{preview}</pre>")
 
         # Fact count
         try:
             facts = memory._load_fact_index()
-            sections.append(f"\n📊 Total: {len(facts)} facts stored")
+            sections.append(f"\n📊 <b>Total:</b> <code>{len(facts)} facts stored</code>")
         except Exception:
             pass
 
         if not sections:
-            return "🧠 Memory empty. Nothing stored yet."
+            return "🧠 <i>Memory empty. Nothing stored yet.</i>"
 
         return "\n\n".join(sections)
 
-    def _cmd_model(self) -> str:
-        return f"🤖 Model: {self.model_name}"
+    def _cmd_model(self, args: str = "") -> dict:
+        import os
+        from g_agent.providers.registry import PROVIDERS
+
+        if args:
+            # Example: "/model openai" shows provider info.
+            # Example: "/model set openai/gpt-4o" sets the model name.
+            if args.startswith("set "):
+                new_model = args[4:].strip()
+                if new_model:
+                    self.model_name = new_model
+                    return {"text": f"✅ Model set to <code>{new_model}</code>.", "buttons": []}
+
+            for spec in PROVIDERS:
+                if spec.name == args:
+                    key_masked = "configured" if os.environ.get(spec.env_key) else "not set"
+                    text = (
+                        f"🧠 <b>{spec.label}</b>\n\n"
+                        f"<code>Name   : {spec.name}</code>\n"
+                        f"<code>Env    : {spec.env_key}</code>\n"
+                        f"<code>Key    : {key_masked}</code>\n"
+                        f"<code>Gateway: {'yes' if spec.is_gateway else 'no'}</code>"
+                    )
+                    return {
+                        "text": text,
+                        "buttons": [
+                            [{"text": "⬅️ Back to Providers", "data": "/model"}],
+                        ],
+                    }
+                    
+            # Fallback: if user types `/model some-model-name` directly
+            self.model_name = args.strip()
+            return {"text": f"✅ Model set to <code>{self.model_name}</code>.", "buttons": []}
+
+        # Show only configured providers
+        configured_providers = [p for p in PROVIDERS if os.environ.get(p.env_key)]
+        
+        text = (
+            f"🧠 <b>Model Selection</b>\n"
+            f"Current: <code>{self.model_name}</code>\n\n"
+            f"<i>Select a configured provider for details, or use <code>/model set &lt;model_id&gt;</code> to change models.</i>"
+        )
+
+        buttons: list[list[dict[str, str]]] = []
+        row: list[dict[str, str]] = []
+        for spec in configured_providers:
+            row.append({"text": spec.label, "data": f"/model {spec.name}"})
+            if len(row) == 2:
+                buttons.append(row)
+                row = []
+        if row:
+            buttons.append(row)
+
+        return {"text": text, "buttons": buttons}
 
     # -- Tools & Integrations Commands -------------------------------------
 
     def _cmd_tools(self) -> str:
         if not self.tool_names:
-            return "🔧 No tools registered."
+            return "🔧 <i>No tools registered.</i>"
 
-        lines = [f"🔧 Tools ({len(self.tool_names)} registered)\n"]
+        lines = [f"🔧 <b>Tools ({len(self.tool_names)})</b>\n"]
         for name in sorted(self.tool_names):
-            lines.append(f"  • {name}")
+            lines.append(f"• <code>{name}</code>")
         return "\n".join(lines)
 
     def _cmd_cron(self) -> str:
         if not self.cron_service:
-            return "⏰ Cron service not configured."
+            return "⏰ <i>Cron service not configured.</i>"
 
         try:
             jobs = self.cron_service.list_jobs(include_disabled=True)
         except Exception as e:
-            return f"⚠️ Error loading cron jobs: {e}"
+            return f"⚠️ <b>Error loading cron jobs:</b> <code>{e}</code>"
 
         if not jobs:
-            return "⏰ No cron jobs scheduled."
+            return "⏰ <i>No cron jobs scheduled.</i>"
 
-        lines = [f"⏰ Cron Jobs ({len(jobs)})\n"]
+        lines = [f"⏰ <b>Cron Jobs ({len(jobs)})</b>\n"]
         for job in jobs:
             status = "✅" if job.enabled else "⏸️"
             # Schedule display
@@ -390,7 +448,7 @@ class SlashCommandDispatcher:
             else:
                 sched_str = sched.kind
 
-            lines.append(f"  {status} {job.name} [{sched_str}]")
+            lines.append(f"{status} <b>{job.name}</b> [<code>{sched_str}</code>]")
 
         return "\n".join(lines)
 
@@ -399,16 +457,16 @@ class SlashCommandDispatcher:
             from g_agent.agent.workflow_packs import PACK_ALIASES, PACK_SPEC
 
             if not PACK_SPEC:
-                return "📦 No workflow packs configured."
+                return "📦 <i>No workflow packs configured.</i>"
 
-            lines = [f"📦 Workflow Packs ({len(PACK_SPEC)})\n"]
+            lines = [f"📦 <b>Workflow Packs ({len(PACK_SPEC)})</b>\n"]
             for name, spec in sorted(PACK_SPEC.items()):
                 objective = spec.get("objective", "")[:80]
-                # Find aliases for this pack
                 aliases = [a for a, target in PACK_ALIASES.items() if target == name]
-                alias_str = f" (alias: {', '.join(aliases)})" if aliases else ""
-                lines.append(f"  • {name}{alias_str}")
-                lines.append(f"    {objective}")
+                alias_str = f" (<code>{', '.join(aliases)}</code>)" if aliases else ""
+                lines.append(f"• <b>{name}</b>{alias_str}")
+                if objective:
+                    lines.append(f"  <i>{objective}</i>")
             return "\n".join(lines)
         except Exception as e:
             return f"⚠️ Error loading packs: {e}"
@@ -429,36 +487,34 @@ class SlashCommandDispatcher:
 
         return f"🔍 {result}"
 
-    def _cmd_help(self) -> str:
-        lines = ["ℹ️ Commands\n"]
+    def _cmd_help(self) -> dict:
+        text = (
+            "ℹ️ <b>Help</b>\n\n"
+            "<b>Session</b>\n"
+            "/new  |  /reset  |  /compact  |  /context\n\n"
+            "<b>Info</b>\n"
+            "/status  |  /whoami  |  /memory  |  /model\n\n"
+            "<b>Tools</b>\n"
+            "/tools  |  /cron  |  /packs\n\n"
+            "<b>Utility</b>\n"
+            "/search &lt;query&gt;\n\n"
+            "More: /commands for full list"
+        )
+        return {
+            "text": text,
+            "buttons": [
+                [
+                    {"text": "📊 Status", "data": "/status"},
+                    {"text": "🧭 Who Am I", "data": "/whoami"},
+                ],
+                [
+                    {"text": "🧠 Model", "data": "/model"},
+                    {"text": "📋 Commands", "data": "/commands"},
+                ],
+            ],
+        }
 
-        lines.append("Session")
-        lines.append("  /start      — Start conversation")
-        lines.append("  /new        — New session (= /reset)")
-        lines.append("  /reset      — Clear context & start fresh")
-        lines.append("  /compact    — Summarize current session")
-        lines.append("  /context    — Current session info")
-
-        lines.append("\nInfo")
-        lines.append("  /status     — System diagnostics")
-        lines.append("  /whoami     — Your profile")
-        lines.append("  /memory     — Stored memories")
-        lines.append("  /model      — Active model")
-
-        lines.append("\nTools & Integrations")
-        lines.append("  /tools      — Active tools")
-        lines.append("  /cron       — Scheduled jobs")
-        lines.append("  /packs      — Workflow packs")
-
-        lines.append("\nUtility")
-        lines.append("  /search <q> — Web search")
-        lines.append("  /help       — This page")
-        lines.append("  /commands   — Full list")
-
-        return "\n".join(lines)
-
-    def _cmd_commands(self, args: str) -> str:
-        # Pagination
+    def _cmd_commands(self, args: str) -> dict:
         page = 1
         if args:
             try:
@@ -466,39 +522,33 @@ class SlashCommandDispatcher:
             except ValueError:
                 pass
 
+        per_page = 8
         total = len(self._registry)
-        total_pages = math.ceil(total / _COMMANDS_PAGE_SIZE)
+        total_pages = max(1, math.ceil(total / per_page))
         page = min(page, total_pages)
 
-        start = (page - 1) * _COMMANDS_PAGE_SIZE
-        end = start + _COMMANDS_PAGE_SIZE
+        start = (page - 1) * per_page
+        end = start + per_page
         page_items = self._registry[start:end]
 
-        lines = [f"ℹ️ Commands ({page}/{total_pages})\n"]
+        lines = [f"ℹ️ <b>Commands ({page}/{total_pages})</b>\n"]
 
-        current_section = ""
-        section_map = {
-            "start": "Session", "new": "Session", "reset": "Session",
-            "compact": "Session", "context": "Session",
-            "status": "Info", "whoami": "Info", "memory": "Info", "model": "Info",
-            "tools": "Tools & Integrations", "cron": "Tools & Integrations",
-            "packs": "Tools & Integrations",
-            "search": "Utility", "help": "Utility", "commands": "Utility",
-        }
-
-        for cmd, aliases, desc, usage in page_items:
-            section = section_map.get(cmd, "")
-            if section != current_section:
-                if current_section:
-                    lines.append("")
-                lines.append(section)
-                current_section = section
-
-            alias_str = f" (/{', /'.join(aliases)})" if aliases else ""
+        for cmd, _, desc, usage in page_items:
             usage_str = f" {usage}" if usage else ""
-            lines.append(f"  /{cmd}{usage_str}{alias_str} — {desc}")
+            lines.append(f"<code>/{cmd}{usage_str}</code> — <i>{desc}</i>")
 
+        # Buttons
+        buttons = []
+        nav_row = []
+        if page > 1:
+            nav_row.append({"text": "⬅️ Prev", "data": f"/commands {page - 1}"})
         if page < total_pages:
-            lines.append(f"\nNext: /commands {page + 1}")
+            nav_row.append({"text": "Next ➡️", "data": f"/commands {page + 1}"})
+        
+        if nav_row:
+            buttons.append(nav_row)
 
-        return "\n".join(lines)
+        return {
+            "text": "\n".join(lines),
+            "buttons": buttons
+        }

@@ -173,7 +173,6 @@ class TaskCheckpointStore:
 
     def latest_running_for_session(self, session_key: str) -> dict[str, Any] | None:
         """Get the latest running task for a session_key, if any."""
-        latest: dict[str, Any] | None = None
         for path in sorted(self.tasks_dir.glob("*.json"), reverse=True):
             payload = self._safe_read(path)
             if not payload:
@@ -182,9 +181,39 @@ class TaskCheckpointStore:
                 continue
             if payload.get("status") != "running":
                 continue
-            latest = payload
-            break
-        return latest
+            return payload
+        return None
+
+    def list_running(self, session_key: str | None = None) -> list[dict[str, Any]]:
+        """List all running tasks, optionally filtered by session_key."""
+        running = []
+        for path in sorted(self.tasks_dir.glob("*.json"), reverse=True):
+            payload = self._safe_read(path)
+            if not payload or payload.get("status") != "running":
+                continue
+            if session_key and payload.get("session_key") != session_key:
+                continue
+            running.append(payload)
+        return running
+
+    def cancel(self, task_id: str) -> bool:
+        """Mark a running task as cancelled."""
+        path = self._task_path(task_id)
+        payload = self._safe_read(path)
+        if payload is None or payload.get("status") != "running":
+            return False
+        now = _now_iso()
+        payload["status"] = "cancelled"
+        payload["updated_at"] = now
+        payload["finished_at"] = now
+        payload.setdefault("events", []).append(
+            {
+                "at": now,
+                "event": "cancel",
+                "detail": "Task cancelled by user via /stop command.",
+            }
+        )
+        return self._safe_write(path, payload)
 
     def mark_resumed(self, task_id: str) -> bool:
         """Mark a running task as resumed."""

@@ -262,7 +262,7 @@ class SelfieTool(Tool):
         provider = self._config.image_gen.provider.strip().lower()
         if provider == "huggingface":
             return await self._generate_huggingface(prompt)
-        if provider in ("openai-compatible", "nebius"):
+        if provider == "openai-compatible":
             return await self._generate_openai_compatible(prompt)
         if provider == "cloudflare":
             return await self._generate_cloudflare(prompt)
@@ -286,28 +286,29 @@ class SelfieTool(Tool):
             return resp.content
 
     async def _generate_openai_compatible(self, prompt: str) -> bytes:
-        """Generate image via OpenAI-compatible API (Nebius, etc.)."""
-        provider_lower = self._config.image_gen.provider.lower()
+        """Generate image via an OpenAI-compatible image API."""
         api_base = self._config.image_gen.api_base.rstrip("/")
         if not api_base:
-            if provider_lower == "nebius":
-                api_base = "https://api.tokenfactory.nebius.com/v1"
-            else:
-                raise ValueError(
-                    "api_base is required for openai-compatible image generation."
-                )
+            raise ValueError(
+                "api_base is required for openai-compatible image generation."
+            )
         model = self._config.image_gen.model
-        if not model and provider_lower == "nebius":
-            model = "black-forest-labs/flux-dev"
         url = f"{api_base}/images/generations"
         headers = {"Authorization": f"Bearer {self._config.image_gen.api_key}"}
-        payload: dict[str, Any] = {
-            "prompt": prompt,
-            "response_format": "b64_json",
-            "width": 768,
-            "height": 768,
-            "num_inference_steps": 28,
-        }
+        if model.startswith("gpt-image-"):
+            payload: dict[str, Any] = {
+                "prompt": prompt,
+                "response_format": "b64_json",
+                "size": "1024x1024",
+            }
+        else:
+            payload = {
+                "prompt": prompt,
+                "response_format": "b64_json",
+                "width": 768,
+                "height": 768,
+                "num_inference_steps": 28,
+            }
         if model:
             payload["model"] = model
 

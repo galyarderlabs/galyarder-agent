@@ -1,6 +1,8 @@
 """Session management for conversation history."""
 
 import json
+import weakref
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -21,15 +23,22 @@ class Session:
 
     key: str  # channel:chat_id
     messages: list[dict[str, Any]] = field(default_factory=list)
-    created_at: datetime = field(default_factory=datetime.now)
-    updated_at: datetime = field(default_factory=datetime.now)
+    created_at: datetime = field(default_factory=lambda: datetime.now().astimezone())
+    updated_at: datetime = field(default_factory=lambda: datetime.now().astimezone())
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def add_message(self, role: str, content: str, **kwargs: Any) -> None:
         """Add a message to the session."""
-        msg = {"role": role, "content": content, "timestamp": datetime.now().isoformat(), **kwargs}
+        now = datetime.now().astimezone()
+        msg = {
+            "role": role, 
+            "content": content, 
+            "timestamp": now.isoformat(), 
+            "raw_timestamp": now.timestamp(),
+            **kwargs
+        }
         self.messages.append(msg)
-        self.updated_at = datetime.now()
+        self.updated_at = now
 
     def get_history(self, max_messages: int = 50) -> list[dict[str, Any]]:
         """
@@ -52,7 +61,7 @@ class Session:
     def clear(self) -> None:
         """Clear all messages in the session."""
         self.messages = []
-        self.updated_at = datetime.now()
+        self.updated_at = datetime.now().astimezone()
 
 
 class SessionManager:
@@ -65,7 +74,17 @@ class SessionManager:
     def __init__(self, workspace: Path):
         self.workspace = workspace
         self.sessions_dir = ensure_dir(get_data_path() / "sessions")
-        self._cache: dict[str, Session] = {}
+        self._cache: weakref.WeakValueDictionary[str, Session] = weakref.WeakValueDictionary()
+        self._session_locks: weakref.WeakValueDictionary[str, threading.Lock] = weakref.WeakValueDictionary()
+        self._global_lock = threading.Lock()
+
+    def _get_lock(self, key: str) -> threading.Lock:
+        with self._global_lock:
+            lock = self._session_locks.get(key)
+            if lock is None:
+                lock = threading.Lock()
+                self._session_locks[key] = lock
+            return lock
 
     def _get_session_path(self, key: str) -> Path:
         """Get the file path for a session."""
@@ -82,17 +101,18 @@ class SessionManager:
         Returns:
             The session.
         """
-        # Check cache
-        if key in self._cache:
-            return self._cache[key]
+        with self._get_lock(key):
+            # Check cache
+            if key in self._cache:
+                return self._cache[key]
 
-        # Try to load from disk
-        session = self._load(key)
-        if session is None:
-            session = Session(key=key)
+            # Try to load from disk
+            session = self._load(key)
+            if session is None:
+                session = Session(key=key)
 
-        self._cache[key] = session
-        return session
+            self._cache[key] = session
+            return session
 
     def _load(self, key: str) -> Session | None:
         """Load a session from disk."""
@@ -127,7 +147,7 @@ class SessionManager:
             return Session(
                 key=key,
                 messages=messages,
-                created_at=created_at or datetime.now(),
+                created_at=created_at or datetime.now().astimezone(),
                 metadata=metadata,
             )
         except Exception as e:
@@ -138,21 +158,22 @@ class SessionManager:
         """Save a session to disk."""
         path = self._get_session_path(session.key)
 
-        with open(path, "w") as f:
-            # Write metadata first
-            metadata_line = {
-                "_type": "metadata",
-                "created_at": session.created_at.isoformat(),
-                "updated_at": session.updated_at.isoformat(),
-                "metadata": session.metadata,
-            }
-            f.write(json.dumps(metadata_line) + "\n")
+        with self._get_lock(session.key):
+            with open(path, "w") as f:
+                # Write metadata first
+                metadata_line = {
+                    "_type": "metadata",
+                    "created_at": session.created_at.isoformat(),
+                    "updated_at": session.updated_at.isoformat(),
+                    "metadata": session.metadata,
+                }
+                f.write(json.dumps(metadata_line) + "\n")
 
-            # Write messages
-            for msg in session.messages:
-                f.write(json.dumps(msg) + "\n")
+                # Write messages
+                for msg in session.messages:
+                    f.write(json.dumps(msg) + "\n")
 
-        self._cache[session.key] = session
+            self._cache[session.key] = session
 
     def delete(self, key: str) -> bool:
         """
@@ -164,15 +185,16 @@ class SessionManager:
         Returns:
             True if deleted, False if not found.
         """
-        # Remove from cache
-        self._cache.pop(key, None)
+        with self._get_lock(key):
+            # Remove from cache
+            self._cache.pop(key, None)
 
-        # Remove file
-        path = self._get_session_path(key)
-        if path.exists():
-            path.unlink()
-            return True
-        return False
+            # Remove file
+            path = self._get_session_path(key)
+            if path.exists():
+                path.unlink()
+                return True
+            return False
 
     def list_sessions(self) -> list[dict[str, Any]]:
         """

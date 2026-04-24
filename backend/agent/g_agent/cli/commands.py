@@ -6,7 +6,6 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from time import perf_counter
 from typing import Any
-from urllib.parse import quote
 
 import typer
 from rich.console import Console
@@ -212,7 +211,6 @@ _PROVIDER_CHOICES = [
 _SELFIE_PROVIDER_CHOICES = [
     ("HuggingFace (free)", "huggingface"),
     ("Cloudflare Workers AI (free, ~2000/day)", "cloudflare"),
-    ("Nebius", "nebius"),
     ("OpenAI-compatible (local)", "openai-compatible"),
 ]
 
@@ -388,8 +386,8 @@ def _interactive_setup(config: Any) -> Any:
                 if api_base:
                     config.visual.image_gen.api_base = api_base
 
-            # LoRA support (Nebius / openai-compatible)
-            if provider in ("nebius", "openai-compatible"):
+            # LoRA support for OpenAI-compatible endpoints that accept LoRA payloads.
+            if provider == "openai-compatible":
                 if typer.confirm(
                     "  Use LoRA for identity consistency? (recommended)",
                     default=bool(config.visual.image_gen.lora_trigger),
@@ -666,7 +664,7 @@ def gateway(
 ):
     """Start the g-agent gateway."""
     from g_agent.agent.loop import AgentLoop
-    from g_agent.agent.tools.google_workspace import GoogleWorkspaceClient
+    from g_agent.agent.tools.google_workspace import GwsClient
     from g_agent.bus.events import OutboundMessage
     from g_agent.bus.queue import MessageBus
     from g_agent.channels.manager import ChannelManager
@@ -803,31 +801,30 @@ def gateway(
             return "calendar_watch skipped: missing delivery target."
 
         google_cfg = config.integrations.google
-        google = GoogleWorkspaceClient(
-            client_id=google_cfg.client_id,
-            client_secret=google_cfg.client_secret,
-            refresh_token=google_cfg.refresh_token,
-            access_token=google_cfg.access_token,
+        google = GwsClient(
+            gws_path=google_cfg.gws_path,
             calendar_id=google_cfg.calendar_id,
+            credentials_file=google_cfg.credentials_file,
         )
         if not google.is_configured():
             return "calendar_watch skipped: Google Workspace not configured."
 
         now_utc = datetime.now(timezone.utc)
         horizon = max(10, int(config.proactive.calendar_watch_horizon_minutes))
-        ok, data = await google.request(
-            "GET",
-            f"https://www.googleapis.com/calendar/v3/calendars/{quote(google.calendar_id or 'primary', safe='')}/events",
-            params={
-                "singleEvents": "true",
-                "orderBy": "startTime",
-                "timeMin": now_utc.isoformat(),
-                "timeMax": (now_utc + timedelta(minutes=horizon)).isoformat(),
-                "maxResults": 25,
-            },
+        import json
+        params = {
+            "calendarId": google.calendar_id or "primary",
+            "singleEvents": True,
+            "orderBy": "startTime",
+            "timeMin": now_utc.isoformat(),
+            "timeMax": (now_utc + timedelta(minutes=horizon)).isoformat(),
+            "maxResults": 25,
+        }
+        ok, data = await google.run(
+            ["calendar", "events", "list", "--params", json.dumps(params)]
         )
         if not ok:
-            return f"calendar_watch error: {data.get('error', data)}"
+            return f"calendar_watch error: {data}"
 
         due = compute_due_calendar_reminders(
             data.get("items", []) or [],
@@ -3762,19 +3759,16 @@ def doctor(
             add("Google API network", "warn", "skipped (--no-network)", "Run again with --network")
         else:
             try:
-                from g_agent.agent.tools.google_workspace import GoogleWorkspaceClient
+                from g_agent.agent.tools.google_workspace import GwsClient
 
-                google_client = GoogleWorkspaceClient(
-                    client_id=google_cfg.client_id,
-                    client_secret=google_cfg.client_secret,
-                    refresh_token=google_cfg.refresh_token,
-                    access_token=google_cfg.access_token,
+                google_client = GwsClient(
+                    gws_path=google_cfg.gws_path,
                     calendar_id=google_cfg.calendar_id,
+                    credentials_file=google_cfg.credentials_file,
                 )
                 ok, payload = asyncio.run(
-                    google_client.request(
-                        "GET",
-                        "https://gmail.googleapis.com/gmail/v1/users/me/profile",
+                    google_client.run(
+                        ["gmail", "users", "getProfile", "--params", '{"userId":"me"}']
                     )
                 )
                 if ok:
@@ -3811,7 +3805,7 @@ def doctor(
                 "Visual identity provider",
                 "fail",
                 "no provider configured",
-                "Set visual.imageGen.provider (huggingface, nebius, cloudflare, openai-compatible)",
+                "Set visual.imageGen.provider (huggingface, cloudflare, openai-compatible)",
             )
         if vis.physical_description:
             add("Visual identity description", "pass", "physical description set")

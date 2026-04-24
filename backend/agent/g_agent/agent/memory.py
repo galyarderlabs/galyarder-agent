@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from g_agent.utils.helpers import ensure_dir, today_date
+from loguru import logger
 
 
 class MemoryStore:
@@ -78,6 +79,7 @@ class MemoryStore:
         "SUMMARIES.md",
         "user_profile.md",
         "FACTS.md",
+        "INBOX.md",
     }
     SEMANTIC_PHRASE_MAP = (
         ("time zone", "timezone"),
@@ -479,6 +481,82 @@ class MemoryStore:
             content = header + content
 
         self._safe_write(today_file, content)
+
+    async def consolidate(self, provider: Any, limit: int = 50) -> int:
+        """
+        Read daily memory files and consolidate them into core memory files
+        using the LLM provider. Returns the number of files consolidated.
+        """
+        consolidated = 0
+        from g_agent.agent.tools.integrations import RememberTool
+
+        # Process up to 'limit' daily files, skipping today's active file
+        today_str = f"{today_date()}.md"
+        daily_files = []
+        for path in sorted(self.memory_dir.glob("20*.md")):
+            if path.name != today_str:
+                daily_files.append(path)
+
+        if not daily_files:
+            return 0
+
+        for path in daily_files[:limit]:
+            content = self._safe_read(path)
+            if content and content.strip():
+                try:
+                    await self._run_consolidation(provider, content, RememberTool(workspace=self.workspace))
+                except Exception as e:
+                    logger.error(f"Memory consolidation failed for {path.name}: {e}")
+                    continue
+
+            # Archive or delete the file after successful consolidation
+            archived_dir = ensure_dir(self.memory_dir / "archive")
+            try:
+                path.rename(archived_dir / path.name)
+                consolidated += 1
+            except OSError as e:
+                logger.error(f"Failed to archive {path.name}: {e}")
+
+        return consolidated
+
+    async def _run_consolidation(self, provider: Any, daily_text: str, remember_tool: Any) -> None:
+        """Have the LLM review daily notes and issue tool_calls to save important facts."""
+        prompt = (
+            "You are a background memory consolidation process.\n"
+            "Review the following daily logs and extract durable, long-term facts.\n"
+            "Use the `remember` tool to store significant facts about the user, their projects, or preferences.\n"
+            "Ignore trivial chatter or temporary states.\n\n"
+            f"DAILY LOGS:\n{daily_text}"
+        )
+
+        # Build schema for remember tool
+        tools_schema = [
+            {
+                "type": "function",
+                "function": {
+                    "name": remember_tool.name,
+                    "description": remember_tool.description,
+                    "parameters": remember_tool.parameters,
+                },
+            }
+        ]
+
+        # Call provider with tool forcing or normal tool allowance
+        try:
+            from g_agent.providers.base import LLMResponse
+            response: LLMResponse = await provider.chat(
+                messages=[{"role": "system", "content": prompt}],
+                tools=tools_schema,
+                temperature=0.1,
+            )
+            
+            # Execute requested tool calls
+            if response.tool_calls:
+                for tc in response.tool_calls:
+                    if tc.name == remember_tool.name:
+                        await remember_tool.execute(**tc.arguments)
+        except Exception as e:
+            logger.error(f"LLM consolidation request failed: {e}")
 
     def read_long_term(self) -> str:
         """Read long-term memory (MEMORY.md)."""

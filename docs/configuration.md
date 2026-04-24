@@ -13,7 +13,7 @@ Primary config path:
 - `providers`: API base, key, and extra headers for model routing
 - `tools`: shell timeout, workspace restriction, web search settings
 - `visual`: selfie generation — image provider, physical description, prompt templates
-- `google`: OAuth credentials for Gmail/Calendar/Docs/Sheets/Drive
+- `google`: `gws` CLI path/calendar settings for Gmail/Calendar/Docs/Sheets/Drive
 
 ## Safety defaults
 
@@ -166,6 +166,36 @@ Policy fields under `tools.plugins`:
 
 See [Plugins](plugins.md) for plugin SDK, policy examples, and verification steps.
 
+## Google Workspace
+
+Google Workspace tools now call the local [`gws`](https://github.com/googleworkspace/cli)
+binary instead of storing OAuth refresh tokens directly in `config.json`.
+
+```bash
+npm i -g @googleworkspace/cli
+gws auth login --services gmail,calendar,drive,docs,sheets,people
+gws auth status
+```
+
+If the gateway runs under a service or shell with a different `PATH`, set the
+absolute binary path:
+
+```json
+{
+  "integrations": {
+    "google": {
+      "gwsPath": "/home/you/.local/bin/gws",
+      "calendarId": "primary",
+      "credentialsFile": ""
+    }
+  }
+}
+```
+
+Leave `credentialsFile` empty for normal encrypted/keyring-backed `gws` auth.
+Set it only when intentionally pointing the runtime at an exported credentials
+file for a headless environment.
+
 ## Visual identity (selfie generation)
 
 The `visual` section enables AI-generated selfie photos with consistent appearance.
@@ -173,7 +203,7 @@ The `visual` section enables AI-generated selfie photos with consistent appearan
 ### Setup
 
 1. Choose an identity method:
-   - **LoRA (recommended for Nebius):** Provide a LoRA safetensor URL + trigger word. Highest consistency (~90-95%).
+   - **LoRA (for compatible local/proxy endpoints):** Provide a LoRA safetensor URL + trigger word. Highest consistency (~90-95%) when the endpoint supports LoRA payloads.
    - **Reference photo:** Provide a photo, vision LLM auto-extracts physical traits.
    - **Manual description:** Write a physical description directly.
 2. Configure an image generation provider
@@ -185,7 +215,6 @@ The `visual` section enables AI-generated selfie photos with consistent appearan
 | --- | --- | --- | --- |
 | HuggingFace | `huggingface` | Free | Rate limited ~1000/5min |
 | Cloudflare Workers AI | `cloudflare` | Free | ~2000 img/day, requires `accountId` |
-| Nebius | `nebius` | $0.001/img | OpenAI-compatible |
 | OpenAI-compatible | `openai-compatible` | Varies | Local vLLM, ComfyUI, etc. |
 
 ### Example: Cloudflare (free)
@@ -221,24 +250,25 @@ The `visual` section enables AI-generated selfie photos with consistent appearan
 }
 ```
 
-### Example: Nebius + LoRA (best consistency)
+### Example: OpenAI-compatible proxy
 
 ```json
 {
   "visual": {
     "enabled": true,
+    "referenceImage": "~/Photos/myphoto.jpg",
     "imageGen": {
-      "provider": "nebius",
-      "apiKey": "your-nebius-api-key",
-      "loraUrl": "https://civitai.com/api/download/models/XXXXX?type=Model&format=SafeTensor",
-      "loraTrigger": "your_trigger_word",
-      "loraScale": 0.8
+      "provider": "openai-compatible",
+      "apiKey": "sk-local-xxx",
+      "apiBase": "http://127.0.0.1:8317/v1",
+      "model": "gpt-image-2",
+      "timeout": 180
     }
   }
 }
 ```
 
-When `loraTrigger` is set, `physicalDescription` and `referenceImage` are not needed — the trigger word + LoRA weights handle identity consistency.
+If your OpenAI-compatible endpoint supports LoRA payloads, you can also set `loraUrl`, `loraTrigger`, and `loraScale`.
 
 ### Fields
 
@@ -253,7 +283,7 @@ When `loraTrigger` is set, `physicalDescription` and `referenceImage` are not ne
 | `imageGen.model` | string | `""` | Model identifier |
 | `imageGen.accountId` | string | `""` | Cloudflare account ID |
 | `imageGen.timeout` | int | `30` | Request timeout (seconds) |
-| `imageGen.loraUrl` | string | `""` | URL to LoRA safetensor (Nebius) |
+| `imageGen.loraUrl` | string | `""` | URL to LoRA safetensor for compatible endpoints |
 | `imageGen.loraScale` | float | `0.8` | LoRA influence strength (0.0-1.0) |
 | `imageGen.loraTrigger` | string | `""` | LoRA trigger word (replaces physicalDescription when set) |
 | `defaultFormat` | string | `"jpeg"` | Output image format |
@@ -263,9 +293,9 @@ When `loraTrigger` is set, `physicalDescription` and `referenceImage` are not ne
 
 ### How it works
 
-**Path A — LoRA (recommended):**
+**Path A — LoRA (when supported by the image endpoint):**
 1. **Config:** Set `loraTrigger` and `loraUrl` in `imageGen`
-2. **Every selfie:** Trigger word is injected into prompt template → sent with LoRA weights to Nebius
+2. **Every selfie:** Trigger word is injected into prompt template → sent with LoRA weights to the OpenAI-compatible endpoint
 3. **Delivery:** Generated image saved locally → sent via media pipeline
 
 **Path B — Vision extraction (legacy):**
