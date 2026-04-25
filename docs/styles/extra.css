@@ -60,26 +60,23 @@
 
 /* --- THE NUCLEAR FULLSCREEN RESET (HOME PAGE) --- */
 
-/* Reset HTML/Body for home page */
 body.is-home {
-  margin: 0 !important;
-  padding: 0 !important;
+  overflow-x: hidden;
 }
 
-/* Force container to ignore header height */
 body.is-home .md-container {
   padding-top: 0 !important;
+  margin-top: 0 !important;
 }
 
-/* Remove all margins/paddings from layout stack */
-body.is-home .md-main,
-body.is-home .md-main__inner,
-body.is-home .md-content,
-body.is-home .md-content__inner,
-body.is-home .md-grid {
+body.is-home .md-main {
+  margin-top: 0 !important;
+}
+
+body.is-home .md-main__inner {
   margin: 0 !important;
-  padding: 0 !important;
   max-width: 100% !important;
+  padding: 0 !important;
 }
 
 /* Header placement on Home */
@@ -91,14 +88,12 @@ body.is-home .md-header {
   z-index: 100;
 }
 
-/* Immersive Hero Section (Paperclip Style) */
-.md-hero {
+/* THE PAPERCLIP BREAKOUT */
+body.is-home .md-hero {
   position: relative;
   width: 100vw;
-  left: 50%;
-  right: 50%;
-  margin-left: -50vw;
-  margin-right: -50vw;
+  margin-left: calc(50% - 50vw);
+  left: 0;
   padding: 0 !important;
   margin-top: 0 !important;
   display: flex;
