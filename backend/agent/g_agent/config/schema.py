@@ -31,6 +31,7 @@ class TelegramConfig(BaseModel):
     proxy: str | None = (
         None  # HTTP/SOCKS5 proxy URL, e.g. "http://127.0.0.1:7890" or "socks5://127.0.0.1:1080"
     )
+    reply_to_message: bool = True  # Whether to reply to the specific message or just send to chat
 
 
 class FeishuConfig(BaseModel):
@@ -125,6 +126,7 @@ class RoutingConfig(BaseModel):
     """Model routing policy."""
 
     mode: str = "auto"  # auto | proxy | direct
+    provider: str = ""  # Explicit default provider name (overrides auto selection if set)
     proxy_provider: str = "vllm"  # provider slot used in proxy mode
     fallback_models: list[str] = Field(default_factory=list)
 
@@ -150,6 +152,8 @@ class AgentDefaults(BaseModel):
     max_tool_iterations: int = 20
     enable_reflection: bool = True
     summary_interval: int = 6
+    stream_progress: bool = True  # Whether to stream tool progress / thought events to the channel
+    send_tool_hints: bool = True  # Whether to send tool execution hint messages (e.g. 'Running shell...')
     routing: "RoutingConfig" = Field(default_factory=RoutingConfig)
 
 
@@ -205,13 +209,21 @@ class SMTPConfig(BaseModel):
 
 
 class GoogleWorkspaceConfig(BaseModel):
-    """Google Workspace integration config."""
+    """Google Workspace integration config.
 
-    client_id: str = ""
-    client_secret: str = ""
-    refresh_token: str = ""
-    access_token: str = ""
+    Auth is handled by the `gws` CLI (https://github.com/googleworkspace/cli).
+    Run `gws auth setup` once to configure. No tokens needed in config.
+    """
+
+    # Deprecated: kept for backward compatibility, ignored at runtime.
+    client_id: str = ""  # deprecated
+    client_secret: str = ""  # deprecated
+    refresh_token: str = ""  # deprecated
+    access_token: str = ""  # deprecated
+
     calendar_id: str = "primary"
+    gws_path: str = ""  # custom gws binary path (optional)
+    credentials_file: str = ""  # Path to exported OAuth credentials (for headless/cron envs)
 
 
 class IntegrationsConfig(BaseModel):
@@ -283,18 +295,19 @@ class ExecToolConfig(BaseModel):
     """Shell exec tool configuration."""
 
     timeout: int = 60
+    path_append: list[str] = Field(default_factory=list)  # Append directories to PATH (e.g. /opt/homebrew/bin)
 
 
 class ImageGenProviderConfig(BaseModel):
     """Image generation provider configuration."""
 
-    provider: str = ""  # huggingface, nebius, cloudflare, openai-compatible
+    provider: str = ""  # huggingface, cloudflare, openai-compatible
     api_key: str = ""
     api_base: str = ""
     model: str = ""
     account_id: str = ""  # Required for Cloudflare Workers AI
     timeout: int = 30
-    # LoRA support (Nebius)
+    # LoRA support for OpenAI-compatible endpoints that accept LoRA payloads.
     lora_url: str = ""  # URL to LoRA safetensor
     lora_scale: float = 0.8  # LoRA influence (0.0-1.0)
     lora_trigger: str = ""  # Trigger word e.g. "nawusijia"
@@ -591,6 +604,13 @@ class Config(BaseSettings):
             provider_cfg = providers.get(provider_name)
             if provider_cfg and provider_cfg.api_key:
                 return provider_name
+                
+        # If explicit provider configured, try it first
+        explicit_config_provider = self.agents.defaults.routing.provider.strip().lower()
+        if explicit_config_provider and explicit_config_provider in providers:
+            if providers[explicit_config_provider].api_key:
+                return explicit_config_provider
+
         for provider_name in direct_order:
             provider_cfg = providers[provider_name]
             if provider_cfg.api_key:

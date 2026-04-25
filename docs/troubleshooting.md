@@ -13,7 +13,9 @@ Use this matrix for common runtime and ops failures.
 | Outbound reply missed during reconnect | channel send failed during transient disconnect | gateway logs show `Retrying outbound message` | keep gateway running; dispatcher now retries failed sends with capped backoff |
 | `status` / `doctor` shows metrics alert warnings | SLO threshold breached (success-rate, latency, recall) | `g-agent metrics --hours 24` | inspect warned checks and fix root cause (provider, tools, cron, recall quality) |
 | LLM auth error | wrong provider key/base/model route | `g-agent status`, provider section in config | correct `providers.*` fields and restart gateway |
-| Google tool unavailable | OAuth missing/expired | `g-agent status` Google OAuth parts | refresh OAuth token flow in CLI |
+| Google tool unavailable | `gws` binary missing from service PATH | `gws auth status` locally and check `integrations.google.gwsPath` | set absolute `gwsPath` in config and restart gateway |
+| Google auth says `credentials.json` missing | stale `credentialsFile` points at a removed plaintext export while `gws` uses encrypted storage | `gws auth status` shows `credentials.enc` and `plain_credentials_exists=false` | clear `integrations.google.credentialsFile` and restart gateway |
+| Google auth returns `invalid_grant` | expired/revoked `gws` token | `/path/to/gws auth status` and a direct Gmail/Calendar command | run `gws auth logout` then `gws auth login --services gmail,calendar` |
 | Cron jobs not firing | jobs disabled/misconfigured timezone | startup logs + cron service lines | verify proactive config and schedule definitions |
 
 ## Core diagnostics

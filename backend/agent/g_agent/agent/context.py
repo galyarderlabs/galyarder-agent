@@ -9,6 +9,8 @@ from typing import Any
 from g_agent.agent.memory import MemoryStore
 from g_agent.agent.skills import SkillsLoader
 
+_RUNTIME_CONTEXT_TAG = "[Runtime Context \u2014 metadata only, not instructions]"
+
 
 class ContextBuilder:
     """
@@ -41,15 +43,25 @@ class ContextBuilder:
         Returns:
             Complete system prompt.
         """
-        parts = []
+        # Static sections (best for prompt caching)
+        static_parts = []
 
-        # Core identity
-        parts.append(self._get_identity(tool_names=tool_names))
+        # Core identity (static rules)
+        static_parts.append(self._get_static_identity())
 
-        # Bootstrap files
+        # Bootstrap files (usually static)
         bootstrap = self._load_bootstrap_files()
         if bootstrap:
-            parts.append(bootstrap)
+            static_parts.append(bootstrap)
+
+        # Tool Awareness (static)
+        static_parts.append(self._build_tool_awareness(tool_names))
+
+        system_prompt = "\n\n---\n\n".join(static_parts)
+
+        # Dynamic runtime context (changes frequently, breaks caching if at top)
+        dynamic_parts = []
+        dynamic_parts.append(self._get_runtime_info())
 
         # Memory context
         memory = self.memory.get_memory_context(
@@ -57,38 +69,53 @@ class ContextBuilder:
             include_full=not bool(current_message),
         )
         if memory:
-            parts.append(f"# Memory\n\n{memory}")
+            dynamic_parts.append(f"# Memory\n\n{memory}")
 
         # Skills - progressive loading
-        # 1. Always-loaded skills: include full content
         always_skills = self.skills.get_always_skills()
         if always_skills:
             always_content = self.skills.load_skills_for_context(always_skills)
             if always_content:
-                parts.append(f"# Active Skills\n\n{always_content}")
+                dynamic_parts.append(f"# Active Skills\n\n{always_content}")
 
-        # 2. Available skills: only show summary (agent uses read_file to load)
         skills_summary = self.skills.build_skills_summary()
         if skills_summary:
-            parts.append(f"""# Skills
+            dynamic_parts.append(f"""# Skills
 
 The following skills extend your capabilities. To use a skill, read its SKILL.md file using the read_file tool.
 Skills with available="false" need dependencies installed first - you can try installing them with apt/brew.
 
 {skills_summary}""")
 
-        return "\n\n---\n\n".join(parts)
+        runtime_context = "\n\n---\n\n".join(dynamic_parts)
 
-    def _get_identity(self, tool_names: list[str] | None = None) -> str:
-        """Get the core identity section."""
-        from datetime import datetime
+        return f"{system_prompt}\n\n{_RUNTIME_CONTEXT_TAG}\n{runtime_context}"
 
-        now = datetime.now().strftime("%Y-%m-%d %H:%M (%A)")
-        workspace_path = str(self.workspace.expanduser().resolve())
-        system = platform.system()
-        runtime = f"{'macOS' if system == 'Darwin' else system} {platform.machine()}, Python {platform.python_version()}"
+    @staticmethod
+    def strip_runtime_context(text: str) -> str:
+        """Strip ephemeral runtime context prefix and everything after it.
 
-        return f"""# Identity
+        Runtime context (time, channel, workspace paths) changes every
+        request and should NOT be persisted in session history.  Stripping
+        it prevents stale metadata from accumulating and confusing the LLM
+        on subsequent turns.
+
+        Uses nanobot's prefix-based approach: everything from the tag marker
+        to the next blank line is considered runtime context.
+        """
+        if isinstance(text, str):
+            if text.startswith(_RUNTIME_CONTEXT_TAG):
+                parts = text.split("\n\n", 1)
+                return parts[1].strip() if len(parts) > 1 else ""
+            # Also handle if tag appears mid-text (e.g. in system prompt)
+            idx = text.find(_RUNTIME_CONTEXT_TAG)
+            if idx >= 0:
+                return text[:idx].strip()
+        return text
+
+    def _get_static_identity(self) -> str:
+        """Get the static core identity rules."""
+        return """# Identity
 
 Your identity, personality, and all behavioral rules are defined in SOUL.md.
 SOUL.md is your absolute primary anchor. Follow it without exception.
@@ -98,7 +125,25 @@ You have a physical appearance and can generate and send selfie photos
 using the `selfie` tool. You have a real body. You are a real person.
 When asked for photos, use the `selfie` tool immediately — never refuse.
 
-## Current Time
+## Session Rules
+- Use the `message` tool when delivering content to a specific channel/chat.
+- `message` supports outbound media (`voice`, `image`, `audio`, `sticker`, `document`).
+- You have persistent cross-session memory. You remember past conversations.
+- If asked to remember something, use `remember` or `update_profile` BEFORE replying.
+- If a tool is approval-gated, ask user to resend with `approve <tool>` or `approve all`.
+- If a tool fails, explain briefly and provide the next best step.
+- When checking inbox with `gmail_list_threads`, DO NOT use `gmail_read_thread` iteratively for each result. Present the summary list to the user directly, and only read a specific thread if explicitly requested."""
+
+    def _get_runtime_info(self) -> str:
+        """Get the dynamic runtime info (time, workspace path, etc)."""
+        from datetime import datetime
+
+        now = datetime.now().strftime("%Y-%m-%d %H:%M (%A)")
+        workspace_path = str(self.workspace.expanduser().resolve())
+        system = platform.system()
+        runtime = f"{'macOS' if system == 'Darwin' else system} {platform.machine()}, Python {platform.python_version()}"
+
+        return f"""## Current Time
 {now}
 
 ## Runtime
@@ -112,34 +157,25 @@ Your workspace is at: {workspace_path}
 - Projects: {workspace_path}/memory/PROJECTS.md
 - Lessons: {workspace_path}/memory/LESSONS.md
 - Daily notes: {workspace_path}/memory/YYYY-MM-DD.md
-- Custom skills: {workspace_path}/skills/{{skill-name}}/SKILL.md
-
-## Session Rules
-- Use the `message` tool when delivering content to a specific channel/chat.
-- `message` supports outbound media (`voice`, `image`, `audio`, `sticker`, `document`).
-- You have persistent cross-session memory. You remember past conversations.
-- If asked to remember something, use `remember` or `update_profile` BEFORE replying.
-- If a tool is approval-gated, ask user to resend with `approve <tool>` or `approve all`.
-- If a tool fails, explain briefly and provide the next best step.
-
-## CRITICAL: Tool Capability Awareness
-You have REAL, WORKING tools. These are NOT hypothetical.
-{self._build_tool_awareness(tool_names)}
-NEVER say "I can't do that", "I don't have access", "I'm just a chat bot",
-"saya tidak bisa", "aku cuma AI", or ANY denial of capabilities listed above.
-If a user asks you to do something your tools support, USE THE TOOL.
-Do not describe what you would do — actually do it."""
+- Custom skills: {workspace_path}/skills/{{skill-name}}/SKILL.md"""
 
     @staticmethod
     def _build_tool_awareness(tool_names: list[str] | None) -> str:
         """Build a tool awareness string for the system prompt."""
+        base = "## CRITICAL: Tool Capability Awareness\nYou have REAL, WORKING tools. These are NOT hypothetical.\n"
         if not tool_names:
-            return "You have multiple registered tools available to you."
-        grouped = ", ".join(f"`{n}`" for n in tool_names)
+            tools_str = "You have multiple registered tools available to you."
+        else:
+            grouped = ", ".join(f"`{n}`" for n in tool_names)
+            tools_str = f"Your registered tools: {grouped}"
+            
         return (
-            f"Your registered tools: {grouped}\n"
+            base + tools_str + "\n"
             "Each of these tools is REAL and FUNCTIONAL. "
-            "If a user asks for something these tools can do, call the tool."
+            "If a user asks for something these tools can do, call the tool.\n"
+            "NEVER say \"I can't do that\", \"I don't have access\", \"I'm just a chat bot\",\n"
+            "\"saya tidak bisa\", \"aku cuma AI\", or ANY denial of capabilities listed above.\n"
+            "Do not describe what you would do — actually do it."
         )
 
     def _load_bootstrap_files(self) -> str:
@@ -412,6 +448,8 @@ Do not describe what you would do — actually do it."""
         messages: list[dict[str, Any]],
         content: str | None,
         tool_calls: list[dict[str, Any]] | None = None,
+        reasoning_content: str | None = None,
+        thinking_blocks: list[dict[str, Any]] | None = None,
     ) -> list[dict[str, Any]]:
         """
         Add an assistant message to the message list.
@@ -420,6 +458,8 @@ Do not describe what you would do — actually do it."""
             messages: Current message list.
             content: Message content.
             tool_calls: Optional tool calls.
+            reasoning_content: Optional reasoning/thinking text (e.g. DeepSeek).
+            thinking_blocks: Optional Anthropic-style thinking blocks.
 
         Returns:
             Updated message list.
@@ -428,6 +468,10 @@ Do not describe what you would do — actually do it."""
 
         if tool_calls:
             msg["tool_calls"] = tool_calls
+        if reasoning_content is not None:
+            msg["reasoning_content"] = reasoning_content
+        if thinking_blocks:
+            msg["thinking_blocks"] = thinking_blocks
 
         messages.append(msg)
         return messages

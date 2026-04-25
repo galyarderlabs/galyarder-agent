@@ -286,7 +286,7 @@ def test_openai_compatible_provider_call(tmp_path, monkeypatch):
         image_gen=ImageGenProviderConfig(
             provider="openai-compatible",
             api_key="sk-test",
-            api_base="https://api.nebius.ai/v1",
+            api_base="http://example.test/v1",
             model="sdxl",
         ),
     )
@@ -300,6 +300,40 @@ def test_openai_compatible_provider_call(tmp_path, monkeypatch):
     assert any(selfie_dir.iterdir())
     saved_file = next(selfie_dir.iterdir())
     assert saved_file.read_bytes() == b"openai-image"
+
+
+def test_openai_compatible_gpt_image_uses_openai_payload(tmp_path, monkeypatch):
+    """OpenAI image models should not receive provider-specific generation fields."""
+    b64_img = base64.b64encode(b"gpt-image").decode()
+    json_data = {"data": [{"b64_json": b64_img}]}
+    fake_resp = _FakeResponse(
+        content=json.dumps(json_data).encode(),
+        content_type="application/json",
+        json_data=json_data,
+    )
+    fake_client = _FakeAsyncClient(fake_resp)
+    monkeypatch.setattr(
+        "g_agent.agent.tools.selfie.httpx.AsyncClient",
+        lambda **kw: fake_client,
+    )
+
+    config = _make_config(
+        image_gen=ImageGenProviderConfig(
+            provider="openai-compatible",
+            api_key="sk-test",
+            api_base="http://127.0.0.1:8317/v1",
+            model="gpt-image-2",
+        ),
+    )
+    tool, _ = _make_tool(config=config, tmp_path=tmp_path)
+    result = asyncio.run(tool.execute(context="studio photo"))
+
+    assert "Selfie photo has been delivered" in result
+    assert fake_client.last_json["model"] == "gpt-image-2"
+    assert fake_client.last_json["size"] == "1024x1024"
+    assert "width" not in fake_client.last_json
+    assert "height" not in fake_client.last_json
+    assert "num_inference_steps" not in fake_client.last_json
 
 
 def test_provider_error_handling(tmp_path, monkeypatch):
@@ -483,8 +517,9 @@ def test_lora_trigger_skips_vision_extraction(tmp_path, monkeypatch):
         physical_description="",
         reference_image="",
         image_gen=ImageGenProviderConfig(
-            provider="nebius",
-            api_key="neb-test",
+            provider="openai-compatible",
+            api_key="proxy-test",
+            api_base="http://example.test/v1",
             lora_trigger="nawusijia",
             lora_url="https://example.com/lora.safetensors",
         ),
@@ -517,8 +552,9 @@ def test_lora_trigger_used_in_prompt(tmp_path, monkeypatch):
     config = _make_config(
         physical_description="a specific detailed description",
         image_gen=ImageGenProviderConfig(
-            provider="nebius",
-            api_key="neb-test",
+            provider="openai-compatible",
+            api_key="proxy-test",
+            api_base="http://example.test/v1",
             lora_trigger="mytrigger",
             lora_url="https://example.com/lora.safetensors",
         ),
@@ -549,8 +585,9 @@ def test_lora_payload_injected(tmp_path, monkeypatch):
 
     config = _make_config(
         image_gen=ImageGenProviderConfig(
-            provider="nebius",
-            api_key="neb-test",
+            provider="openai-compatible",
+            api_key="proxy-test",
+            api_base="http://example.test/v1",
             lora_trigger="testtrigger",
             lora_url="https://example.com/model.safetensors",
             lora_scale=0.75,
@@ -606,8 +643,9 @@ def test_url_fallback_response(tmp_path, monkeypatch):
 
     config = _make_config(
         image_gen=ImageGenProviderConfig(
-            provider="nebius",
-            api_key="neb-test",
+            provider="openai-compatible",
+            api_key="proxy-test",
+            api_base="http://example.test/v1",
             lora_trigger="urltrigger",
             lora_url="https://example.com/lora.safetensors",
         ),

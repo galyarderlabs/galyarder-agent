@@ -1,6 +1,6 @@
 [project]
 name = "galyarder-agent"
-version = "0.1.11"
+version = "0.1.12"
 description = "Sovereignty-first AI assistant runtime for real daily workflows."
 requires-python = ">=3.11"
 license = {text = "MIT"}

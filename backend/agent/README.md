@@ -192,17 +192,34 @@ g-agent gateway
 
 ---
 
-## Google Workspace OAuth
+## Google Workspace via `gws`
 
 ```bash
-g-agent google configure --client-id "YOUR_CLIENT_ID" --client-secret "YOUR_CLIENT_SECRET" --calendar-id "primary"
-g-agent google auth-url
-# approve consent, then copy the value after ?code=
-g-agent google exchange --code "PASTE_CODE"
-g-agent google verify
+npm i -g @googleworkspace/cli
+gws auth login --services gmail,calendar,drive,docs,sheets,people
+gws auth status
 ```
 
-Default scopes include:
+`g-agent` executes Gmail, Calendar, Drive, Docs, Sheets, and Contacts through
+the local `gws` binary. If your service environment cannot find `gws`, set an
+absolute path in `~/.g-agent/config.json`:
+
+```json
+{
+  "integrations": {
+    "google": {
+      "gwsPath": "/home/you/.local/bin/gws",
+      "calendarId": "primary"
+    }
+  }
+}
+```
+
+Leave `credentialsFile` empty for normal desktop usage so `gws` can use its
+own encrypted keyring/token cache. Only set it for exported/headless
+credentials.
+
+Common scopes used by the tools:
 
 - `https://www.googleapis.com/auth/gmail.modify`
 - `https://www.googleapis.com/auth/calendar`

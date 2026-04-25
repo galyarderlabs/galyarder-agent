@@ -1,8 +1,13 @@
 """Channel manager for coordinating chat channels."""
 
+from __future__ import annotations
+
 import asyncio
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from g_agent.cron.service import CronService
 
 from loguru import logger
 
@@ -24,7 +29,15 @@ class ChannelManager:
     - Route outbound messages
     """
 
-    def __init__(self, config: Config, bus: MessageBus, plugins: list[Any] | None = None):
+    def __init__(
+        self,
+        config: Config,
+        bus: MessageBus,
+        plugins: list[Any] | None = None,
+        *,
+        cron_service: CronService | None = None,
+        tool_names: list[str] | None = None,
+    ):
         self.config = config
         self.bus = bus
         self.channels: dict[str, BaseChannel] = {}
@@ -50,6 +63,8 @@ class ChannelManager:
         self._outbound_retry_max_attempts = 3
         self._outbound_idempotency_ttl_s = 120.0
         self._outbound_seen: dict[str, float] = {}
+        self._cron_service = cron_service
+        self._tool_names = tool_names or []
 
         self._init_channels()
 
@@ -65,6 +80,11 @@ class ChannelManager:
                     self.config.channels.telegram,
                     self.bus,
                     groq_api_key=self.config.providers.groq.api_key,
+                    workspace=self.config.workspace_path,
+                    model_name=self.config.agents.defaults.model,
+                    brave_api_key=self.config.tools.web.search.api_key,
+                    cron_service=self._cron_service,
+                    tool_names=self._tool_names,
                 )
                 logger.info("Telegram channel enabled")
             except ImportError as e:

@@ -1,23 +1,35 @@
 """File system tools: read, write, edit."""
 
+import difflib
 from pathlib import Path
 from typing import Any
 
 from g_agent.agent.tools.base import Tool
 
 
-def _resolve_path(path: str, allowed_dir: Path | None = None) -> Path:
-    """Resolve path and optionally enforce directory restriction."""
-    resolved = Path(path).expanduser().resolve()
-    if allowed_dir and not str(resolved).startswith(str(allowed_dir.resolve())):
-        raise PermissionError(f"Path {path} is outside allowed directory {allowed_dir}")
+def _resolve_path(
+    path: str, workspace: Path | None = None, allowed_dir: Path | None = None
+) -> Path:
+    """Resolve path against workspace (if relative) and enforce directory restriction."""
+    p = Path(path).expanduser()
+    if not p.is_absolute() and workspace:
+        p = workspace / p
+    resolved = p.resolve()
+    if allowed_dir:
+        try:
+            resolved.relative_to(allowed_dir.resolve())
+        except ValueError:
+            raise PermissionError(f"Path {path} is outside allowed directory {allowed_dir}")
     return resolved
 
 
 class ReadFileTool(Tool):
     """Tool to read file contents."""
 
-    def __init__(self, allowed_dir: Path | None = None):
+    _MAX_CHARS = 128_000  # ~128 KB — prevents OOM from reading huge files into LLM context
+
+    def __init__(self, workspace: Path | None = None, allowed_dir: Path | None = None):
+        self._workspace = workspace
         self._allowed_dir = allowed_dir
 
     @property
@@ -41,13 +53,25 @@ class ReadFileTool(Tool):
         if not target_path:
             return "Error: path is required"
         try:
-            file_path = _resolve_path(target_path, self._allowed_dir)
+            file_path = _resolve_path(target_path, self._workspace, self._allowed_dir)
             if not file_path.exists():
                 return f"Error: File not found: {target_path}"
             if not file_path.is_file():
                 return f"Error: Not a file: {target_path}"
 
+            size = file_path.stat().st_size
+            if size > self._MAX_CHARS * 4:  # rough upper bound (UTF-8 chars ≤ 4 bytes)
+                return (
+                    f"Error: File too large ({size:,} bytes). "
+                    f"Use exec tool with head/tail/grep to read portions."
+                )
+
             content = file_path.read_text(encoding="utf-8")
+            if len(content) > self._MAX_CHARS:
+                return (
+                    content[: self._MAX_CHARS]
+                    + f"\n\n... (truncated \u2014 file is {len(content):,} chars, limit {self._MAX_CHARS:,})"
+                )
             return content
         except PermissionError as e:
             return f"Error: {e}"
@@ -58,7 +82,8 @@ class ReadFileTool(Tool):
 class WriteFileTool(Tool):
     """Tool to write content to a file."""
 
-    def __init__(self, allowed_dir: Path | None = None):
+    def __init__(self, workspace: Path | None = None, allowed_dir: Path | None = None):
+        self._workspace = workspace
         self._allowed_dir = allowed_dir
 
     @property
@@ -89,10 +114,10 @@ class WriteFileTool(Tool):
         if content is None:
             return "Error: content is required"
         try:
-            file_path = _resolve_path(target_path, self._allowed_dir)
+            file_path = _resolve_path(target_path, self._workspace, self._allowed_dir)
             file_path.parent.mkdir(parents=True, exist_ok=True)
             file_path.write_text(content, encoding="utf-8")
-            return f"Successfully wrote {len(content)} bytes to {target_path}"
+            return f"Successfully wrote {len(content)} bytes to {file_path}"
         except PermissionError as e:
             return f"Error: {e}"
         except OSError as e:
@@ -102,7 +127,8 @@ class WriteFileTool(Tool):
 class EditFileTool(Tool):
     """Tool to edit a file by replacing text."""
 
-    def __init__(self, allowed_dir: Path | None = None):
+    def __init__(self, workspace: Path | None = None, allowed_dir: Path | None = None):
+        self._workspace = workspace
         self._allowed_dir = allowed_dir
 
     @property
@@ -140,14 +166,14 @@ class EditFileTool(Tool):
         if new_text is None:
             return "Error: new_text is required"
         try:
-            file_path = _resolve_path(target_path, self._allowed_dir)
+            file_path = _resolve_path(target_path, self._workspace, self._allowed_dir)
             if not file_path.exists():
                 return f"Error: File not found: {target_path}"
 
             content = file_path.read_text(encoding="utf-8")
 
             if old_text not in content:
-                return "Error: old_text not found in file. Make sure it matches exactly."
+                return self._not_found_message(old_text, content, target_path)
 
             # Count occurrences
             count = content.count(old_text)
@@ -157,17 +183,49 @@ class EditFileTool(Tool):
             new_content = content.replace(old_text, new_text, 1)
             file_path.write_text(new_content, encoding="utf-8")
 
-            return f"Successfully edited {target_path}"
+            return f"Successfully edited {file_path}"
         except PermissionError as e:
             return f"Error: {e}"
         except (OSError, UnicodeError) as e:
             return f"Error editing file: {str(e)}"
 
+    @staticmethod
+    def _not_found_message(old_text: str, content: str, path: str) -> str:
+        """Build a helpful error when old_text is not found."""
+        lines = content.splitlines(keepends=True)
+        old_lines = old_text.splitlines(keepends=True)
+        window = len(old_lines)
+
+        best_ratio, best_start = 0.0, 0
+        for i in range(max(1, len(lines) - window + 1)):
+            ratio = difflib.SequenceMatcher(None, old_lines, lines[i : i + window]).ratio()
+            if ratio > best_ratio:
+                best_ratio, best_start = ratio, i
+
+        if best_ratio > 0.5:
+            diff = "\n".join(
+                difflib.unified_diff(
+                    old_lines,
+                    lines[best_start : best_start + window],
+                    fromfile="old_text (provided)",
+                    tofile=f"{path} (actual, line {best_start + 1})",
+                    lineterm="",
+                )
+            )
+            return (
+                f"Error: old_text not found in {path}.\n"
+                f"Best match ({best_ratio:.0%} similar) at line {best_start + 1}:\n{diff}"
+            )
+        return (
+            f"Error: old_text not found in {path}. No similar text found. Verify the file content."
+        )
+
 
 class ListDirTool(Tool):
     """Tool to list directory contents."""
 
-    def __init__(self, allowed_dir: Path | None = None):
+    def __init__(self, workspace: Path | None = None, allowed_dir: Path | None = None):
+        self._workspace = workspace
         self._allowed_dir = allowed_dir
 
     @property
@@ -191,7 +249,7 @@ class ListDirTool(Tool):
         if not target_path:
             return "Error: path is required"
         try:
-            dir_path = _resolve_path(target_path, self._allowed_dir)
+            dir_path = _resolve_path(target_path, self._workspace, self._allowed_dir)
             if not dir_path.exists():
                 return f"Error: Directory not found: {target_path}"
             if not dir_path.is_dir():

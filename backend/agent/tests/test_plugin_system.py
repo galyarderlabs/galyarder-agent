@@ -22,6 +22,7 @@ class DummyProvider(LLMProvider):
         model: str | None = None,
         max_tokens: int = 4096,
         temperature: float = 0.7,
+        **kwargs,
     ) -> LLMResponse:
         return LLMResponse(content="ok")
 

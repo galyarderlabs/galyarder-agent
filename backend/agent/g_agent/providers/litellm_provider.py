@@ -2,6 +2,8 @@
 
 import json
 import os
+import secrets
+import string
 from typing import Any
 
 import litellm
@@ -99,6 +101,38 @@ class LiteLLMProvider(LLMProvider):
                     kwargs.update(overrides)
                     return
 
+    @staticmethod
+    def _short_tool_id() -> str:
+        """Generate a random 9-char alphanumeric tool call ID.
+
+        Some providers (Mistral) enforce a strict max length on tool_call_id.
+        We generate a fresh random ID per call to stay safe across all
+        providers — matches nanobot's approach.
+        """
+        alnum = string.ascii_letters + string.digits
+        return "".join(secrets.choice(alnum) for _ in range(9))
+
+    @staticmethod
+    def _supports_cache_control(model: str) -> bool:
+        """Check if the model supports Anthropic-style prompt caching."""
+        model_lower = model.lower()
+        return any(kw in model_lower for kw in ("anthropic", "claude"))
+
+    def _apply_cache_control(self, messages: list[dict[str, Any]], model: str) -> None:
+        """Apply Anthropic's prompt caching strategy to messages inline."""
+        if not messages or not self._supports_cache_control(model):
+            return
+
+        system_msgs = [m for m in messages if m.get("role") == "system"]
+        if system_msgs:
+             system_msgs[-1]["cache_control"] = {"type": "ephemeral"}
+
+        non_system = [m for m in messages if m.get("role") != "system"]
+        if len(non_system) >= 2:
+            non_system[-2]["cache_control"] = {"type": "ephemeral"}
+        if non_system:
+            non_system[-1]["cache_control"] = {"type": "ephemeral"}
+
     async def chat(
         self,
         messages: list[dict[str, Any]],
@@ -107,6 +141,8 @@ class LiteLLMProvider(LLMProvider):
         max_tokens: int = 4096,
         temperature: float = 0.7,
         timeout: float | None = 120.0,
+        reasoning_effort: str | None = None,
+        thinking_blocks: bool = False,
     ) -> LLMResponse:
         """
         Send a chat completion request via LiteLLM.
@@ -123,15 +159,36 @@ class LiteLLMProvider(LLMProvider):
             LLMResponse with content and/or tool calls.
         """
         model = self._resolve_model(model or self.default_model)
+        max_tokens = max(1, max_tokens)
+
+        # Strip LLMProvider internal tags and None values to prevent 400 errors
+        clean_messages = LLMProvider._sanitize_request_messages(messages)
+        
+        # Apply provider-agnostic prompt caching if model allows
+        self._apply_cache_control(clean_messages, model)
 
         kwargs: dict[str, Any] = {
             "model": model,
-            "messages": messages,
+            "messages": clean_messages,
             "max_tokens": max_tokens,
             "temperature": temperature,
         }
         if timeout is not None:
             kwargs["timeout"] = timeout
+        if reasoning_effort:
+            kwargs["reasoning_effort"] = reasoning_effort
+            
+        if thinking_blocks and ("anthropic" in model.lower() or "claude" in model.lower()):
+            kwargs["max_tokens"] = 32000
+            # For Anthropic 3.7
+            kwargs["thinking"] = {
+                "type": "enabled",
+                "budget_tokens": min(max_tokens, 24000) 
+            }
+            if not self.extra_headers:
+                self.extra_headers = {}
+            if "anthropic-beta" not in self.extra_headers:
+                self.extra_headers["anthropic-beta"] = "prompt-caching-2024-07-31"
 
         # Apply model-specific overrides (e.g. kimi-k2.5 temperature)
         self._apply_model_overrides(model, kwargs)
@@ -170,17 +227,22 @@ class LiteLLMProvider(LLMProvider):
         tool_calls = []
         if hasattr(message, "tool_calls") and message.tool_calls:
             for tc in message.tool_calls:
-                # Parse arguments from JSON string if needed
-                args = tc.function.arguments
+                args = tc.function.arguments if hasattr(tc.function, "arguments") else "{}"
                 if isinstance(args, str):
                     try:
-                        args = json.loads(args)
-                    except json.JSONDecodeError:
-                        args = {"raw": args}
+                        import json_repair
+                        args = json_repair.loads(args)
+                    except ImportError:
+                        try:
+                            args = json.loads(args)
+                        except json.JSONDecodeError:
+                            args = {"raw": args}
+
+                tc_id = self._short_tool_id()
 
                 tool_calls.append(
                     ToolCallRequest(
-                        id=tc.id,
+                        id=tc_id,
                         name=tc.function.name,
                         arguments=args,
                     )
@@ -195,13 +257,28 @@ class LiteLLMProvider(LLMProvider):
             }
 
         reasoning_content = getattr(message, "reasoning_content", None)
+        
+        # Anthropic exposes thinking blocks inside content list
+        extracted_thinking = []
+        final_content = ""
+        
+        if isinstance(message.content, list):
+            for block in message.content:
+                if isinstance(block, dict):
+                    if block.get("type") == "thinking":
+                        extracted_thinking.append(block)
+                    elif block.get("type") == "text":
+                        final_content += block.get("text", "")
+        else:
+            final_content = message.content
 
         return LLMResponse(
-            content=message.content,
+            content=final_content,
             tool_calls=tool_calls,
             finish_reason=choice.finish_reason or "stop",
             usage=usage,
             reasoning_content=reasoning_content,
+            thinking_blocks=extracted_thinking,
         )
 
     def get_default_model(self) -> str:

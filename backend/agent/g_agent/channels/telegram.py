@@ -1,8 +1,12 @@
 """Telegram channel implementation using python-telegram-bot."""
 
+from __future__ import annotations
+
 import asyncio
+import os
 import re
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from loguru import logger
 from telegram import Update
@@ -11,7 +15,11 @@ from telegram.ext import Application, ContextTypes, MessageHandler, filters
 from g_agent.bus.events import OutboundMessage
 from g_agent.bus.queue import MessageBus
 from g_agent.channels.base import BaseChannel
+from g_agent.channels.slash_commands import SlashCommandDispatcher
 from g_agent.config.schema import TelegramConfig
+
+if TYPE_CHECKING:
+    from g_agent.cron.service import CronService
 
 
 def _markdown_to_telegram_html(text: str) -> str:
@@ -88,12 +96,35 @@ class TelegramChannel(BaseChannel):
 
     name = "telegram"
 
-    def __init__(self, config: TelegramConfig, bus: MessageBus, groq_api_key: str = ""):
+    def __init__(
+        self,
+        config: TelegramConfig,
+        bus: MessageBus,
+        groq_api_key: str = "",
+        *,
+        workspace: Path | None = None,
+        model_name: str = "",
+        brave_api_key: str = "",
+        cron_service: CronService | None = None,
+        tool_names: list[str] | None = None,
+    ):
         super().__init__(config, bus)
         self.config: TelegramConfig = config
         self.groq_api_key = groq_api_key
         self._app: Application | None = None
         self._chat_ids: dict[str, int] = {}  # Map sender_id to chat_id for replies
+
+        # Slash command dispatcher (instant responses, no LLM)
+        self._slash: SlashCommandDispatcher | None = None
+        if workspace:
+            self._slash = SlashCommandDispatcher(
+                workspace,
+                model_name=model_name,
+                brave_api_key=brave_api_key,
+                cron_service=cron_service,
+                tool_names=tool_names or [],
+                version=os.environ.get("G_AGENT_VERSION", "dev"),
+            )
 
     async def start(self) -> None:
         """Start the Telegram bot with long polling."""
@@ -124,6 +155,7 @@ class TelegramChannel(BaseChannel):
 
                 self._app = builder.build()
 
+                from telegram.ext import CallbackQueryHandler
                 # Add message handler for text, photos, voice, documents
                 self._app.add_handler(
                     MessageHandler(
@@ -134,19 +166,12 @@ class TelegramChannel(BaseChannel):
                             | filters.AUDIO
                             | filters.Document.ALL
                             | filters.Sticker.ALL
-                        )
-                        & ~filters.COMMAND,
+                        ),
                         self._on_message,
                     )
                 )
+                self._app.add_handler(CallbackQueryHandler(self._handle_callback_query))
 
-                # Add /start command handler
-                from telegram.ext import CommandHandler
-
-                self._app.add_handler(CommandHandler("start", self._on_start))
-
-                # Route /pack commands through normal message flow
-                self._app.add_handler(CommandHandler("pack", self._on_pack_command))
 
                 logger.info("Starting Telegram bot (polling mode)...")
 
@@ -158,9 +183,30 @@ class TelegramChannel(BaseChannel):
                 bot_info = await self._app.bot.get_me()
                 logger.info(f"Telegram bot @{bot_info.username} connected")
 
+                # Auto-register bot commands in Telegram UI
+                from telegram import BotCommand
+
+                await self._app.bot.set_my_commands([
+                    BotCommand("start", "Start conversation"),
+                    BotCommand("new", "New session"),
+                    BotCommand("reset", "Clear context & start fresh"),
+                    BotCommand("compact", "Summarize current session"),
+                    BotCommand("context", "Current session info"),
+                    BotCommand("status", "System diagnostics"),
+                    BotCommand("whoami", "Your profile"),
+                    BotCommand("memory", "View stored memories"),
+                    BotCommand("model", "Active model"),
+                    BotCommand("tools", "List active tools"),
+                    BotCommand("cron", "Scheduled jobs"),
+                    BotCommand("packs", "Workflow packs"),
+                    BotCommand("search", "Web search"),
+                    BotCommand("help", "Commands & guide"),
+                    BotCommand("commands", "Full command list"),
+                ])
+
                 # Start polling (this runs until stopped)
                 await self._app.updater.start_polling(
-                    allowed_updates=["message"],
+                    allowed_updates=["message", "callback_query"],
                     drop_pending_updates=True,  # Ignore old messages on startup
                 )
 
@@ -215,6 +261,13 @@ class TelegramChannel(BaseChannel):
                 await self._app.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
                 return
 
+            reply_to_message_id = None
+            if self.config.reply_to_message and msg.reply_to:
+                try:
+                    reply_to_message_id = int(msg.reply_to)
+                except ValueError:
+                    pass
+
             media = self._resolve_outbound_media(msg)
             if media:
                 path, media_type, caption = media
@@ -224,37 +277,51 @@ class TelegramChannel(BaseChannel):
                             chat_id=chat_id,
                             photo=media_file,
                             caption=caption or None,
+                            reply_to_message_id=reply_to_message_id,
                         )
                     elif media_type == "voice":
                         await self._app.bot.send_voice(
                             chat_id=chat_id,
                             voice=media_file,
                             caption=caption or None,
+                            reply_to_message_id=reply_to_message_id,
                         )
                     elif media_type == "audio":
                         await self._app.bot.send_audio(
                             chat_id=chat_id,
                             audio=media_file,
                             caption=caption or None,
+                            reply_to_message_id=reply_to_message_id,
                         )
                     elif media_type == "sticker":
                         await self._app.bot.send_sticker(
                             chat_id=chat_id,
                             sticker=media_file,
+                            reply_to_message_id=reply_to_message_id,
                         )
                         if caption:
-                            await self._app.bot.send_message(chat_id=chat_id, text=caption)
+                            await self._app.bot.send_message(
+                                chat_id=chat_id, 
+                                text=caption,
+                                reply_to_message_id=reply_to_message_id,
+                            )
                     else:
                         await self._app.bot.send_document(
                             chat_id=chat_id,
                             document=media_file,
                             caption=caption or None,
+                            reply_to_message_id=reply_to_message_id,
                         )
                 return
 
             # Convert markdown to Telegram HTML
             html_content = _markdown_to_telegram_html(msg.content)
-            await self._app.bot.send_message(chat_id=chat_id, text=html_content, parse_mode="HTML")
+            await self._app.bot.send_message(
+                chat_id=chat_id, 
+                text=html_content, 
+                parse_mode="HTML",
+                reply_to_message_id=reply_to_message_id
+            )
         except ValueError:
             logger.error(f"Invalid chat_id: {msg.chat_id}")
             raise
@@ -303,49 +370,79 @@ class TelegramChannel(BaseChannel):
             caption = caption[:1024]
         return path, media_type, caption
 
-    async def _on_start(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handle /start command."""
-        if not update.message or not update.effective_user:
+
+    async def _handle_callback_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle inline button clicks for slash commands."""
+        query = update.callback_query
+        if not query or not query.data:
             return
 
-        user = update.effective_user
-        await update.message.reply_text(
-            f"👋 Hi {user.first_name}! I'm g-agent.\n\nSend me a message and I'll respond!"
-        )
+        await query.answer()
 
-    async def _on_pack_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handle /pack command by forwarding it through inbound bus flow."""
-        if not update.message or not update.effective_user:
+        user = update.effective_user
+        if not user:
+            logger.warning("Callback query without effective_user, ignoring")
             return
-
-        message = update.message
-        user = update.effective_user
-        chat_id = message.chat_id
 
         sender_id = str(user.id)
         if user.username:
             sender_id = f"{sender_id}|{user.username}"
-        self._chat_ids[sender_id] = chat_id
 
-        original_text = message.text or ""
-        payload = original_text if original_text.startswith("/pack") else f"/pack {original_text}"
-        if message.caption:
-            payload = f"{payload} {message.caption}".strip()
+        chat_id = query.message.chat_id if query.message else None
+        if not chat_id:
+            logger.warning("Callback query without chat_id, ignoring")
+            return
 
-        await self._handle_message(
-            sender_id=sender_id,
-            chat_id=str(chat_id),
-            content=payload,
-            media=[],
-            metadata={
-                "message_id": message.message_id,
-                "user_id": user.id,
-                "username": user.username,
-                "first_name": user.first_name,
-                "is_group": message.chat.type != "private",
-                "from_me": False,
-            },
-        )
+        session_key = f"telegram:{chat_id}"
+
+        if not (query.data.startswith("/") and self._slash):
+            return
+
+        # Bypass LLM and route to slash command handler
+        raw_cmd = query.data.strip().split(maxsplit=1)[0][1:].lower()
+        allowed_commands = ["start", "help"]
+        if not self.is_allowed(sender_id) and raw_cmd not in allowed_commands:
+            response: str | dict | None = "⛔ <b>Access denied:</b> <i>you are not authorized to use commands.</i>"
+        else:
+            try:
+                response = self._slash.try_handle(
+                    query.data, session_key, "telegram", str(chat_id),
+                    sender_username=user.username or "",
+                    sender_id=sender_id,
+                )
+            except Exception as e:
+                logger.error(f"Callback slash command failed: {e}")
+                response = f"⚠️ Error: {e}"
+
+        if response is None:
+            return
+
+        text: str = response if isinstance(response, str) else response.get("text", "")
+        reply_markup = None
+        if isinstance(response, dict):
+            buttons = response.get("buttons")
+            if buttons:
+                from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+                kb = []
+                for row in buttons:
+                    kb_row = []
+                    for btn in row:
+                        kb_row.append(InlineKeyboardButton(text=btn["text"], callback_data=btn["data"]))
+                    kb.append(kb_row)
+                reply_markup = InlineKeyboardMarkup(kb)
+
+        # Try editing the original message first; fall back to new message
+        try:
+            await query.edit_message_text(text=text, parse_mode="HTML", reply_markup=reply_markup)
+        except Exception as edit_err:
+            if "Message is not modified" not in str(edit_err):
+                logger.warning(f"edit_message_text failed ({edit_err}), sending new message")
+                try:
+                    await self._app.bot.send_message(
+                        chat_id=chat_id, text=text, parse_mode="HTML", reply_markup=reply_markup
+                    )
+                except Exception as send_err:
+                    logger.error(f"Fallback send_message also failed: {send_err}")
 
     async def _on_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle incoming messages (text, photos, voice, documents)."""
@@ -363,6 +460,46 @@ class TelegramChannel(BaseChannel):
 
         # Store chat_id for replies
         self._chat_ids[sender_id] = chat_id
+
+        # Intercept slash commands — instant response, bypass LLM
+        if self._slash and message.text and message.text.strip().startswith("/"):
+            raw_cmd = message.text.strip().split(maxsplit=1)[0][1:].lower()
+            
+            # Security gate: only allow list can use most commands
+            allowed_commands = ["start", "help"]
+            if not self.is_allowed(sender_id) and raw_cmd not in allowed_commands:
+                response = "⛔ Access denied: you are not authorized to use commands."
+            else:
+                session_key = f"telegram:{chat_id}"
+                response = self._slash.try_handle(
+                    message.text, session_key, "telegram", str(chat_id),
+                    sender_username=user.username or "",
+                    sender_id=sender_id,
+                )
+
+            if response is not None:
+                text = response
+                reply_markup = None
+                if isinstance(response, dict):
+                    text = response.get("text", "")
+                    buttons = response.get("buttons")
+                    if buttons:
+                        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+                        kb = []
+                        for row in buttons:
+                            kb_row = []
+                            for btn in row:
+                                kb_row.append(InlineKeyboardButton(text=btn["text"], callback_data=btn["data"]))
+                            kb.append(kb_row)
+                        reply_markup = InlineKeyboardMarkup(kb)
+                        
+                try:
+                    await self._app.bot.send_message(
+                        chat_id=chat_id, text=text, parse_mode="HTML", reply_markup=reply_markup
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to send slash command response: {e}")
+                return
 
         # Build content from text and/or media
         content_parts = []

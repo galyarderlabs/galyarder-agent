@@ -27,6 +27,7 @@ class DummyProvider(LLMProvider):
         model: str | None = None,
         max_tokens: int = 4096,
         temperature: float = 0.7,
+        **kwargs,
     ) -> LLMResponse:
         if self._error is not None:
             raise self._error
@@ -208,6 +209,10 @@ def test_agent_loop_keeps_stale_text_when_voice_requested_and_message_tool_used(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     monkeypatch.setenv("G_AGENT_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setattr(
+        "g_agent.agent.tools.message.MessageTool._synthesize_speech",
+        _fake_synthesize_speech,
+    )
     stale_text = "Maaf bro, gua cuma bisa komunikasi lewat teks sekarang."
     provider = DummyProvider(
         responses=[
@@ -1118,4 +1123,3 @@ def test_agent_loop_replays_pending_approval_on_followup_message(
 
     # LLM should have received the exec results and responded with system info
     assert "aman" in result2.lower() or "ram" in result2.lower()
-

@@ -37,10 +37,13 @@ from g_agent.agent.tools.google_workspace import (
     DriveListFilesTool,
     DriveReadTextTool,
     GmailDraftTool,
+    GmailForwardTool,
     GmailListThreadsTool,
     GmailReadThreadTool,
+    GmailReplyAllTool,
+    GmailReplyTool,
     GmailSendTool,
-    GoogleWorkspaceClient,
+    GwsClient,
     SheetsAppendValuesTool,
     SheetsGetValuesTool,
 )
@@ -197,10 +200,10 @@ class AgentLoop:
         """Register the default set of tools."""
         # File tools (restrict to workspace if configured)
         allowed_dir = self.workspace if self.restrict_to_workspace else None
-        self.tools.register(ReadFileTool(allowed_dir=allowed_dir))
-        self.tools.register(WriteFileTool(allowed_dir=allowed_dir))
-        self.tools.register(EditFileTool(allowed_dir=allowed_dir))
-        self.tools.register(ListDirTool(allowed_dir=allowed_dir))
+        self.tools.register(ReadFileTool(workspace=self.workspace, allowed_dir=allowed_dir))
+        self.tools.register(WriteFileTool(workspace=self.workspace, allowed_dir=allowed_dir))
+        self.tools.register(EditFileTool(workspace=self.workspace, allowed_dir=allowed_dir))
+        self.tools.register(ListDirTool(workspace=self.workspace, allowed_dir=allowed_dir))
 
         # Shell tool
         self.tools.register(
@@ -208,6 +211,7 @@ class AgentLoop:
                 working_dir=str(self.workspace),
                 timeout=self.exec_config.timeout,
                 restrict_to_workspace=self.restrict_to_workspace,
+                path_append=self.exec_config.path_append,
             )
         )
 
@@ -241,18 +245,19 @@ class AgentLoop:
         )
         self.tools.register(CreateCalendarEventTool(workspace=self.workspace))
 
-        # Google Workspace tools
-        google = GoogleWorkspaceClient(
-            client_id=self.google_config.client_id,
-            client_secret=self.google_config.client_secret,
-            refresh_token=self.google_config.refresh_token,
-            access_token=self.google_config.access_token,
+        # Google Workspace tools (via gws CLI)
+        google = GwsClient(
+            gws_path=self.google_config.gws_path,
             calendar_id=self.google_config.calendar_id,
+            credentials_file=self.google_config.credentials_file,
         )
         self.tools.register(GmailListThreadsTool(google))
         self.tools.register(GmailReadThreadTool(google))
         self.tools.register(GmailSendTool(google))
         self.tools.register(GmailDraftTool(google))
+        self.tools.register(GmailReplyTool(google))
+        self.tools.register(GmailReplyAllTool(google))
+        self.tools.register(GmailForwardTool(google))
         self.tools.register(CalendarListEventsTool(google))
         self.tools.register(CalendarCreateEventTool(google))
         self.tools.register(CalendarUpdateEventTool(google))
@@ -364,6 +369,21 @@ class AgentLoop:
         # The chat_id contains the original "channel:chat_id" to route back to
         if msg.channel == "system":
             return await self._process_system_message(msg)
+
+        # /stop — cancel all running tasks + subagents for this session
+        trimmed = msg.content.strip().lower()
+        if trimmed in ("/stop", "/cancel"):
+            cancelled = 0
+            for t in self.runtime.list_running(msg.session_key):
+                tid = t.get("task_id")
+                if tid:
+                    self.runtime.cancel(tid)
+                    cancelled += 1
+            # Cancel subagents
+            if self.subagents:
+                cancelled += self.subagents.cancel_all_for_origin(msg.channel, msg.chat_id)
+            ack = f"⏹ Cancelled {cancelled} running task(s)." if cancelled else "No running tasks to cancel."
+            return OutboundMessage(channel=msg.channel, chat_id=msg.chat_id, content=ack)
 
         previous_running = self.runtime.latest_running_for_session(msg.session_key)
         task_id = self.runtime.start(
@@ -515,14 +535,14 @@ class AgentLoop:
                         }
                         for tc in response.tool_calls
                     ]
-                    # Strip content when selfie tool is called to prevent
-                    # denial text ("I'm an AI") from poisoning conversation
-                    tool_names = {tc.name for tc in response.tool_calls}
-                    assistant_content = response.content
-                    if "selfie" in tool_names:
-                        assistant_content = ""
+                    # Strip content when ANY tool is called to prevent
+                    # denial text from poisoning conversation history.
+                    # If the LLM decided to call a tool, any accompanying
+                    # text claiming it "can't" do that thing is contradictory.
+                    # The tool result on the next iteration is the truth.
+                    # The tool result on the next iteration is the truth.
                     messages = self.context.add_assistant_message(
-                        messages, assistant_content, tool_call_dicts
+                        messages, "", tool_call_dicts
                     )
 
                     # Execute tools
@@ -539,6 +559,11 @@ class AgentLoop:
                             approved_tools=approved_tools,
                             approve_all=approve_all,
                             session=session,
+                        )
+                        result_preview = str(result)[:200]
+                        logger.info(
+                            f"Tool {tool_call.name} returned ({len(str(result))} chars): "
+                            f"{result_preview}"
                         )
                         executed_tools.append(tool_call.name)
                         executed_tool_results.append((tool_call.name, str(result)))
@@ -568,6 +593,7 @@ class AgentLoop:
                         messages = self.context.add_tool_result(
                             messages, tool_call.id, tool_call.name, result
                         )
+                        logger.debug(f"Tool result added to messages (total messages: {len(messages)})")
                     # After selfie delivery, break the agent loop entirely
                     # to prevent the second-round LLM call from generating
                     # identity-violating denial text
@@ -592,6 +618,53 @@ class AgentLoop:
             if auto_memory_result:
                 final_content = f"{final_content.rstrip()}\n\n{auto_memory_result}"
             final_content = self._align_memory_claims(final_content, executed_tool_results)
+
+            # Second-pass filter: catch denials re-introduced by reflection,
+            # memory enforcement, or any other post-processing step.
+            final_content = self._filter_identity_violations(final_content)
+
+            # Recovery: if filter blanked the response but tools returned real
+            # data, regenerate from tool results instead of sending empty.
+            if not final_content.strip() and executed_tool_results:
+                gws_results = [
+                    result
+                    for name, result in executed_tool_results
+                    if name.startswith(("gmail_", "calendar_", "drive_", "docs_", "sheets_", "contacts_"))
+                ]
+                if gws_results:
+                    recovery_context = "\n\n".join(gws_results)
+                    try:
+                        recovery, _ = await self._chat_with_model_failover(
+                            messages=[
+                                {
+                                    "role": "system",
+                                    "content": (
+                                        "You are presenting tool results to the user. "
+                                        "Summarize the data below naturally and concisely. "
+                                        "Do NOT add any disclaimers or deny capability. "
+                                        "The data was fetched successfully — just present it. "
+                                        "Use the same language as the user's message."
+                                    ),
+                                },
+                                {
+                                    "role": "user",
+                                    "content": (
+                                        f"User asked: {msg.content}\n\n"
+                                        f"Tool results:\n{recovery_context}"
+                                    ),
+                                },
+                            ],
+                            tools=None,
+                            max_tokens=1200,
+                            temperature=0.3,
+                        )
+                        recovered = (recovery.content or "").strip()
+                        recovered = self._filter_identity_violations(recovered)
+                        if recovered:
+                            final_content = recovered
+                            logger.info("Recovery response generated from tool results")
+                    except Exception as e:
+                        logger.warning(f"Recovery response failed: {e}")
 
             hinted_content = self._enforce_delivery_mode_hint(
                 final_content,
@@ -655,11 +728,16 @@ class AgentLoop:
                 log_content = "[silent delivery via message tool]"
             self._log_assistant_message_to_daily_memory(msg.channel, msg.chat_id, log_content)
 
-            # Save to session
-            session.add_message("user", msg.content)
-            session.add_message("assistant", log_content)
-            self.sessions.save(session)
-            self._maybe_write_session_summary(session)
+            # Prevent empty text from poisoning history if no tools were called
+            if not log_content.strip() and not executed_tools:
+                logger.warning("Assistant response completely empty; skipping history save to prevent session poisoning.")
+            else:
+                # Strip runtime context from user message before persisting
+                clean_user_content = ContextBuilder.strip_runtime_context(msg.content)
+                session.add_message("user", clean_user_content)
+                session.add_message("assistant", log_content)
+                self.sessions.save(session)
+                self._maybe_write_session_summary(session)
 
             self.runtime.complete(
                 task_id,
@@ -681,6 +759,7 @@ class AgentLoop:
                 channel=msg.channel,
                 chat_id=msg.chat_id,
                 content=final_content,
+                reply_to=str(msg.metadata.get("message_id")) if msg.metadata and msg.metadata.get("message_id") else None,
                 metadata=self._build_outbound_metadata(msg, task_id),
             )
         except Exception as e:
@@ -943,6 +1022,57 @@ class AgentLoop:
         "nggak bisa generate",
         "dari percakapan ini saja",
         "dari chat ini saja",
+        # Gmail / email denial patterns
+        "nggak bisa cek inbox",
+        "gak bisa cek inbox",
+        "tidak bisa cek inbox",
+        "belum bisa lihat inbox",
+        "belum bisa melihat inbox",
+        "nggak punya akses ke akun",
+        "gak punya akses ke akun",
+        "tidak punya akses ke akun",
+        "nggak bisa cek email",
+        "gak bisa cek email",
+        "tidak bisa cek email",
+        "nggak bisa akses email",
+        "gak bisa akses email",
+        "tidak bisa akses email",
+        "forward ke aku",
+        "kirim ke aku",
+        "paste/forward",
+        "copy-paste subject",
+        # General capability denial patterns
+        "i don't have access",
+        "i do not have access",
+        "i can't access",
+        "i cannot access",
+        "i'm unable to",
+        "i am unable to",
+        "i don't have the ability",
+        "i do not have the ability",
+        "i'm not able to",
+        "i am not able to",
+        "i can't browse",
+        "i cannot browse",
+        "i can't search",
+        "i cannot search the web",
+        "i can't execute",
+        "i cannot execute",
+        "i can't run commands",
+        "i cannot run commands",
+        "saya tidak bisa",
+        "aku tidak bisa",
+        "aku nggak bisa",
+        "aku gak bisa",
+        "saya belum bisa",
+        "aku belum bisa",
+        "nggak punya akses",
+        "gak punya akses",
+        "tidak punya akses",
+        "belum punya akses",
+        "nggak bisa langsung",
+        "gak bisa langsung",
+        "tidak bisa secara langsung",
     )
 
     def _filter_identity_violations(self, content: str | None) -> str:
@@ -1006,6 +1136,10 @@ class AgentLoop:
         text = (content or "").strip()
         if not text:
             return text
+            
+        # First pass: Strip accidental base64 generation which bloats history
+        import re
+        text = re.sub(r'data:image/[a-zA-Z]+;base64,[A-Za-z0-9+/=]+', '[...base64 image data stripped...]', text)
 
         lines = text.split("\n")
         cleaned: list[str] = []
@@ -1643,6 +1777,8 @@ class AgentLoop:
         max_tokens: int = 4096,
         temperature: float = 0.7,
         task_id: str | None = None,
+        reasoning_effort: str | None = None,
+        thinking_blocks: bool = False,
     ) -> tuple[Any, str]:
         """Call provider chat with deterministic model fallback chain."""
         last_exception: Exception | None = None
@@ -1665,6 +1801,8 @@ class AgentLoop:
                     model=model_name,
                     max_tokens=max_tokens,
                     temperature=temperature,
+                    reasoning_effort=reasoning_effort,
+                    thinking_blocks=thinking_blocks,
                 )
             except Exception as exc:
                 self.metrics.record_llm_call(
@@ -1959,7 +2097,14 @@ class AgentLoop:
         """Run a lightweight reflection pass and return improved answer if any."""
         review_prompt = (
             "You are a response reviewer. Improve the draft answer for correctness, clarity, "
-            "and directness. Keep it concise. If the draft is already good, return exactly KEEP."
+            "and directness. Keep it concise. If the draft is already good, return exactly KEEP.\n\n"
+            "CRITICAL RULES:\n"
+            "- NEVER add disclaimers about what the assistant can or cannot do.\n"
+            "- NEVER add phrases like 'I cannot access', 'I don't have access', "
+            "'saya tidak bisa', 'aku nggak bisa', 'nggak punya akses', or similar denials.\n"
+            "- If the draft contains tool results or data, the assistant DID access that data. "
+            "Do not contradict it.\n"
+            "- Preserve the original language and tone of the draft."
         )
         review_input = (
             f"User message:\n{user_content}\n\n"
@@ -1975,6 +2120,8 @@ class AgentLoop:
                 tools=None,
                 max_tokens=min(1200, max(256, len(draft) // 2 + 200)),
                 temperature=0.2,
+                reasoning_effort="low",  # Fast lightweight reflection
+                thinking_blocks=False,   # No need for deep extended reasoning on this pass
             )
             reviewed = (review.content or "").strip()
             if not reviewed or reviewed.upper() == "KEEP":

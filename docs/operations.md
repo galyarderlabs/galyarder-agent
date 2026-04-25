@@ -43,4 +43,4 @@ Back up:
 
 - `~/.g-agent/config.json`
 - `~/.g-agent/workspace/`
-- OAuth credentials and tokens stored in your profile path
+- Google Workspace `gws` auth state, usually `~/.config/gws/`
