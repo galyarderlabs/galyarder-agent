@@ -1,5 +1,9 @@
 {% extends "main.html" %}
 
+{% block body_class %}
+  {{ super() }} is-home
+{% endblock %}
+
 {% block tabs %}
   {{ super() }}
 
