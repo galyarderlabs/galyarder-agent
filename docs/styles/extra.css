@@ -33,73 +33,95 @@
   border: 1px solid var(--gagent-nav-border);
   border-radius: 100px;
   max-width: 1200px !important;
-  margin: 1.5rem auto 0 !important; /* Float it down from the top */
+  margin: 0 auto !important;
   padding: 0 1.5rem !important;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   height: 3.2rem;
 }
 
-/* Navbar Text Visibility */
+/* Navbar Text & Icon Visibility */
 .md-header__topic, 
 .md-header__button, 
 .md-header__link,
 .md-header__title,
-.md-header__button .md-icon {
+.md-header__button .md-icon,
+.md-header__source .md-source__repository,
+.md-header__source .md-source__facts {
+  color: var(--gagent-nav-text) !important;
+}
+
+/* Specific fix for search icon and repo link colors in light mode */
+.md-search__input + .md-search__icon,
+.md-source__icon .md-icon {
   color: var(--gagent-nav-text) !important;
 }
 
 /* --- PAGE SPECIFIC LOGIC --- */
 
-/* 1. HOME PAGE: Absolute Over Artwork */
+/* 1. HOME PAGE: True Absolute Over Artwork */
 body.is-home .md-header {
   position: absolute;
-  top: 0;
+  top: 1.5rem; /* Float slightly from absolute top */
   left: 0;
   right: 0;
   z-index: 100;
 }
 
-/* 2. ALL OTHER PAGES: Prevent Content Overlap */
+body.is-home .md-header__inner {
+  margin-top: 0 !important;
+}
+
+/* 2. ALL OTHER PAGES: Sticky with offset */
 body:not(.is-home) .md-header {
   position: sticky;
-  top: 0;
+  top: 1.5rem;
   z-index: 100;
+  margin-bottom: 1.5rem;
 }
 
 body:not(.is-home) .md-container {
-  padding-top: 2rem; /* Space for the floating capsule */
+  padding-top: 0; 
 }
 
-/* Tabs Integration (Desktop Only) */
+/* Tabs Integration (Desktop Only): GHOST STYLE */
 @media screen and (min-width: 76.25em) {
   .md-tabs {
     background-color: transparent !important;
     position: sticky;
-    top: 5rem; /* Float below the capsule */
+    top: 5.5rem; /* Float below the capsule */
     z-index: 99;
   }
   
   .md-tabs__list {
     justify-content: center;
-    max-width: 1200px;
+    max-width: 1000px;
     margin: 0 auto;
-    background: var(--gagent-nav-bg);
-    border: 1px solid var(--gagent-nav-border);
-    border-radius: 100px;
-    padding: 0 1rem;
-    backdrop-filter: blur(16px);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+    background: transparent !important; /* Ghost Style */
+    border: none !important;
+    padding: 0;
+    box-shadow: none !important;
   }
   
   .md-tabs__link {
     color: var(--gagent-nav-text) !important;
     font-size: 0.75rem;
     font-weight: 600;
+    opacity: 0.6;
+    transition: opacity 0.3s ease, color 0.3s ease;
+    padding: 0.5rem 1rem;
+    border-radius: 100px;
   }
   
-  .md-tabs__link--active {
+  .md-tabs__link:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.05);
+  }
+  
+  .md-tabs__item--active .md-tabs__link {
+    opacity: 1;
     color: var(--gagent-accent) !important;
+    background: rgba(255, 255, 255, 0.08);
   }
 }
 
