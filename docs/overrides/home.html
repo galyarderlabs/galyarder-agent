@@ -8,18 +8,17 @@
   {{ super() }}
 
   {% if "home" in page.meta.template %}
-    <section class="paperclip-hero">
-      <div class="paperclip-image-container">
-        <img src="assets/header.webp" alt="Galyarder Agent">
-        <div class="paperclip-mask"></div>
+    <section class="md-hero">
+      <div class="md-hero__image-container">
+        <img src="{{ 'assets/header.webp' | url }}" alt="" draggable="false">
       </div>
-      <div class="paperclip-inner md-grid">
-        <div class="paperclip-content">
+      <div class="md-hero__inner md-grid">
+        <div class="md-hero__content">
           <h1>Galyarder Agent</h1>
-          <p class="paperclip-subtitle">
+          <p class="md-hero__subtitle">
             Agentic digital identity for what should not disappear. Build characters with memory, values, and visual presence.
           </p>
-          <div class="paperclip-actions">
+          <div class="md-hero__actions">
             <a href="getting-started/" title="Get started" class="md-button md-button--primary">
               Get started
             </a>

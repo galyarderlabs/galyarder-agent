@@ -18,13 +18,6 @@
   --md-primary-fg-color: #0d1117;
 }
 
-/* --- GLOBAL LAYOUT FIXES --- */
-
-/* Kill redundant sidebar titles */
-.md-sidebar--primary .md-nav__title {
-  display: none;
-}
-
 /* --- THE SOVEREIGN CAPSULE --- */
 
 .md-header {
@@ -43,24 +36,25 @@
   padding: 0 1.5rem !important;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   height: 3.2rem;
-  transition: all 0.3s ease;
 }
 
-/* Navbar Color Awareness */
+/* Navbar Text Visibility */
 .md-header__topic, .md-header__button, .md-header__link, .md-header__title,
 .md-header__source .md-source__repository, .md-header__source .md-source__facts,
 .md-search__input + .md-search__icon, .md-source__icon .md-icon, .md-header__button .md-icon {
   color: var(--gagent-nav-text) !important;
 }
 
-/* --- PAPERCLIP HOME PAGE (THE RESET) --- */
-
-body.is-home {
-  overflow-x: hidden;
+/* Sidebar Title Hide */
+.md-sidebar--primary .md-nav__title {
+  display: none;
 }
 
+/* --- PAPERCLIP FULLSCREEN RESET --- */
+
+/* KILL TOP GAP FOR HOME PAGE */
 body.is-home .md-container {
-  padding-top: 0 !important; /* KILL THE TOP GAP */
+  padding-top: 0 !important;
 }
 
 body.is-home .md-header {
@@ -71,87 +65,95 @@ body.is-home .md-header {
   z-index: 1000;
 }
 
-/* Fullscreen Breakout Hero */
-.paperclip-hero {
+/* HERO SECTION: START FROM TOP 0 */
+.md-hero {
   position: relative;
-  width: 100vw;
-  margin-left: calc(50% - 50vw);
-  margin-top: 0 !important;
-  padding: 0 !important;
-  min-height: 100vh;
   background-color: var(--md-default-bg-color);
+  padding: 0 !important;
+  margin: 0 !important;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
 }
 
-.paperclip-image-container {
+.md-hero__image-container {
   width: 100%;
-  height: 60vh; /* 60% Image */
-  position: relative;
+  height: 60vh;
   overflow: hidden;
+  position: relative;
+  background-color: #000;
 }
 
-.paperclip-image-container img {
+.md-hero__image-container img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   object-position: center;
 }
 
-.paperclip-mask {
+/* Gradient Mask Overlay */
+.md-hero__image-container::after {
+  content: "";
   position: absolute;
   bottom: 0;
   left: 0;
   right: 0;
-  height: 100%;
-  background: linear-gradient(to bottom, transparent 40%, var(--md-default-bg-color) 95%);
+  height: 50%;
+  background: linear-gradient(to bottom, transparent 20%, var(--md-default-bg-color) 100%);
+  z-index: 2;
 }
 
-.paperclip-inner {
+.md-hero__inner {
   flex: 1;
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding-top: 2rem;
+  padding: 2rem 1rem 4rem !important;
   z-index: 10;
   text-align: center;
 }
 
-.paperclip-content h1 {
+.md-hero__content {
+  max-width: 50rem !important;
+}
+
+.md-hero__content h1 {
   font-family: "Newsreader", serif;
   font-size: clamp(3rem, 8vw, 5.5rem);
   font-weight: 500;
+  line-height: 1.05;
   margin: 0 0 1rem;
   color: var(--md-typeset-color);
 }
 
-.paperclip-subtitle {
-  font-size: clamp(1.1rem, 3vw, 1.3rem);
+.md-hero__subtitle {
+  font-size: clamp(1.1rem, 3vw, 1.4rem) !important;
   opacity: 0.8;
-  max-width: 40rem;
-  margin: 0 auto 2.5rem;
-  line-height: 1.5;
+  margin: 0 auto 2.5rem !important;
+  max-width: 38rem;
+  line-height: 1.4;
+  color: var(--md-typeset-color);
 }
 
-.paperclip-actions {
+.md-hero__actions {
   display: flex;
   justify-content: center;
   gap: 1rem;
 }
 
-.paperclip-actions .md-button {
+.md-hero__actions .md-button {
   padding: 0.8rem 2.2rem;
   border-radius: 100px;
   font-weight: 600;
 }
 
-.paperclip-actions .md-button--primary {
+.md-hero__actions .md-button--primary {
   background-color: var(--md-typeset-color) !important;
   color: var(--md-default-bg-color) !important;
   border: none;
 }
 
-/* --- INTERNAL PAGES & TABS --- */
+/* --- INTERNAL PAGES --- */
 
 body:not(.is-home) .md-header {
   position: sticky;
@@ -216,6 +218,7 @@ body:not(.is-home) .md-header {
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 1.5rem;
   margin: 4rem 0;
+  padding: 0 1rem;
 }
 
 .gagent-card {
@@ -227,9 +230,22 @@ body:not(.is-home) .md-header {
   text-decoration: none !important;
   display: flex;
   flex-direction: column;
+  gap: 0.75rem;
 }
 
 .gagent-card:hover {
   transform: translateY(-8px);
   border-color: var(--gagent-accent);
+}
+
+.gagent-card strong {
+  font-size: 1.2rem;
+  color: var(--md-typeset-color);
+}
+
+.gagent-card span {
+  font-size: 0.95rem;
+  color: var(--md-typeset-color);
+  opacity: 0.6;
+  line-height: 1.6;
 }
