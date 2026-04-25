@@ -388,6 +388,9 @@ class ToolsConfig(BaseModel):
     exec: ExecToolConfig = Field(default_factory=ExecToolConfig)
     plugins: PluginsConfig = Field(default_factory=PluginsConfig)
     restrict_to_workspace: bool = False  # If true, restrict all tool access to workspace directory
+    allowed_paths: list[str] = Field(
+        default_factory=list
+    )  # Additional absolute path roots allowed when restrictToWorkspace is true
     policy: dict[str, str] = Field(default_factory=dict)  # tool_name -> allow|ask|deny
     risky_tools: list[str] = Field(
         default_factory=lambda: [

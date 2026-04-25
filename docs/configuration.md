@@ -11,16 +11,28 @@ Primary config path:
 - `agents.defaults`: model, temperature, tool iterations, workspace path, routing policy
 - `channels`: Telegram, WhatsApp, Email, Slack channel toggles and allowlists
 - `providers`: API base, key, and extra headers for model routing
-- `tools`: shell timeout, workspace restriction, web search settings
+- `tools`: shell timeout, workspace restriction, trusted path roots, web search settings
 - `visual`: selfie generation — image provider, physical description, prompt templates
 - `google`: `gws` CLI path/calendar settings for Gmail/Calendar/Docs/Sheets/Drive
 
 ## Safety defaults
 
 - Enable `tools.restrictToWorkspace: true`
+- Add only trusted media/project folders to `tools.allowedPaths`
 - Keep `allowFrom` lists strict per channel
 - Use approval mode for risky tool execution
 - Prefer separate profiles with `G_AGENT_DATA_DIR` (personal/guest)
+
+Example trusted path outside the workspace:
+
+```json
+{
+  "tools": {
+    "restrictToWorkspace": true,
+    "allowedPaths": ["/home/you/Documents/AgentMedia"]
+  }
+}
+```
 
 ## Quick sanity check
 

@@ -40,6 +40,7 @@ class SubagentManager:
         brave_api_key: str | None = None,
         exec_config: ExecToolConfig | None = None,
         restrict_to_workspace: bool = False,
+        allowed_paths: list[str | Path] | None = None,
     ):
         from g_agent.config.schema import ExecToolConfig
 
@@ -50,6 +51,7 @@ class SubagentManager:
         self.brave_api_key = brave_api_key
         self.exec_config = exec_config or ExecToolConfig()
         self.restrict_to_workspace = restrict_to_workspace
+        self.allowed_paths = [Path(path).expanduser() for path in allowed_paths or []]
         self._running_tasks: dict[str, asyncio.Task[None]] = {}
         self._task_origins: dict[str, dict[str, str]] = {}
 
@@ -108,16 +110,17 @@ class SubagentManager:
         try:
             # Build subagent tools (no message tool, no spawn tool)
             tools = ToolRegistry()
-            allowed_dir = self.workspace if self.restrict_to_workspace else None
-            tools.register(ReadFileTool(allowed_dir=allowed_dir))
-            tools.register(WriteFileTool(allowed_dir=allowed_dir))
-            tools.register(ListDirTool(allowed_dir=allowed_dir))
+            allowed_dirs = self._allowed_tool_dirs()
+            tools.register(ReadFileTool(workspace=self.workspace, allowed_dirs=allowed_dirs))
+            tools.register(WriteFileTool(workspace=self.workspace, allowed_dirs=allowed_dirs))
+            tools.register(ListDirTool(workspace=self.workspace, allowed_dirs=allowed_dirs))
             tools.register(
                 ExecTool(
                     working_dir=str(self.workspace),
                     timeout=self.exec_config.timeout,
                     restrict_to_workspace=self.restrict_to_workspace,
                     path_append=self.exec_config.path_append,
+                    allowed_dirs=allowed_dirs,
                 )
             )
             tools.register(WebSearchTool(api_key=self.brave_api_key))
@@ -228,6 +231,16 @@ Summarize this naturally for the user. Keep it brief (1-2 sentences). Do not men
         logger.debug(
             f"Subagent [{task_id}] announced result to {origin['channel']}:{origin['chat_id']}"
         )
+
+    def _allowed_tool_dirs(self) -> list[Path] | None:
+        """Return filesystem roots allowed when workspace restriction is enabled."""
+        if not self.restrict_to_workspace:
+            return None
+        roots = [self.workspace.expanduser()]
+        for path in self.allowed_paths:
+            if path not in roots:
+                roots.append(path)
+        return roots
 
     def _build_subagent_prompt(self, task: str) -> str:
         """Build a focused system prompt for the subagent."""

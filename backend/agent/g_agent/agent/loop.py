@@ -113,6 +113,7 @@ class AgentLoop:
         smtp_config: SMTPConfig | None = None,
         google_config: GoogleWorkspaceConfig | None = None,
         browser_config: BrowserToolsConfig | None = None,
+        allowed_paths: list[str] | None = None,
         tool_policy: dict[str, str] | None = None,
         risky_tools: list[str] | None = None,
         approval_mode: str = "off",
@@ -148,6 +149,7 @@ class AgentLoop:
         self.browser_config = browser_config or BrowserToolsConfig()
         self.visual_config = visual_config or VisualIdentityConfig()
         self.tts_voice = tts_voice
+        self.allowed_paths = [Path(path).expanduser() for path in allowed_paths or []]
         self.tool_policy = {
             (k or "").strip().lower(): (v or "").strip().lower()
             for k, v in (tool_policy or {}).items()
@@ -189,6 +191,7 @@ class AgentLoop:
             brave_api_key=brave_api_key,
             exec_config=self.exec_config,
             restrict_to_workspace=restrict_to_workspace,
+            allowed_paths=self.allowed_paths,
         )
 
         self._running = False
@@ -196,14 +199,24 @@ class AgentLoop:
         self._register_plugin_tools()
         logger.info(f"Registered {len(self.tools)} tools: {self.tools.tool_names}")
 
+    def _allowed_tool_dirs(self) -> list[Path] | None:
+        """Return filesystem roots allowed when workspace restriction is enabled."""
+        if not self.restrict_to_workspace:
+            return None
+        roots = [self.workspace.expanduser()]
+        for path in self.allowed_paths:
+            if path not in roots:
+                roots.append(path)
+        return roots
+
     def _register_default_tools(self) -> None:
         """Register the default set of tools."""
         # File tools (restrict to workspace if configured)
-        allowed_dir = self.workspace if self.restrict_to_workspace else None
-        self.tools.register(ReadFileTool(workspace=self.workspace, allowed_dir=allowed_dir))
-        self.tools.register(WriteFileTool(workspace=self.workspace, allowed_dir=allowed_dir))
-        self.tools.register(EditFileTool(workspace=self.workspace, allowed_dir=allowed_dir))
-        self.tools.register(ListDirTool(workspace=self.workspace, allowed_dir=allowed_dir))
+        allowed_dirs = self._allowed_tool_dirs()
+        self.tools.register(ReadFileTool(workspace=self.workspace, allowed_dirs=allowed_dirs))
+        self.tools.register(WriteFileTool(workspace=self.workspace, allowed_dirs=allowed_dirs))
+        self.tools.register(EditFileTool(workspace=self.workspace, allowed_dirs=allowed_dirs))
+        self.tools.register(ListDirTool(workspace=self.workspace, allowed_dirs=allowed_dirs))
 
         # Shell tool
         self.tools.register(
@@ -212,6 +225,7 @@ class AgentLoop:
                 timeout=self.exec_config.timeout,
                 restrict_to_workspace=self.restrict_to_workspace,
                 path_append=self.exec_config.path_append,
+                allowed_dirs=allowed_dirs,
             )
         )
 

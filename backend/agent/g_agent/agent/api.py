@@ -59,6 +59,7 @@ class Agent:
             smtp_config=self.config.integrations.smtp,
             google_config=self.config.integrations.google,
             browser_config=self.config.tools.browser,
+            allowed_paths=self.config.tools.allowed_paths,
             tool_policy=self.config.tools.policy,
             risky_tools=self.config.tools.risky_tools,
             approval_mode=self.config.tools.approval_mode,

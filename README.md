@@ -324,6 +324,7 @@ Runtime model:
 ## Security Model (Plain Language)
 
 - `tools.restrictToWorkspace` keeps file/shell access inside allowed workspace.
+- `tools.allowedPaths` can add trusted folders outside the workspace without disabling the sandbox.
 - `channels.*.allowFrom` controls who can send messages to the assistant.
 - approval mode can require confirmation for risky actions.
 - policy presets (`personal_full`, `guest_limited`, `guest_readonly`) control tool risk.

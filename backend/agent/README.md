@@ -304,6 +304,7 @@ g-agent cron list
 Primary controls:
 
 - `tools.restrictToWorkspace`
+- `tools.allowedPaths`
 - `channels.*.allowFrom`
 - `tools.policy` (`allow` / `ask` / `deny`)
 - `tools.approvalMode` (recommended `confirm`)
@@ -315,6 +316,7 @@ Recommended personal baseline:
 {
   "tools": {
     "restrictToWorkspace": true,
+    "allowedPaths": ["/home/you/Documents/AgentMedia"],
     "approvalMode": "confirm"
   }
 }

@@ -20,6 +20,7 @@ class ExecTool(Tool):
         allow_patterns: list[str] | None = None,
         restrict_to_workspace: bool = False,
         path_append: list[str] | None = None,
+        allowed_dirs: list[str | Path] | None = None,
     ):
         self.timeout = timeout
         self.working_dir = working_dir
@@ -37,6 +38,7 @@ class ExecTool(Tool):
         self.allow_patterns = allow_patterns or []
         self.restrict_to_workspace = restrict_to_workspace
         self.path_append = path_append or []
+        self.allowed_dirs = [Path(path).expanduser().resolve() for path in allowed_dirs or []]
 
     @property
     def name(self) -> str:
@@ -139,6 +141,10 @@ class ExecTool(Tool):
                 return "Error: Command blocked by safety guard (path traversal detected)"
 
             cwd_path = Path(cwd).resolve()
+            allowed_roots = [cwd_path]
+            for root in self.allowed_dirs:
+                if root not in allowed_roots:
+                    allowed_roots.append(root)
 
             win_paths = re.findall(r"[A-Za-z]:\\[^\\\"']+", cmd)
             # Only match absolute paths — avoid false positives on relative
@@ -151,7 +157,11 @@ class ExecTool(Tool):
                     p = Path(raw.strip()).resolve()
                 except Exception:
                     continue
-                if p.is_absolute() and cwd_path not in p.parents and p != cwd_path:
-                    return "Error: Command blocked by safety guard (path outside working dir)"
+                if p.is_absolute() and not any(p == root or root in p.parents for root in allowed_roots):
+                    allowed = ", ".join(str(root) for root in allowed_roots)
+                    return (
+                        "Error: Command blocked by safety guard "
+                        f"(path outside allowed directories: {allowed})"
+                    )
 
         return None

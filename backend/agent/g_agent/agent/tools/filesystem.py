@@ -8,19 +8,40 @@ from g_agent.agent.tools.base import Tool
 
 
 def _resolve_path(
-    path: str, workspace: Path | None = None, allowed_dir: Path | None = None
+    path: str,
+    workspace: Path | None = None,
+    allowed_dir: Path | None = None,
+    allowed_dirs: list[Path] | None = None,
 ) -> Path:
     """Resolve path against workspace (if relative) and enforce directory restriction."""
     p = Path(path).expanduser()
     if not p.is_absolute() and workspace:
         p = workspace / p
     resolved = p.resolve()
-    if allowed_dir:
-        try:
-            resolved.relative_to(allowed_dir.resolve())
-        except ValueError:
-            raise PermissionError(f"Path {path} is outside allowed directory {allowed_dir}")
+    roots = _allowed_roots(allowed_dir=allowed_dir, allowed_dirs=allowed_dirs)
+    if roots and not any(_is_relative_to(resolved, root) for root in roots):
+        allowed = ", ".join(str(root) for root in roots)
+        raise PermissionError(f"Path {path} is outside allowed directories: {allowed}")
     return resolved
+
+
+def _allowed_roots(
+    allowed_dir: Path | None = None, allowed_dirs: list[Path] | None = None
+) -> list[Path]:
+    """Normalize configured allowed directory roots."""
+    roots: list[Path] = []
+    if allowed_dir is not None:
+        roots.append(allowed_dir.expanduser().resolve())
+    for root in allowed_dirs or []:
+        resolved = root.expanduser().resolve()
+        if resolved not in roots:
+            roots.append(resolved)
+    return roots
+
+
+def _is_relative_to(path: Path, root: Path) -> bool:
+    """Return whether path is inside root, including root itself."""
+    return path == root or root in path.parents
 
 
 class ReadFileTool(Tool):
@@ -28,9 +49,14 @@ class ReadFileTool(Tool):
 
     _MAX_CHARS = 128_000  # ~128 KB — prevents OOM from reading huge files into LLM context
 
-    def __init__(self, workspace: Path | None = None, allowed_dir: Path | None = None):
+    def __init__(
+        self,
+        workspace: Path | None = None,
+        allowed_dir: Path | None = None,
+        allowed_dirs: list[Path] | None = None,
+    ):
         self._workspace = workspace
-        self._allowed_dir = allowed_dir
+        self._allowed_dirs = _allowed_roots(allowed_dir=allowed_dir, allowed_dirs=allowed_dirs)
 
     @property
     def name(self) -> str:
@@ -53,7 +79,7 @@ class ReadFileTool(Tool):
         if not target_path:
             return "Error: path is required"
         try:
-            file_path = _resolve_path(target_path, self._workspace, self._allowed_dir)
+            file_path = _resolve_path(target_path, self._workspace, allowed_dirs=self._allowed_dirs)
             if not file_path.exists():
                 return f"Error: File not found: {target_path}"
             if not file_path.is_file():
@@ -82,9 +108,14 @@ class ReadFileTool(Tool):
 class WriteFileTool(Tool):
     """Tool to write content to a file."""
 
-    def __init__(self, workspace: Path | None = None, allowed_dir: Path | None = None):
+    def __init__(
+        self,
+        workspace: Path | None = None,
+        allowed_dir: Path | None = None,
+        allowed_dirs: list[Path] | None = None,
+    ):
         self._workspace = workspace
-        self._allowed_dir = allowed_dir
+        self._allowed_dirs = _allowed_roots(allowed_dir=allowed_dir, allowed_dirs=allowed_dirs)
 
     @property
     def name(self) -> str:
@@ -114,7 +145,7 @@ class WriteFileTool(Tool):
         if content is None:
             return "Error: content is required"
         try:
-            file_path = _resolve_path(target_path, self._workspace, self._allowed_dir)
+            file_path = _resolve_path(target_path, self._workspace, allowed_dirs=self._allowed_dirs)
             file_path.parent.mkdir(parents=True, exist_ok=True)
             file_path.write_text(content, encoding="utf-8")
             return f"Successfully wrote {len(content)} bytes to {file_path}"
@@ -127,9 +158,14 @@ class WriteFileTool(Tool):
 class EditFileTool(Tool):
     """Tool to edit a file by replacing text."""
 
-    def __init__(self, workspace: Path | None = None, allowed_dir: Path | None = None):
+    def __init__(
+        self,
+        workspace: Path | None = None,
+        allowed_dir: Path | None = None,
+        allowed_dirs: list[Path] | None = None,
+    ):
         self._workspace = workspace
-        self._allowed_dir = allowed_dir
+        self._allowed_dirs = _allowed_roots(allowed_dir=allowed_dir, allowed_dirs=allowed_dirs)
 
     @property
     def name(self) -> str:
@@ -166,7 +202,7 @@ class EditFileTool(Tool):
         if new_text is None:
             return "Error: new_text is required"
         try:
-            file_path = _resolve_path(target_path, self._workspace, self._allowed_dir)
+            file_path = _resolve_path(target_path, self._workspace, allowed_dirs=self._allowed_dirs)
             if not file_path.exists():
                 return f"Error: File not found: {target_path}"
 
@@ -224,9 +260,14 @@ class EditFileTool(Tool):
 class ListDirTool(Tool):
     """Tool to list directory contents."""
 
-    def __init__(self, workspace: Path | None = None, allowed_dir: Path | None = None):
+    def __init__(
+        self,
+        workspace: Path | None = None,
+        allowed_dir: Path | None = None,
+        allowed_dirs: list[Path] | None = None,
+    ):
         self._workspace = workspace
-        self._allowed_dir = allowed_dir
+        self._allowed_dirs = _allowed_roots(allowed_dir=allowed_dir, allowed_dirs=allowed_dirs)
 
     @property
     def name(self) -> str:
@@ -249,7 +290,7 @@ class ListDirTool(Tool):
         if not target_path:
             return "Error: path is required"
         try:
-            dir_path = _resolve_path(target_path, self._workspace, self._allowed_dir)
+            dir_path = _resolve_path(target_path, self._workspace, allowed_dirs=self._allowed_dirs)
             if not dir_path.exists():
                 return f"Error: Directory not found: {target_path}"
             if not dir_path.is_dir():
