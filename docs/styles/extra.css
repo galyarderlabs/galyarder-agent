@@ -2,7 +2,7 @@
   --gagent-accent: #0f766e;
   --gagent-accent-strong: #115e59;
   --gagent-glow: rgba(15, 118, 110, 0.15);
-  --gagent-nav-bg: rgba(255, 255, 255, 0.85);
+  --gagent-nav-bg: rgba(255, 255, 255, 0.2); /* Transparent Capsule */
   --gagent-nav-text: #111827;
   --gagent-nav-border: rgba(0, 0, 0, 0.1);
 }
@@ -11,14 +11,14 @@
   --gagent-accent: #2dd4bf;
   --gagent-accent-strong: #5eead4;
   --gagent-glow: rgba(45, 212, 191, 0.1);
-  --gagent-nav-bg: rgba(13, 17, 23, 0.85);
+  --gagent-nav-bg: rgba(13, 17, 23, 0.4); /* Transparent Capsule */
   --gagent-nav-text: #f8fafc;
   --gagent-nav-border: rgba(255, 255, 255, 0.15);
   --md-default-bg-color: #0d1117;
   --md-primary-fg-color: #0d1117;
 }
 
-/* --- THE SOVEREIGN CAPSULE --- */
+/* --- THE SOVEREIGN CAPSULE (TRANSPARENT) --- */
 
 .md-header {
   background-color: transparent !important;
@@ -27,69 +27,68 @@
 
 .md-header__inner {
   background: var(--gagent-nav-bg) !important;
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
   border: 1px solid var(--gagent-nav-border);
   border-radius: 100px;
   max-width: 1200px !important;
-  margin: 0 auto !important;
+  margin: 1.5rem auto !important; /* Float the capsule */
   padding: 0 1.5rem !important;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   height: 3.2rem;
+  transition: all 0.3s ease;
 }
 
-/* Navbar Text Visibility */
 .md-header__topic, .md-header__button, .md-header__link, .md-header__title,
 .md-header__source .md-source__repository, .md-header__source .md-source__facts,
 .md-search__input + .md-search__icon, .md-source__icon .md-icon, .md-header__button .md-icon {
   color: var(--gagent-nav-text) !important;
 }
 
-/* Sidebar Title Hide */
 .md-sidebar--primary .md-nav__title {
   display: none;
 }
 
-/* --- THE PAPERCLIP FULLSCREEN RESET (HOME PAGE) --- */
+/* --- THE PAPERCLIP FULLSCREEN 60/40 (HOME PAGE) --- */
 
 body.is-home {
+  background-color: var(--md-default-bg-color);
   margin: 0 !important;
   padding: 0 !important;
   overflow-x: hidden;
 }
 
+/* Aggressive reset to kill top white gap */
 body.is-home .md-container {
   padding-top: 0 !important;
-  margin-top: 0 !important;
 }
 
 body.is-home .md-header {
   position: absolute !important;
-  top: 1.5rem !important;
+  top: 0 !important;
   left: 0;
   right: 0;
   z-index: 1000;
+  margin: 0 !important;
 }
 
-/* HERO SECTION: START FROM TOP 0 */
 .paperclip-hero {
   position: relative;
-  background-color: var(--md-default-bg-color);
   width: 100vw;
   margin-left: calc(50% - 50vw);
   padding: 0 !important;
-  /* PULL UP TO COMBAT MKDOCS HEADER AND TABS HEIGHT */
-  margin-top: -3.5rem !important; 
+  margin-top: 0 !important;
   min-height: 100vh;
+  background-color: var(--md-default-bg-color);
   display: flex;
   flex-direction: column;
 }
 
 .paperclip-image-container {
   width: 100%;
-  height: 60vh;
-  overflow: hidden;
+  height: 60vh; /* 60% height exactly */
   position: relative;
+  overflow: hidden;
   background-color: #000;
 }
 
@@ -100,15 +99,14 @@ body.is-home .md-header {
   object-position: center;
 }
 
-/* Gradient Mask Overlay */
 .paperclip-mask {
   position: absolute;
   bottom: 0;
   left: 0;
   right: 0;
-  height: 50%;
-  background: linear-gradient(to bottom, transparent 20%, var(--md-default-bg-color) 100%);
-  z-index: 2;
+  height: 100%;
+  background: linear-gradient(to bottom, transparent 40%, var(--md-default-bg-color) 90%);
+  pointer-events: none;
 }
 
 .paperclip-inner {
@@ -116,31 +114,25 @@ body.is-home .md-header {
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding: 2rem 1rem 4rem !important;
+  padding: 4rem 1rem 8rem !important; /* 40% area starts here */
   z-index: 10;
   text-align: center;
-}
-
-.paperclip-content {
-  max-width: 50rem !important;
 }
 
 .paperclip-content h1 {
   font-family: "Newsreader", serif;
   font-size: clamp(3rem, 8vw, 5.5rem);
   font-weight: 500;
-  line-height: 1.05;
   margin: 0 0 1rem;
   color: var(--md-typeset-color);
 }
 
 .paperclip-subtitle {
-  font-size: clamp(1.1rem, 3vw, 1.4rem) !important;
+  font-size: clamp(1.1rem, 3vw, 1.3rem);
   opacity: 0.8;
-  margin: 0 auto 2.5rem !important;
-  max-width: 38rem;
-  line-height: 1.4;
-  color: var(--md-typeset-color);
+  max-width: 40rem;
+  margin: 0 auto 2.5rem;
+  line-height: 1.5;
 }
 
 .paperclip-actions {
@@ -210,7 +202,6 @@ body:not(.is-home) .md-header {
   }
 }
 
-/* Mobile Fixes */
 @media screen and (max-width: 76.24em) {
   .md-header__inner {
     margin: 1rem 1rem 0 !important;
@@ -238,7 +229,6 @@ body:not(.is-home) .md-header {
   text-decoration: none !important;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
 }
 
 .gagent-card:hover {
