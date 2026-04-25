@@ -12,65 +12,66 @@
   --md-primary-fg-color: #0d1117;
 }
 
-/* Floating Pill Navigation */
-.md-header {
-  background-color: transparent !important;
-  position: absolute;
-  top: 1.5rem;
-  left: 0;
-  right: 0;
-  z-index: 100;
-}
-
-.md-header__inner {
-  background: rgba(13, 17, 23, 0.9) !important;
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 100px;
-  max-width: 1200px !important; /* Widened for full desktop nav */
-  margin: 0 auto !important;
-  padding: 0 1.5rem !important;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-  transition: all 0.3s ease;
-}
-
+/* Integrated Transparent Navigation (Desktop) */
 @media screen and (min-width: 76.25em) {
+  .md-header {
+    background-color: transparent !important;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    box-shadow: none !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+  }
+
   .md-header__inner {
-    width: 80%;
+    background: transparent !important;
+    max-width: 100% !important;
+    padding: 0.5rem 2rem !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .md-tabs {
+    background-color: transparent !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+    top: 3rem; /* Positioned below header */
+    position: absolute;
+    width: 100%;
+    z-index: 99;
+  }
+
+  .md-tabs__list {
+    padding-left: 0;
+    justify-content: flex-start;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  /* Ensure hero section accounts for the absolute header */
+  .md-hero {
+    padding-top: 0;
   }
 }
 
-/* Fix for desktop navigation items being invisible or poorly placed */
-.md-tabs {
-  position: absolute;
-  top: 1.5rem;
-  left: 0;
-  right: 0;
-  z-index: 99;
-  background: transparent !important;
+/* Mobile Navigation (Keep as is, with fixes) */
+@media screen and (max-width: 76.24em) {
+  .md-header {
+    background-color: var(--md-primary-fg-color) !important;
+  }
+  
+  .md-sidebar--primary {
+    z-index: 2000 !important;
+  }
+  
+  .md-overlay {
+    z-index: 1500 !important;
+  }
 }
 
-.md-tabs__list {
-  padding-left: 200px; /* Space for logo in pill */
-  padding-right: 200px; /* Space for repo/search in pill */
-  justify-content: flex-start;
-}
-
-/* Ensure mobile sidebar is on top of everything */
-.md-sidebar--primary {
-  z-index: 2000 !important;
-}
-
-.md-overlay {
-  z-index: 1500 !important;
-}
-
-/* Mobile Drawer Fix */
-.md-nav--primary {
-  z-index: 1000;
-  background-color: var(--md-default-bg-color) !important;
-}
+/* Immersive Hero Section (Paperclip Style) */
 
 [data-md-toggle="drawer"]:checked ~ .md-overlay {
   opacity: 1;
