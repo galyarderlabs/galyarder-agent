@@ -23,19 +23,63 @@
 }
 
 .md-header__inner {
-  background: rgba(13, 17, 23, 0.8) !important;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(13, 17, 23, 0.9) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 100px;
-  max-width: 600px !important;
+  max-width: 1200px !important; /* Widened for full desktop nav */
   margin: 0 auto !important;
   padding: 0 1.5rem !important;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  transition: all 0.3s ease;
 }
 
+@media screen and (min-width: 76.25em) {
+  .md-header__inner {
+    width: 80%;
+  }
+}
+
+/* Fix for desktop navigation items being invisible or poorly placed */
 .md-tabs {
-  display: none; /* Hide standard tabs for a cleaner pill look */
+  position: absolute;
+  top: 1.5rem;
+  left: 0;
+  right: 0;
+  z-index: 99;
+  background: transparent !important;
+}
+
+.md-tabs__list {
+  padding-left: 200px; /* Space for logo in pill */
+  padding-right: 200px; /* Space for repo/search in pill */
+  justify-content: flex-start;
+}
+
+/* Ensure mobile sidebar is on top of everything */
+.md-sidebar--primary {
+  z-index: 2000 !important;
+}
+
+.md-overlay {
+  z-index: 1500 !important;
+}
+
+/* Mobile Drawer Fix */
+.md-nav--primary {
+  z-index: 1000;
+  background-color: var(--md-default-bg-color) !important;
+}
+
+[data-md-toggle="drawer"]:checked ~ .md-overlay {
+  opacity: 1;
+  visible: visible;
+  z-index: 150;
+}
+
+[data-md-toggle="drawer"]:checked ~ .md-container {
+  /* Prevent hero content from showing through on some browsers */
 }
 
 /* Immersive Hero Section (Paperclip Style) */
