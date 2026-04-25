@@ -57,6 +57,11 @@
   color: var(--gagent-nav-text) !important;
 }
 
+/* Hide redundant sidebar title */
+.md-sidebar--primary .md-nav__title {
+  display: none;
+}
+
 /* --- PAGE SPECIFIC LOGIC --- */
 
 /* 1. HOME PAGE: True Absolute Over Artwork */
@@ -69,6 +74,11 @@ body.is-home .md-header {
 }
 
 body.is-home .md-header__inner {
+  margin-top: 0 !important;
+}
+
+/* Remove default padding for home page */
+body.is-home .md-main__inner {
   margin-top: 0 !important;
 }
 
@@ -158,11 +168,12 @@ body:not(.is-home) .md-container {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  margin-top: -3.5rem; /* Pull up to absolute top under header */
 }
 
 .md-hero__image-container {
   width: 100%;
-  height: 60vh;
+  height: 70vh; /* Increased for deeper immersion */
   overflow: hidden;
   position: relative;
 }
