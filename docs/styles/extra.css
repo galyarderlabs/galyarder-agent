@@ -18,7 +18,7 @@
   --md-primary-fg-color: #0d1117;
 }
 
-/* --- THE SOVEREIGN CAPSULE (PERFECTIONIST SYMMETRY) --- */
+/* --- THE SOVEREIGN CAPSULE (DEFINITIVE SYMMETRY) --- */
 
 .md-header {
   background-color: transparent !important;
@@ -38,48 +38,73 @@
   height: 3.4rem;
   display: flex !important;
   align-items: center;
-  position: relative; /* Base for absolute centering */
-  transition: all 0.3s ease;
+  position: relative; /* CRITICAL: Base for absolute search */
 }
 
-/* 1. Left Section */
+/* 1. LEFT: Logo & Title */
 .md-header__button.md-logo {
-  order: 1;
+  margin-right: 0.75rem !important;
+  display: block !important;
 }
 
 .md-header__title {
-  order: 2;
-  flex-grow: 0 !important; /* Stop pushing search */
+  display: block !important; /* Restore missing title */
+  flex-grow: 0 !important;
   width: auto !important;
-  margin-right: 0 !important;
 }
 
-/* 2. ABSOLUTE CENTER: Search Bar */
+.md-header__topic {
+  display: block !important;
+  white-space: nowrap;
+}
+
+/* 2. CENTER: Hard-Centered Search Bar */
 .md-header__search {
-  order: 3;
   position: absolute !important;
   left: 50% !important;
   top: 50% !important;
   transform: translate(-50%, -50%) !important;
-  width: 320px !important; /* Fixed width for better symmetry */
+  width: 340px !important;
   margin: 0 !important;
 }
 
-/* 3. Right Section */
-.md-header__option {
-  order: 4;
-  margin-left: auto !important; /* Push everything else to left */
+.md-search__form {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+  border-radius: 50px !important;
 }
 
-/* Theme Toggle Position */
+[data-md-color-scheme="slate"] .md-search__form {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* 3. RIGHT: Options & Source */
+.md-header__option {
+  margin-left: auto !important; /* Push everything else to left */
+  display: flex !important;
+  align-items: center;
+}
+
+/* Theme toggle is inside .md-header__option or sibling */
 [data-md-color-scheme] .md-header__option {
-  order: 5;
   margin-left: auto !important;
 }
 
 .md-header__source {
-  order: 6;
-  margin-left: 0.5rem !important;
+  margin-left: 0.75rem !important;
+}
+
+/* Mobile: Disable absolute center to prevent overlap */
+@media screen and (max-width: 76.24em) {
+  .md-header__search {
+    position: static !important;
+    transform: none !important;
+    width: auto !important;
+    margin-left: auto !important;
+    left: auto !important;
+  }
+  .md-header__title {
+    display: none !important;
+  }
 }
 
 /* Navbar Text Visibility */
