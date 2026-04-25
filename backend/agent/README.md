@@ -1,12 +1,12 @@
 <div align="center">
   <img src="header.webp" alt="Galyarder Agent header" width="900">
   <h1>Galyarder Agent Backend (g-agent)</h1>
-  <p><b>The runtime core for a private, practical, always-on personal AI assistant.</b></p>
+  <p><b>The runtime core for agentic digital characters across WhatsApp, Telegram, Discord, Slack, Email, and CLI.</b></p>
   <p>
     <img src="https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white" alt="Python 3.11+">
     <img src="https://img.shields.io/badge/CLI-g--agent-6f42c1" alt="g-agent CLI">
     <img src="https://img.shields.io/badge/License-MIT-22c55e" alt="MIT">
-    <img src="https://img.shields.io/badge/Channels-Telegram%20%7C%20WhatsApp%20%7C%20CLI-10b981" alt="Channels">
+    <img src="https://img.shields.io/badge/Channels-WhatsApp%20%7C%20Telegram%20%7C%20Discord%20%7C%20Slack%20%7C%20Email-10b981" alt="Channels">
   </p>
 </div>
 
@@ -14,16 +14,22 @@
 
 ## Why This Backend Exists
 
-Open-source agent runtimes prove the direction is real: personal agents are useful when they can act in your real workflow.
+The product direction is not just “an assistant that can call tools.” It is a
+digital character that can keep identity, remember context, appear in chat,
+generate selfies or mirror photos, and act inside real workflows with explicit
+permission.
 
-This backend keeps that direction but stays focused on ownership and operational clarity:
+This backend keeps that direction operational:
 
-- keep the useful parts (`agent loop`, `tools`, `memory`, `channels`, `cron`)
-- remove unnecessary complexity for personal deployment
-- keep control on your machine, with your policy, your allowlists, your runtime
+- character identity and persona files
+- local memory and session continuity
+- channel presence across WhatsApp, Telegram, Discord, Slack, Email, and CLI
+- visual identity through the `selfie` tool
+- scoped tools for workspace, shell, Google Workspace, schedules, media, and workflow packs
 
-This is not a generic “everything platform.”  
-It is a practical personal assistant runtime you can understand, audit, and evolve.
+This is the runtime layer for building yourself as an agent, an agentic
+girlfriend, a companion, an operator, or a fictional persona that is still
+understandable, auditable, and locally owned.
 
 ---
 
@@ -48,7 +54,8 @@ Then:
 
 ## Philosophy
 
-- **Useful over flashy**: solve real personal tasks first.
+- **Character first**: memory, persona, visual identity, and tool use should point at one coherent presence.
+- **Useful over flashy**: the character still needs to solve real personal tasks.
 - **Understandable over abstract**: keep runtime behavior inspectable.
 - **Private over cloud-lock**: local memory, local workspace, local policy.
 - **Controlled over magical**: explicit allowlists and tool policy gates.
@@ -60,12 +67,13 @@ If the runtime is not operationally controllable, it is not truly personal.
 
 ## What It Supports
 
-- **Channels**: CLI, Telegram, WhatsApp (Discord/Feishu available as experimental paths).
+- **Digital characters**: persistent persona, memory, visual identity, and channel presence.
+- **Channels**: WhatsApp, Telegram, Discord, Slack, Email, CLI, and experimental Feishu paths.
 - **Model routing**: LiteLLM + OpenAI-compatible providers (local proxy/vLLM/OpenRouter style).
 - **Memory**: markdown-first long-term memory + structured facts.
 - **Scheduling**: cron jobs + proactive reminders + workflow packs.
 - **Multimodal output**: text, image, voice, sticker, document.
-- **Google Workspace**: Gmail, Calendar, Drive, Docs, Sheets, Contacts via OAuth.
+- **Google Workspace**: Gmail, Calendar, Drive, Docs, Sheets, Contacts through the local `gws` CLI.
 - **Security controls**: `restrictToWorkspace`, `allowFrom`, tool policy, approval mode, quiet hours.
 
 ---
@@ -185,10 +193,10 @@ Start runtime:
 g-agent gateway
 ```
 
-### 3) Optional experimental channels
+### 3) Additional channels
 
-- Discord bot path is available but still experimental.
-- Feishu/Lark long-connection path is available but still experimental.
+- Discord, Slack, and Email channel paths are available in the runtime.
+- Feishu/Lark long-connection path is available as an experimental option.
 
 ---
 
@@ -459,8 +467,12 @@ Core commands:
 - `g-agent cron list`
 - `g-agent channels status`
 
-Release automation is handled in repository root by `../../.github/workflows/release.yml`.  
-Before tagging, update both `../../CHANGELOG.md` and `../../docs/release-notes/vX.Y.Z.md`, push `main`, then push a version tag (`vX.Y.Z` style).
+Protected `main` releases go through a pull request. Before publishing:
+
+1. Update the package version and `../../docs/release-notes/vX.Y.Z.md`.
+2. Regenerate CLI docs after CLI changes with `python scripts/generate_cli_docs.py`.
+3. Merge the release PR after CI passes.
+4. Tag the merged `main` commit and publish the GitHub Release from the release notes.
 
 ---
 

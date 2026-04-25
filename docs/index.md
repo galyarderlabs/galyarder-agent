@@ -1,52 +1,62 @@
-# Galyarder Agent Docs
+<section class="gagent-cover">
+  <img src="assets/header.webp" alt="Galyarder Agent interface preview">
+  <div class="gagent-cover-copy">
+    <p class="gagent-kicker">Galyarder Agent Docs</p>
+    <h1>Agentic digital characters for every channel you live in.</h1>
+    <p>
+      Build yourself as an agent, an agentic girlfriend, a companion, an
+      operator, or a fictional persona that lives in WhatsApp, Telegram,
+      Discord, Slack, Email, and CLI; remembers context; sends selfies or
+      mirror photos; accesses Google Workspace; and automates real workflow
+      through permissioned tools.
+    </p>
+    <div class="gagent-actions">
+      <a href="getting-started/">Get started</a>
+      <a href="persona/">Shape identity</a>
+      <a href="operations/">Operate services</a>
+    </div>
+  </div>
+</section>
 
-Galyarder Agent (`g-agent`) is a practical, self-hosted personal assistant runtime.
+## What You Get
 
-![Galyarder Agent](assets/logo-wordmark.svg)
-
-<div class="gagent-hero">
-  <p><b>Private by default.</b> Operate from your own machine, with your own policies.</p>
-  <p><b>Practical by design.</b> Focus on channels, memory, automation, and auditability.</p>
+<div class="gagent-grid">
+  <a class="gagent-card" href="channels/">
+    <strong>Presence</strong>
+    <span>Put the same character in WhatsApp, Telegram, Discord, Slack, Email, CLI, and experimental chat paths.</span>
+  </a>
+  <a class="gagent-card" href="configuration/#provider-registry">
+    <strong>Brains</strong>
+    <span>Route any character through LiteLLM, local proxies, OpenRouter-style endpoints, or direct provider keys.</span>
+  </a>
+  <a class="gagent-card" href="configuration/#visual-identity--selfies">
+    <strong>Visual Identity</strong>
+    <span>Generate contextual selfies and mirror shots through Hugging Face, Cloudflare, or OpenAI-compatible image proxies.</span>
+  </a>
+  <a class="gagent-card" href="operations/">
+    <strong>Action</strong>
+    <span>Let the character use scoped tools for files, shell, Gmail, Calendar, Drive, schedules, media, and workflow packs.</span>
+  </a>
 </div>
 
-## What you get
-
-- Multi-channel assistant: CLI, Telegram, WhatsApp
-- LLM routing through configurable OpenAI-compatible proxies (CLIProxyAPI, vLLM, LiteLLM, etc.)
-- Persistent memory in local Markdown files
-- Proactive scheduling, cron-based reminders, workflow packs
-- Policy controls for workspace access, approvals, and guest limits
-
-## Who this is for
-
-This project is for builders who want:
-
-- strong local control
-- auditable behavior
-- production utility over hype
-
-## Start here
+## Start Here
 
 1. [Getting Started](getting-started.md)
-2. [Install Matrix](install-matrix.md)
-3. [Configuration](configuration.md)
+2. [Configuration](configuration.md)
+3. [Channels](channels.md)
 4. [Operations](operations.md)
 5. [Troubleshooting](troubleshooting.md)
 6. [Security](security.md)
 
-## Codebase map
+## Runtime Map
 
 - Backend runtime: `backend/agent`
 - Docs source: `docs/`
-- Project roadmap: `docs/roadmap/runtime-roadmap.md`
-
-## Open-source navigation
-
-- Common operator questions: [FAQ](faq.md)
-- Contribution expectations: [Contributing](contributing.md)
+- Roadmap: `docs/roadmap/runtime-roadmap.md`
+- Release notes: `docs/release-notes/`
 
 ## Architecture
 
 ![g-agent architecture](https://raw.githubusercontent.com/galyarderlabs/galyarder-agent/main/backend/agent/g-agent_arch.png)
 
-<p class="gagent-note"><i>Execution path: channel input → agent loop → tools/memory/scheduler → outbound dispatch.</i></p>
+<p class="gagent-note"><i>Execution path: channel input -> agent loop -> tools/memory/scheduler -> outbound dispatch.</i></p>

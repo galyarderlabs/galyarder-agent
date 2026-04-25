@@ -2,11 +2,16 @@
 
 ## What is `g-agent` for?
 
-`g-agent` is a self-hosted personal assistant runtime for execution workflows:
+`g-agent` is a self-hosted runtime for agentic digital characters: persistent
+AI identities that can remember context, live in your channels, use tools, and
+show up visually through selfie or mirror-photo generation.
 
-- chat ops (CLI, Telegram, WhatsApp, Email, Slack)
-- memory and context persistence
-- scheduled reminders/jobs
+Common uses:
+
+- personal operators for inbox, calendar, files, and workflow automation
+- agentic girlfriend or companion characters with long-term memory and consistent style
+- agentic versions of yourself for drafts, review, and workflow automation
+- characters that can live in WhatsApp, Telegram, Discord, Slack, Email, and CLI
 - controlled tool execution under local policies
 
 ## Which channels are supported?
@@ -14,10 +19,11 @@
 - CLI
 - Telegram
 - WhatsApp
+- Discord
 - Email (IMAP/SMTP with consent gate)
 - Slack (Socket Mode)
 
-Discord/Feishu paths may exist in code, but primary supported channels are the five above.
+Feishu/Lark is available as an experimental path.
 
 ## Can I use local model endpoints (OpenAI-compatible proxy)?
 

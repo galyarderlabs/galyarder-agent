@@ -1,7 +1,28 @@
 # Persona & Identity
 
-g-agent supports a persona system that gives the AI agent a consistent identity,
-visual appearance, and voice across conversations.
+g-agent is built for agentic digital characters: persistent AI identities with
+memory, visual appearance, voice, channel presence, and permissioned tool access
+across WhatsApp, Telegram, Discord, Slack, Email, and CLI.
+
+The character can be yourself as an agent, an agentic girlfriend, a personal
+operator, a creative companion, or a fictional persona. The point is continuity:
+the same identity can remember you, speak in a stable voice, send contextual
+selfies or mirror photos, and act inside the workflows you allow.
+
+Use this system only for personas you own, created, or have clear permission to
+represent. For public or shared deployments, make the character identity clear
+and avoid impersonating real people without consent.
+
+## Character Layers
+
+| Layer | What it controls |
+|-------|------------------|
+| Identity | Name, origin, relationship to the user, boundaries |
+| Memory | Durable facts, preferences, projects, relationship context |
+| Presence | WhatsApp, Telegram, Discord, Slack, Email, CLI, and other channel behavior |
+| Visuals | Physical description, LoRA trigger, selfie and mirror-photo style |
+| Voice | TTS voice and spoken-message behavior |
+| Tools | Files, shell, Google Workspace, media, schedules, and workflow packs |
 
 ## Workspace Files
 
@@ -17,8 +38,18 @@ All persona files live in `~/.g-agent/workspace/`:
 | `HEARTBEAT.md` | Proactive action rules (scheduled messages, reminders) |
 | `memory/MEMORY.md` | Long-term facts persisted across sessions |
 
-These files are created automatically by `g-agent onboard` with sensible defaults.
-Edit them to customize the agent's persona.
+These files are created automatically by `g-agent onboard` with sensible
+defaults. Edit them to shape the character.
+
+## Character Patterns
+
+Common builds:
+
+- **Personal operator**: remembers your projects, prepares briefs, manages tasks, and speaks in your preferred cadence.
+- **Companion character**: understands your emotional style, keeps long-term context, sends voice notes or selfies, and stays bounded by your rules.
+- **Agentic yourself**: mirrors your tone, priorities, and working style for drafts, review, inbox triage, and scheduled updates.
+- **Agentic girlfriend**: a relationship-style companion with memory, voice notes, visual identity, and explicit boundaries you define.
+- **Fictional persona**: a designed character with its own face, voice, backstory, and workflow role.
 
 ## SOUL.md Structure
 
@@ -43,6 +74,11 @@ The soul file defines who the agent *is*. Key sections:
 
 When `visual.enabled` is `true` in config, the agent can generate selfie photos
 using the `selfie` tool.
+
+Visual identity can be anchored in two ways:
+
+- **LoRA trigger**: best for a dedicated character with a trained visual style.
+- **Reference description**: use a reference image once, extract physical traits, then generate future images from the description.
 
 **Selfie tool parameters:**
 

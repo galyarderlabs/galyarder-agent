@@ -3,19 +3,48 @@ site_description: Practical, secure, self-hosted personal AI assistant documenta
 site_url: https://galyarderlabs.github.io/galyarder-agent/
 repo_url: https://github.com/galyarderlabs/galyarder-agent
 repo_name: galyarderlabs/galyarder-agent
+edit_uri: edit/main/docs/
 
 theme:
   name: material
-  logo: assets/logo-mark.svg
-  favicon: assets/logo-mark.svg
+  logo: assets/logo.png
+  favicon: assets/logo.png
   features:
+    - announce.dismiss
+    - content.action.edit
     - navigation.sections
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.indexes
+    - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.tracking
     - navigation.top
+    - search.highlight
+    - search.share
+    - search.suggest
+    - toc.follow
+    - content.code.annotate
     - content.code.copy
   palette:
-    - scheme: slate
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Use system preference
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
       primary: black
-      accent: light blue
+      accent: teal
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: teal
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
 
 nav:
   - Home: index.md
@@ -47,8 +76,23 @@ nav:
 
 markdown_extensions:
   - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
   - toc:
       permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+
+plugins:
+  - search:
+      lang: en
 
 extra:
   social:

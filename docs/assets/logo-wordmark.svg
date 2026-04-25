@@ -7,6 +7,7 @@
   </defs>
   <rect width="960" height="220" rx="28" fill="#0b1220"/>
   <rect x="36" y="36" width="148" height="148" rx="24" fill="url(#panel)"/>
-  <text x="110" y="132" text-anchor="middle" font-size="72" font-family="Noto Color Emoji, Apple Color Emoji, Segoe UI Emoji">🗿</text>
+  <path d="M78 74h64c10 0 18 8 18 18v4h-18v-3c0-2.8-2.2-5-5-5H83c-2.8 0-5 2.2-5 5v34c0 2.8 2.2 5 5 5h37v-16h-19v-14h59v45c0 10-8 18-18 18H78c-10 0-18-8-18-18V92c0-10 8-18 18-18Z" fill="#f8fafc"/>
+  <path d="M135 132h9v15h-9v-15Z" fill="#2dd4bf"/>
   <text x="230" y="136" fill="#f8fafc" font-size="92" font-family="Inter, Segoe UI, Arial, sans-serif" font-weight="700">g-agent</text>
 </svg>

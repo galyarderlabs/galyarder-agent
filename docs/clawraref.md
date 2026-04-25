@@ -418,7 +418,7 @@ Content-Type: application/json
 {
   "action": "send",
   "channel": "#general",
-  "message": "just vibing ☕",
+  "message": "just vibing coffee",
   "media": "https://fal.media/files/temporary/abc123.jpeg"
 }
 ```
@@ -474,10 +474,10 @@ Gateway downloads image URL → uploads ke target platform → sends message.
 ```
 ~/.openclaw/openclaw.json
   └── skills.entries.clawra-selfie.env.FAL_KEY = "plain-text-api-key"
-      ⚠️ NOT encrypted
-      ⚠️ No file permission enforcement
-      ⚠️ No secret rotation mechanism
-      ✓ Not logged to stdout
+      Warning: NOT encrypted
+      Warning: No file permission enforcement
+      Warning: No secret rotation mechanism
+      OK Not logged to stdout
 ```
 
 ### Security Posture: LOW
@@ -543,7 +543,7 @@ Ini bukan AI image generation — hanya text overlay pada solid color background
 - **Fallback**: espeak-ng → wav → ffmpeg → ogg/opus
 - Dependency: `pip install edge-tts` (optional, graceful fallback ke espeak)
 
-**Option 1: edge-tts (Recommended — Free, Instant)** ✅ IMPLEMENTED
+**Option 1: edge-tts (Recommended — Free, Instant)** Done IMPLEMENTED
 
 Microsoft Neural TTS via Edge browser API. Zero cost, natural voice quality.
 
@@ -1241,21 +1241,21 @@ I am NOT a disembodied AI. I CAN and DO take selfies and photos of myself.
 
 | File | Purpose | Status |
 |---|---|---|
-| `g_agent/agent/tools/selfie.py` | SelfieTool + provider adapters + vision extraction + LoRA | ✅ Done |
-| `tests/test_selfie_tool.py` | 27 unit tests | ✅ Done |
+| `g_agent/agent/tools/selfie.py` | SelfieTool + provider adapters + vision extraction + LoRA | Done Done |
+| `tests/test_selfie_tool.py` | 27 unit tests | Done Done |
 
 **Files modified:**
 
 | File | Change | Status |
 |---|---|---|
-| `g_agent/config/schema.py` | `ImageGenProviderConfig` (+ LoRA fields), `VisualIdentityConfig`, `visual` on `Config` | ✅ Done |
-| `g_agent/agent/loop.py` | Register `SelfieTool` when `config.visual.enabled` | ✅ Done |
-| `g_agent/agent/context.py` | Universal `_get_identity()` — defers persona to SOUL.md | ✅ Done |
-| `g_agent/cli/commands.py` | Onboarding LoRA prompts, doctor 3-tier identity check, SOUL.md template | ✅ Done |
-| `workspace/SOUL.md` | Visual Identity + HARD RULES anti-denial | ✅ Done |
-| `workspace/TOOLS.md` | Selfie tool docs with identity source section | ✅ Done |
-| `AGENTS.md` | Architecture bullet for LoRA | ✅ Done |
-| `docs/configuration.md` | LoRA config fields, Nebius+LoRA example | ✅ Done |
+| `g_agent/config/schema.py` | `ImageGenProviderConfig` (+ LoRA fields), `VisualIdentityConfig`, `visual` on `Config` | Done Done |
+| `g_agent/agent/loop.py` | Register `SelfieTool` when `config.visual.enabled` | Done Done |
+| `g_agent/agent/context.py` | Universal `_get_identity()` — defers persona to SOUL.md | Done Done |
+| `g_agent/cli/commands.py` | Onboarding LoRA prompts, doctor 3-tier identity check, SOUL.md template | Done Done |
+| `workspace/SOUL.md` | Visual Identity + HARD RULES anti-denial | Done Done |
+| `workspace/TOOLS.md` | Selfie tool docs with identity source section | Done Done |
+| `AGENTS.md` | Architecture bullet for LoRA | Done Done |
+| `docs/configuration.md` | LoRA config fields, Nebius+LoRA example | Done Done |
 
 ### 9.5 Test Plan (27 tests)
 
@@ -1324,7 +1324,7 @@ I am NOT a disembodied AI. I CAN and DO take selfies and photos of myself.
 ```
 Level 1: physicalDescription manual → text prompt consistency (~70%)
 Level 2: referenceImage + vision extraction → auto-extracted description (~80%)
-Level 3: LoRA trigger + safetensor weights → fine-tuned identity (~90-95%) ✅ IMPLEMENTED
+Level 3: LoRA trigger + safetensor weights → fine-tuned identity (~90-95%) Done IMPLEMENTED
 ```
 
 LoRA adalah upgrade path utama yang sudah diimplementasi. Config fields: `loraUrl`, `loraTrigger`, `loraScale` di `imageGen`. Ketika `loraTrigger` di-set, vision extraction di-skip sepenuhnya — trigger word menjadi identity anchor.
@@ -1339,14 +1339,14 @@ Status implementasi aktual per Februari 2026 — apa yang sudah dibangun vs blue
 
 | Component | Blueprint (Section 9) | Actual Implementation | Status |
 |---|---|---|---|
-| `SelfieTool` class | `selfie.py` — HF, Nebius, CF providers | + LoRA injection, URL fallback, dual response parsing | ✅ Done |
-| `extract_physical_description()` | Vision LLM extraction | + MD5 hash cache invalidation | ✅ Done |
-| Config schema | `ImageGenProviderConfig` + `VisualIdentityConfig` | + `lora_url`, `lora_scale`, `lora_trigger`, `reference_image_hash` | ✅ Done |
-| Mode detection | First-match keyword | **Scoring-based** (sum keywords, highest score wins) | ✅ Improved |
-| Prompt templates | Configurable `{description}, {context}` | Unchanged from blueprint | ✅ Done |
-| Image save | `workspace/state/selfies/` | Unchanged from blueprint | ✅ Done |
-| Delivery | `OutboundMessage` + `send_callback` | + selfie_mode metadata, anti-denial return message | ✅ Done |
-| Provider routing | 4 providers (HF, Nebius, CF, OpenAI-compat) | Unchanged from blueprint | ✅ Done |
+| `SelfieTool` class | `selfie.py` — HF, Nebius, CF providers | + LoRA injection, URL fallback, dual response parsing | Done Done |
+| `extract_physical_description()` | Vision LLM extraction | + MD5 hash cache invalidation | Done Done |
+| Config schema | `ImageGenProviderConfig` + `VisualIdentityConfig` | + `lora_url`, `lora_scale`, `lora_trigger`, `reference_image_hash` | Done Done |
+| Mode detection | First-match keyword | **Scoring-based** (sum keywords, highest score wins) | Done Improved |
+| Prompt templates | Configurable `{description}, {context}` | Unchanged from blueprint | Done Done |
+| Image save | `workspace/state/selfies/` | Unchanged from blueprint | Done Done |
+| Delivery | `OutboundMessage` + `send_callback` | + selfie_mode metadata, anti-denial return message | Done Done |
+| Provider routing | 4 providers (HF, Nebius, CF, OpenAI-compat) | Unchanged from blueprint | Done Done |
 
 ### 11.2 LoRA Support (Beyond Blueprint)
 
