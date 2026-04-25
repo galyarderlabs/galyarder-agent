@@ -60,26 +60,12 @@
 
 /* --- THE NUCLEAR FULLSCREEN RESET (HOME PAGE) --- */
 
-body.is-home {
-  overflow-x: hidden;
-}
-
+/* Reset containers for Home */
 body.is-home .md-container {
   padding-top: 0 !important;
   margin-top: 0 !important;
 }
 
-body.is-home .md-main {
-  margin-top: 0 !important;
-}
-
-body.is-home .md-main__inner {
-  margin: 0 !important;
-  max-width: 100% !important;
-  padding: 0 !important;
-}
-
-/* Header placement on Home */
 body.is-home .md-header {
   position: absolute;
   top: 1.5rem;
@@ -88,17 +74,15 @@ body.is-home .md-header {
   z-index: 100;
 }
 
-/* THE PAPERCLIP BREAKOUT */
+/* PAPERCLIP HERO: Fixed from top 0 */
 body.is-home .md-hero {
   position: relative;
   width: 100vw;
   margin-left: calc(50% - 50vw);
-  left: 0;
-  padding: 0 !important;
   margin-top: 0 !important;
+  padding: 0 !important;
   display: flex;
   flex-direction: column;
-  z-index: 1;
 }
 
 .md-hero__image-container {
@@ -106,7 +90,7 @@ body.is-home .md-hero {
   height: 60vh;
   overflow: hidden;
   position: relative;
-  margin: 0 !important;
+  background-color: #000; /* Fallback */
 }
 
 .md-hero__image-container img {
