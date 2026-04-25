@@ -4,6 +4,29 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [0.1.13] - 2026-04-25
+
+### Added
+- New agentic digital identity narrative across README and MkDocs.
+- New Linux installer/uninstaller surface at `deploy/linux/` with package-manager auto-detection.
+- Release notes for the identity, documentation, and core cleanup pass.
+
+### Changed
+- Simplified public install surface to Linux, macOS, and Windows.
+- Refreshed roadmap around character depth, owner-reviewed learning, visual identity, routines, and execution backends.
+- Shortened README into a product front door and moved setup depth into MkDocs.
+- Updated runtime package metadata from assistant/chatbot framing to agentic character and digital identity framing.
+- Replaced stale Clawra reference content with a short archive pointer to current source-of-truth docs.
+
+### Removed
+- Removed Feishu/Lark from core runtime config, channel manager, security audit, tests, dependency metadata, and lockfile.
+- Removed split Arch/Debian deploy scripts in favor of one Linux installer.
+- Removed stale runtime roadmap page that no longer matched the product direction.
+
+### Fixed
+- Corrected channel docs for Email subject prefix, Slack DM disable policy, Discord setup, and WhatsApp login wording.
+- Corrected service install docs that pointed to a nonexistent systemd template path.
+
 ## [0.1.10] - 2026-02-13
 
 ### Added

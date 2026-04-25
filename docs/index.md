@@ -2,13 +2,12 @@
   <img src="assets/header.webp" alt="Galyarder Agent interface preview">
   <div class="gagent-cover-copy">
     <p class="gagent-kicker">Galyarder Agent Docs</p>
-    <h1>Agentic digital characters for every channel you live in.</h1>
+    <h1>Agentic digital identity for what should not disappear.</h1>
     <p>
-      Build yourself as an agent, an agentic girlfriend, a companion, an
-      operator, or a fictional persona that lives in WhatsApp, Telegram,
-      Discord, Slack, Email, and CLI; remembers context; sends selfies or
-      mirror photos; accesses Google Workspace; and automates real workflow
-      through permissioned tools.
+      Build yourself, someone you love, a companion, an operator, or an
+      imagined person as an agentic character with memory, values, visual
+      presence, tools, and continuity across WhatsApp, Telegram, Discord,
+      Email, and CLI.
     </p>
     <div class="gagent-actions">
       <a href="getting-started/">Get started</a>
@@ -23,11 +22,11 @@
 <div class="gagent-grid">
   <a class="gagent-card" href="channels/">
     <strong>Presence</strong>
-    <span>Put the same character in WhatsApp, Telegram, Discord, Slack, Email, CLI, and experimental chat paths.</span>
+    <span>Give the same digital identity a home in WhatsApp, Telegram, Discord, Email, CLI, and future channel plugins.</span>
   </a>
   <a class="gagent-card" href="configuration/#provider-registry">
-    <strong>Brains</strong>
-    <span>Route any character through LiteLLM, local proxies, OpenRouter-style endpoints, or direct provider keys.</span>
+    <strong>Continuity</strong>
+    <span>Carry memory, values, preferences, relationships, and projects across sessions instead of starting over.</span>
   </a>
   <a class="gagent-card" href="configuration/#visual-identity--selfies">
     <strong>Visual Identity</strong>
@@ -52,11 +51,10 @@
 
 - Backend runtime: `backend/agent`
 - Docs source: `docs/`
-- Roadmap: `docs/roadmap/runtime-roadmap.md`
 - Release notes: `docs/release-notes/`
 
 ## Architecture
 
 ![g-agent architecture](assets/architecture.webp)
 
-<p class="gagent-note"><i>Execution path: channel input -> agent loop -> tools/memory/scheduler -> outbound dispatch.</i></p>
+<p class="gagent-note"><i>Execution path: channel input -> identity and memory context -> agent loop -> tools/scheduler -> response and learning loop.</i></p>

@@ -20,6 +20,29 @@ For incident handling patterns, see [Troubleshooting](troubleshooting.md).
 journalctl --user -u g-agent-gateway.service -u g-agent-wa-bridge.service -f
 ```
 
+## Service mode
+
+For an always-on local character, run the gateway and WhatsApp bridge as user
+services.
+
+```bash
+systemctl --user enable --now g-agent-wa-bridge.service
+systemctl --user enable --now g-agent-gateway.service
+```
+
+Check service health:
+
+```bash
+systemctl --user status g-agent-wa-bridge.service
+systemctl --user status g-agent-gateway.service
+```
+
+Optional lingering keeps user services alive after logout:
+
+```bash
+sudo loginctl enable-linger "$USER"
+```
+
 ## Proactive jobs
 
 - Enable reminders/jobs via runtime config
@@ -44,3 +67,40 @@ Back up:
 - `~/.g-agent/config.json`
 - `~/.g-agent/workspace/`
 - Google Workspace `gws` auth state, usually `~/.config/gws/`
+
+Example:
+
+```bash
+mkdir -p ~/.g-agent-backups
+tar -czf ~/.g-agent-backups/g-agent-$(date +%F).tar.gz \
+  ~/.g-agent/config.json \
+  ~/.g-agent/workspace \
+  ~/.g-agent/cron \
+  ~/.config/gws
+```
+
+## Profile isolation
+
+Use separate data directories for personal characters, guest characters, or
+test runtimes.
+
+```bash
+mkdir -p ~/.g-agent-guest
+G_AGENT_DATA_DIR=~/.g-agent-guest g-agent onboard
+G_AGENT_DATA_DIR=~/.g-agent-guest g-agent status
+```
+
+Each profile has isolated config, memory, sessions, cron jobs, bridge data, and
+OAuth/session artifacts.
+
+## Rotate channel keys
+
+Edit `~/.g-agent/config.json`, then restart services.
+
+```bash
+NEW_TG_TOKEN='YOUR_NEW_TOKEN'
+tmp=$(mktemp)
+jq --arg v "$NEW_TG_TOKEN" '.channels.telegram.token = $v' ~/.g-agent/config.json > "$tmp"
+mv "$tmp" ~/.g-agent/config.json
+systemctl --user restart g-agent-gateway.service
+```

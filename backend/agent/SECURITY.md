@@ -1,6 +1,6 @@
 # Security Policy — Galyarder Agent (`g-agent`)
 
-This document defines the practical security model for running `g-agent` as a personal assistant, plus the minimum controls required before shared access.
+This document defines the practical security model for running `g-agent` as an agentic digital character runtime, plus the minimum controls required before shared access.
 
 ---
 
@@ -11,7 +11,7 @@ This document defines the practical security model for running `g-agent` as a pe
 - explicit access control (`allowFrom`)
 - explicit tool boundaries (`restrictToWorkspace`, tool policy)
 - explicit operator approvals (`approvalMode`)
-- explicit profile separation (personal vs guest data dirs)
+- explicit profile separation (personal vs guest character data dirs)
 
 This keeps the runtime understandable and controllable, while staying lightweight.
 
@@ -24,7 +24,7 @@ Primary risks:
 1. unauthorized message sender reaches your channels
 2. sensitive token/key leakage from config or logs
 3. over-permissive tool execution (filesystem/shell/network)
-4. shared profile leaks personal memory/context to guest users
+4. shared profile leaks personal character memory/context to guest users
 5. compromised integration tokens (Telegram, WhatsApp, Google, Brave, etc.)
 
 `g-agent` mitigates these with allowlists, workspace restriction, per-tool policy, and operator confirmation.  
@@ -56,7 +56,7 @@ Before exposing Telegram/WhatsApp:
 - set `tools.approvalMode = "confirm"` (or stricter)
 - ensure non-empty `channels.*.allowFrom` for every enabled channel
 - run as normal user (never root)
-- separate personal and guest profiles (`G_AGENT_DATA_DIR`)
+- separate personal and guest character profiles (`G_AGENT_DATA_DIR`)
 
 Baseline example:
 
@@ -101,7 +101,7 @@ Rules:
 
 - never commit secrets to git
 - rotate immediately after accidental exposure
-- use separate credentials for personal and guest profiles
+- use separate credentials for personal and guest character profiles
 - keep OAuth tokens scoped to minimum required permissions
 
 ---
@@ -113,7 +113,7 @@ Rules:
 - empty allowlist means open channel access
 - Telegram values should be numeric user IDs
 - WhatsApp values should be normalized numbers (E.164 recommended)
-- guest mode should use separate bot identity (Telegram token + WA account)
+- guest characters should use separate bot identity (Telegram token + WA account)
 
 Validate sender IDs from logs before allowing new users.
 
@@ -134,7 +134,7 @@ Recommended posture:
 
 - keep write/exec/send-like tools on `ask` in mixed-access setups
 - deny tools you do not need
-- prefer separate profile + stricter policy for guest assistants
+- prefer separate profile + stricter policy for guest characters
 
 Policy shortcuts:
 
@@ -172,7 +172,7 @@ Do not share one profile between personal and public/guest traffic.
 
 If Google integration is enabled:
 
-- use dedicated OAuth client for this assistant
+- use a dedicated OAuth client for this character runtime
 - keep refresh token private
 - keep guest profile Google integration disabled by default
 - revoke tokens immediately from Google Account Security on suspicion

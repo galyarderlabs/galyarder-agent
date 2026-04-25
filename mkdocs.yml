@@ -1,5 +1,5 @@
 site_name: Galyarder Agent
-site_description: Practical, secure, self-hosted personal AI assistant documentation.
+site_description: Self-hosted agentic digital identity and character runtime documentation.
 site_url: https://galyarderlabs.github.io/galyarder-agent/
 repo_url: https://github.com/galyarderlabs/galyarder-agent
 repo_name: galyarderlabs/galyarder-agent
@@ -63,6 +63,7 @@ nav:
   - Contributing: contributing.md
   - CLI Error Style: cli-error-style.md
   - Release Notes:
+      - v0.1.13: release-notes/v0.1.13.md
       - v0.1.12: release-notes/v0.1.12.md
       - v0.1.11: release-notes/v0.1.11.md
       - v0.1.10: release-notes/v0.1.10.md
@@ -71,8 +72,6 @@ nav:
       - v0.1.7: release-notes/v0.1.7.md
       - v0.1.6: release-notes/v0.1.6.md
       - v0.1.5: release-notes/v0.1.5.md
-  - Roadmap:
-      - Runtime Roadmap: roadmap/runtime-roadmap.md
 
 markdown_extensions:
   - admonition

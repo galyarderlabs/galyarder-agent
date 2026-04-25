@@ -36,7 +36,6 @@ def _build_config(
             telegram=channel(telegram_enabled, telegram_allow),
             whatsapp=channel(whatsapp_enabled, whatsapp_allow),
             discord=channel(False, []),
-            feishu=channel(False, []),
         ),
     )
 

@@ -42,7 +42,7 @@ Information about the user to help personalize interactions.
 
 ## Special Instructions
 
-(Any specific instructions for how the assistant should behave)
+(Any specific instructions for how the character should behave)
 
 ---
 

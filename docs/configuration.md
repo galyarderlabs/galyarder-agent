@@ -9,7 +9,7 @@ Primary config path:
 ## Core sections
 
 - `agents.defaults`: model, temperature, tool iterations, workspace path, routing policy
-- `channels`: Telegram, WhatsApp, Email, Slack channel toggles and allowlists
+- `channels`: Telegram, WhatsApp, Discord, Email, Slack channel toggles and allowlists
 - `providers`: API base, key, and extra headers for model routing
 - `tools`: shell timeout, workspace restriction, trusted path roots, web search settings
 - `visual`: selfie generation — image provider, physical description, prompt templates
@@ -162,6 +162,7 @@ Gateways (OpenRouter, AiHubMix) are auto-detected by:
 See [Channels](channels.md) for full setup guides for:
 
 - **Email**: IMAP/SMTP with consent-gated access and sender allowlists
+- **Discord**: Bot token with guild/channel/user allowlists
 - **Slack**: Socket Mode with group policies and DM controls
 - **Telegram**: Bot token with numeric user ID allowlists
 - **WhatsApp**: QR-paired bridge with sender ID allowlists and optional `bridgeToken` auth

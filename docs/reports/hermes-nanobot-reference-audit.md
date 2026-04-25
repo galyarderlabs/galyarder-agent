@@ -40,7 +40,7 @@ Current G-Agent already has useful foundations:
 | Skills | `backend/agent/g_agent/agent/skills.py` | Built-in and workspace `SKILL.md` loader with metadata and requirements. | Needs create/patch/validate/activate lifecycle and procedural learning loop. |
 | Sessions | `backend/agent/g_agent/session/manager.py` | JSONL sessions with metadata, cache, archive/delete/list. | Needs SQLite, FTS5 search, concurrent gateway safety, source filtering, and cost/tool metadata. |
 | Commands | `backend/agent/g_agent/channels/slash_commands.py` | Native slash commands for status, context, memory, model, cron, tools, search. | Needs approvals, logs, session search, skills, learning review, and cross-channel consistency. |
-| Channels | `backend/agent/g_agent/channels/` | WhatsApp, Telegram, Discord, Slack, email, Feishu, manager. | Needs media reliability, session mapping, errors, reconnect behavior, and tests. |
+| Channels | `backend/agent/g_agent/channels/` | WhatsApp, Telegram, Discord, Slack, email, manager. | Needs media reliability, session mapping, errors, reconnect behavior, and tests. |
 | Cron/proactive | `backend/agent/g_agent/cron/`, `backend/agent/g_agent/proactive/` | Existing scheduling/proactive surface. | Needs routine model tied to character, approvals, destination channels, and script preprocessing. |
 
 ## Audit Matrix
@@ -85,7 +85,7 @@ Current G-Agent already has useful foundations:
 | Supporting files in skills | Hermes | `hermes-agent-ref/tools/skill_manager_tool.py` | Adopt | Useful for templates, scripts, assets, and references. | Allow `references/`, `templates/`, `scripts/`, `assets/`; block traversal. |
 | Skill command invocation | Hermes | `hermes-agent-ref/agent/skill_commands.py`, `hermes-agent-ref/agent/skill_preprocessing.py` | Later | Good UX, but lifecycle should land first. | Add `/skills`, `/skill <name>`, and optional template substitution after review system exists. |
 | Skill hub/public marketplace | Hermes/Nanobot | `hermes-agent-ref/hermes_cli/skills_hub.py`, `nanobot-ref/nanobot/skills/` | Later | Useful eventually, risky before local skills mature. | Keep local/private skill development first. |
-| China/community skill packs | Nanobot | `nanobot-ref/nanobot/skills/` | Drop from core | Some examples are fine, but not product-defining. | Do not import wholesale. |
+| Community skill packs | Nanobot | `nanobot-ref/nanobot/skills/` | Drop from core | Some examples are fine, but not product-defining. | Do not import wholesale. |
 
 ### Commands, Approvals, And Owner Control
 
@@ -115,7 +115,7 @@ Current G-Agent already has useful foundations:
 | Telegram channel hardening | Nanobot + Hermes | `nanobot-ref/nanobot/channels/telegram.py`, `hermes-agent-ref/gateway/platforms/telegram.py` | Adopt | Primary channel. | Improve media, Markdown safety, group/DM policy, topic/thread mapping if useful, rate handling. |
 | Discord channel hardening | Nanobot + Hermes | `nanobot-ref/nanobot/channels/discord.py`, `hermes-agent-ref/gateway/platforms/discord.py` | Adopt | Primary channel. | Improve attachments, DM/mention policy, persistent session mapping, reconnect. |
 | Gateway platform abstraction | Hermes | `hermes-agent-ref/gateway/platforms/base.py`, `hermes-agent-ref/gateway/run.py`, `hermes-agent-ref/gateway/session.py` | Adapt | Useful if G-Agent channel manager gets too coupled. | Borrow patterns selectively; avoid full gateway rewrite too early. |
-| China-first channels | Nanobot + Hermes | `nanobot-ref/nanobot/channels/feishu.py`, `nanobot-ref/nanobot/channels/qq.py`, `nanobot-ref/nanobot/channels/weixin.py`, `hermes-agent-ref/gateway/platforms/dingtalk.py`, `hermes-agent-ref/gateway/platforms/wecom.py` | Drop from core | Not aligned with user's current use case. | Keep out of core. Maybe plugin examples later. |
+| Regional enterprise chat adapters | Nanobot + Hermes | Regional chat adapter implementations in both reference repos | Drop from core | Not aligned with G-Agent's current use case. | Keep out of core. Maybe plugin examples later. |
 | Slack/Matrix/Microsoft Teams | Nanobot + Hermes | `nanobot-ref/nanobot/channels/slack.py`, `nanobot-ref/nanobot/channels/matrix.py`, `nanobot-ref/nanobot/channels/msteams.py`, `hermes-agent-ref/gateway/platforms/slack.py`, `hermes-agent-ref/gateway/platforms/matrix.py` | Later | Useful for broader users, not first focus. | Plugin or later optional channel pack. |
 
 ### MCP, Tools, And Toolsets
@@ -170,7 +170,7 @@ Current G-Agent already has useful foundations:
 | --- | --- | --- | --- | --- | --- |
 | Organized test matrix | Nanobot | `nanobot-ref/tests/agent/`, `nanobot-ref/tests/channels/`, `nanobot-ref/tests/tools/`, `nanobot-ref/tests/providers/` | Adopt | G-Agent needs confidence before learning loop changes memory/skills. | Gradually organize tests by domain. No huge test move without code changes. |
 | MkDocs user docs | Current G-Agent + Nanobot docs | `docs/`, `nanobot-ref/docs/` | Adapt | G-Agent docs should explain product surfaces, not upstream internals. | Add docs for allowed paths, image proxy, commands, memory, skills, routines, Web UI/API as they land. |
-| Install matrix | Current G-Agent | `docs/install-matrix.md`, `deploy/` | Keep | Important for public trust. | Update after runtime stabilizes. |
+| Install matrix | Current G-Agent | `docs/install-matrix.md`, `deploy/` | Keep | Important for public trust. | Keep the public surface simple: Linux, macOS, Windows. |
 | Third-party notices | Nanobot | `nanobot-ref/THIRD_PARTY_NOTICES.md` | Later | Only needed when borrowing assets/code/deps. | If code is copied, add notices. Prefer reimplementation from concepts. |
 
 ## Recommended Implementation Order
@@ -229,7 +229,7 @@ Why fifth: routines are powerful only after approvals, memory, sessions, and too
 
 These should not be part of the G-Agent core roadmap now:
 
-- Feishu, DingTalk, QQ, WeCom, Weixin, Mochat.
+- Regional enterprise chat adapters that are not part of the core product surface.
 - Hermes RL environments and batch trajectory generation.
 - Every Hermes memory provider.
 - Public skill hub before local skill lifecycle is stable.

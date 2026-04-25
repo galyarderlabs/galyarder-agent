@@ -40,15 +40,10 @@ g-agent status
 
 If you prefer bootstrap scripts instead of manual setup, use `deploy/*`:
 
-### Arch Linux
+### Linux
 
-- Install: `bash deploy/arch/install.sh`
-- Uninstall: `bash deploy/arch/uninstall.sh`
-
-### Debian/Ubuntu
-
-- Install: `bash deploy/debian/install.sh`
-- Uninstall: `bash deploy/debian/uninstall.sh`
+- Install: `bash deploy/linux/install.sh`
+- Uninstall: `bash deploy/linux/uninstall.sh`
 
 ### macOS
 
@@ -61,6 +56,48 @@ If you prefer bootstrap scripts instead of manual setup, use `deploy/*`:
 - Uninstall: `powershell -ExecutionPolicy Bypass -File deploy/windows/uninstall.ps1`
 
 **Note:** `g-agent onboard` is safe to re-run after upgrades — it merges new config defaults without overwriting your existing settings.
+
+## Installer flags
+
+Use these environment variables when you need a narrower install.
+
+Common:
+
+| Variable | Purpose |
+| --- | --- |
+| `G_AGENT_INSTALL_DIR=/path/to/repo` | Override install checkout path. |
+| `G_AGENT_DATA_DIR=/path/to/data` | Override runtime data directory. |
+
+Linux:
+
+| Variable | Purpose |
+| --- | --- |
+| `G_AGENT_SKIP_SERVICES=1` | Do not install systemd user services. |
+| `G_AGENT_AUTO_START_SERVICES=0` | Install service files but do not start them. |
+| `G_AGENT_SKIP_PACKAGES=1` | Skip package-manager dependency install. |
+
+macOS:
+
+| Variable | Purpose |
+| --- | --- |
+| `G_AGENT_SKIP_BREW=1` | Skip Homebrew dependency install. |
+| `G_AGENT_SETUP_LAUNCHD=1` | Install LaunchAgent service files. |
+| `G_AGENT_AUTO_START_SERVICES=0` | Install service files but do not start them. |
+
+Windows:
+
+| Variable | Purpose |
+| --- | --- |
+| `G_AGENT_SKIP_WINGET=1` | Skip winget dependency install. |
+| `G_AGENT_SETUP_TASKS=1` | Install scheduled task helpers. |
+
+## Uninstall flags
+
+| Variable | Purpose |
+| --- | --- |
+| `G_AGENT_REMOVE_SERVICES=0` | Keep startup services/tasks. |
+| `G_AGENT_REMOVE_REPO=1` | Remove the repo directory. |
+| `G_AGENT_WIPE_DATA=1` | Remove full `~/.g-agent` runtime data. |
 
 ## Post-install checklist
 

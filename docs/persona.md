@@ -1,13 +1,19 @@
 # Persona & Identity
 
-g-agent is built for agentic digital characters: persistent AI identities with
-memory, visual appearance, voice, channel presence, and permissioned tool access
-across WhatsApp, Telegram, Discord, Slack, Email, and CLI.
+g-agent is built for agentic digital identity: a way to preserve and operate
+the character layer of a person, companion, operator, fictional persona, or
+future self.
 
-The character can be yourself as an agent, an agentic girlfriend, a personal
-operator, a creative companion, or a fictional persona. The point is continuity:
-the same identity can remember you, speak in a stable voice, send contextual
-selfies or mirror photos, and act inside the workflows you allow.
+Humans are temporary. Bodies age, time disappears, and people eventually leave.
+But memory, values, taste, love, mission, voice, rituals, and the way someone
+sees the world can continue when they are remembered and given a living digital
+form.
+
+The character can be yourself as an agent, someone you love, an agentic
+girlfriend, a personal operator, a creative companion, an idol, a fictional
+persona, or the best version of the person you are trying to become. The point
+is continuity: the same identity can remember you, speak in a stable voice, send
+contextual selfies or mirror photos, and act inside the workflows you allow.
 
 Use this system only for personas you own, created, or have clear permission to
 represent. For public or shared deployments, make the character identity clear
@@ -17,9 +23,9 @@ and avoid impersonating real people without consent.
 
 | Layer | What it controls |
 |-------|------------------|
-| Identity | Name, origin, relationship to the user, boundaries |
-| Memory | Durable facts, preferences, projects, relationship context |
-| Presence | WhatsApp, Telegram, Discord, Slack, Email, CLI, and other channel behavior |
+| Identity | Name, origin, values, mission, relationship to the user, boundaries |
+| Memory | Durable facts, preferences, projects, relationship context, lived history |
+| Presence | WhatsApp, Telegram, Discord, Email, CLI, and other approved channel behavior |
 | Visuals | Physical description, LoRA trigger, selfie and mirror-photo style |
 | Voice | TTS voice and spoken-message behavior |
 | Tools | Files, shell, Google Workspace, media, schedules, and workflow packs |
@@ -45,9 +51,10 @@ defaults. Edit them to shape the character.
 
 Common builds:
 
+- **Agentic yourself**: preserves your tone, priorities, values, work style, memory, and decision patterns.
+- **Digital legacy**: turns a life, mission, relationship, or worldview into an identity that can keep speaking and acting.
 - **Personal operator**: remembers your projects, prepares briefs, manages tasks, and speaks in your preferred cadence.
 - **Companion character**: understands your emotional style, keeps long-term context, sends voice notes or selfies, and stays bounded by your rules.
-- **Agentic yourself**: mirrors your tone, priorities, and working style for drafts, review, inbox triage, and scheduled updates.
 - **Agentic girlfriend**: a relationship-style companion with memory, voice notes, visual identity, and explicit boundaries you define.
 - **Fictional persona**: a designed character with its own face, voice, backstory, and workflow role.
 

@@ -1,13 +1,13 @@
 [project]
 name = "galyarder-agent"
-version = "0.1.12"
-description = "Sovereignty-first AI assistant runtime for real daily workflows."
+version = "0.1.13"
+description = "Local-first runtime for agentic digital identity and character workflows."
 requires-python = ">=3.11"
 license = {text = "MIT"}
 authors = [
     {name = "Galyarder contributors"}
 ]
-keywords = ["ai", "agent", "chatbot"]
+keywords = ["ai", "agent", "digital-identity", "agentic-character"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -29,7 +29,6 @@ dependencies = [
     "rich>=13.0.0",
     "croniter>=2.0.0",
     "python-telegram-bot>=21.0",
-    "lark-oapi>=1.0.0",
     "prompt_toolkit>=3.0.0",
     "edge-tts>=6.1.0",
 ]

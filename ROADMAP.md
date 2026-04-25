@@ -11,7 +11,7 @@ Neither reference should be merged wholesale. G-Agent's advantage should be a ch
 
 ## North Star
 
-G-Agent is not a generic assistant gateway. It is a framework for building agentic characters that can:
+G-Agent is not a generic automation gateway. It is a framework for building agentic characters that can:
 
 - live across WhatsApp, Telegram, Discord, local Web UI, and API clients
 - keep a durable identity, voice, visual profile, boundaries, and relationship model
@@ -22,7 +22,7 @@ G-Agent is not a generic assistant gateway. It is a framework for building agent
 - run scheduled or triggered workflows without needing the owner to babysit every turn
 - expose enough logs, approvals, and controls that the owner can trust it daily
 
-The important product bet is character depth. If the goal were only "personal assistant with many channels", Nanobot or Hermes would be enough. G-Agent should own the layer where the assistant becomes a persistent digital character that grows with the user.
+The important product bet is character depth. If the goal were only "many channels plus tools", Nanobot or Hermes would be enough. G-Agent should own the layer where a digital identity becomes a persistent character that grows with the user.
 
 ## Reference Audit
 
@@ -85,11 +85,11 @@ Use Hermes as an implementation reference for "how does the character accumulate
 
 Do not turn G-Agent into a generic everything agent.
 
-- Do not bring China-first channels into core: Feishu, DingTalk, QQ, WeCom, Weixin, Mochat.
+- Do not bring unsupported external chat adapters into core.
 - Do not bring Hermes research/RL/batch trajectory machinery into core.
 - Do not bring every Hermes memory plugin into core.
 - Do not bring every execution backend into the first public runtime.
-- Do not make the Web UI a generic chat clone; it should control character, memory, channels, tools, approvals, and routines.
+- Do not make the Web UI a plain message box; it should control character, memory, channels, tools, approvals, and routines.
 - Do not allow self-modifying code, skills, or profile changes without owner review and rollback.
 - Do not hide unsafe shell/tool behavior behind natural language.
 - Do not copy upstream docs verbatim; rewrite ideas into G-Agent's product language.
@@ -138,7 +138,7 @@ Goal: make the current owner setup boring and debuggable.
 
 - Keep workspace restriction enabled by default.
 - Keep `tools.allowedPaths` as the official way to trust owner media/project folders.
-- Finish proxy image-generation cleanup: remove dead Nebius assumptions, keep OpenAI-compatible image providers simple, and document `gpt-image-2` proxy configuration.
+- Keep OpenAI-compatible image providers simple, document `gpt-image-2` proxy configuration, and add focused tests for proxy response formats.
 - Fix Google Workspace discovery so services can find `gws` and `gcloud` from the service environment.
 - Add easy log inspection from CLI and chat: recent gateway logs, channel logs, failed tool calls, and provider errors.
 - Add owner-local troubleshooting docs for PATH, systemd user services, sandbox behavior, and trusted media folders.
@@ -490,11 +490,9 @@ Goal: make the project installable, inspectable, and safe enough for users outsi
   - token/cost estimates
   - failed tool/provider calls
 - Clean install matrix:
-  - Arch
-  - Debian/Ubuntu
+  - Linux
   - macOS
   - Windows/WSL
-  - Docker
 - Separate owner profile vs guest/default profile.
 - Add release checklist for backend, bridge, Web UI, docs, service files, and config migration.
 - Add security docs for:
@@ -516,7 +514,7 @@ The highest-leverage implementation order:
 2. Add `session_search` and `/search` so the agent can recall prior work.
 3. Normalize slash commands and implement `/status`, `/logs`, `/new`, `/sessions`, `/approve`, and `/deny`.
 4. Add dangerous action approval state per session.
-5. Fix current visual/image-provider docs and remove dead Nebius assumptions.
+5. Finish current visual/image-provider docs for OpenAI-compatible `gpt-image-2` proxy usage.
 6. Harden WhatsApp media, sandbox path errors, and local file delivery.
 7. Add minimal built-in memory provider with context fencing.
 8. Add learning queue schema but keep all changes owner-reviewed.

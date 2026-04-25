@@ -2,7 +2,7 @@
   <img src="docs/assets/header.webp" alt="Galyarder Agent header" width="900">
 
   ---
-  <p><b>Build agentic digital characters that live where you already talk: WhatsApp, Telegram, Discord, Slack, Email, and CLI. Give them memory, a face, tools, Google Workspace access, workflow automation, and the ability to send selfies or mirror photos.</b></p>
+  <p><b>Build agentic digital characters from a life, a mission, a relationship, or an imagined person. Preserve what matters, give it memory and presence, and let it live across WhatsApp, Telegram, Discord, Email, and CLI.</b></p>
   <p>
     <img src="https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white" alt="Python 3.11+">
     <img src="https://img.shields.io/badge/CLI-g--agent-6f42c1" alt="g-agent CLI">
@@ -10,7 +10,7 @@
     <img src="https://img.shields.io/badge/License-MIT-22c55e" alt="MIT">
   </p>
   <p>
-    <img src="https://img.shields.io/badge/Channels-WhatsApp%20%7C%20Telegram%20%7C%20Discord%20%7C%20Slack%20%7C%20Email-10b981" alt="Channels">
+    <img src="https://img.shields.io/badge/Channels-WhatsApp%20%7C%20Telegram%20%7C%20Discord%20%7C%20Email-10b981" alt="Channels">
     <img src="https://img.shields.io/badge/Model%20Routing-LiteLLM%20%2B%20OpenAI%20Compatible-0ea5e9" alt="Model Routing">
     <img src="https://img.shields.io/badge/Ops-systemd%20--user-f59e0b" alt="systemd user">
     <img src="https://img.shields.io/badge/Safety-restrictToWorkspace%20%2B%20tool%20policy-ef4444" alt="Safety">
@@ -21,285 +21,103 @@
 
 ## What Is g-agent?
 
-`g-agent` is an open-source runtime for agentic digital characters: persistent
-AI identities that live in your channels, remember context, use tools, and can
-show up visually through selfie and mirror-photo generation.
+`g-agent` is an open-source runtime for agentic digital identity.
 
-You can use it to build yourself as an agent, an agentic girlfriend, a personal
-operator, a creative companion, or a fictional persona. The same character can
-talk through WhatsApp, Telegram, Discord, Slack, Email, or CLI; read the
-workspace you allow; work with Gmail/Calendar through `gws`; and automate
-repeatable workflows without losing local control.
+It lets you build agentic digital characters that carry memory, personality,
+values, voice, visual identity, tools, and a relationship model. The character
+can be yourself, someone you love, a companion, an operator, an idol, a fictional
+persona, or the best version of the person you are trying to become.
+
+The same character can talk through WhatsApp, Telegram, Discord, Email,
+or CLI; read the workspace you allow; work with Gmail/Calendar through `gws`;
+generate selfies or mirror photos; and automate repeatable workflows without
+giving up local control.
 
 ---
 
 ## Why This Project Exists
 
-Most AI assistant projects are still framed as generic chat boxes or invisible
-automation daemons. That misses the interesting part: people want characters
-with continuity, personality, presence, and permissioned access to their real
-systems.
+Most AI products are still framed as disposable text boxes, productivity
+wrappers, or invisible automation daemons.
 
-`g-agent` is built around that character layer.
+That is too small.
 
-It keeps the useful runtime pieces (agent loop, tools, memory, scheduling,
-integrations, model routing) but makes them serve a durable identity: a digital
-character that can know you, act for you, and present itself consistently.
+Humans are not permanent. The body ages. Time runs down. People disappear. But
+character, values, memory, love, unfinished missions, taste, rituals, dreams,
+and the way someone sees the world can keep moving if they are remembered and
+given a living form.
 
-If your assistant can act but you cannot explain what it can access, who can talk to it, and where it runs, it is not really your assistant.
+`g-agent` exists to make that form programmable.
+
+The goal is agentic yourself: a digital identity for your legacy, your work,
+your relationships, your imagination, or a person you want to preserve, become,
+or create.
 
 ---
 
 ## Philosophy
 
-- **Character first**: memory, voice, visuals, and tools should feel like one coherent identity.
-- **Presence over prompts**: the character should live in WhatsApp, Telegram, Discord, Slack, Email, and CLI, not only in a web box.
-- **Useful over flashy**: the character still needs to execute real work.
+- **Identity first**: memory, voice, visuals, values, and tools should feel like one coherent person-shaped system.
+- **Legacy over sessions**: the important context should not reset just because a chat ended.
+- **Presence over prompts**: the character should live where life already happens: WhatsApp, Telegram, Discord, Email, and CLI.
+- **Understanding over obedience**: the character should learn the user deeply enough to help them become more themselves, not only follow commands.
+- **Embodiment over text-only bots**: visual identity, selfies, mirror photos, voice, and media are part of the character.
+- **Useful over performative**: the character still needs to execute real work.
 - **Private over cloud-lock**: local memory, local control, explicit policy.
-- **Controlled over magical**: allowlists, approvals, scoped tools.
+- **Controlled over magical**: allowlists, approvals, scoped tools, and visible memory.
 
-If your assistant cannot run reliably on your own machine, it is not your assistant.
-
----
-
-## What You Can Do Today
-
-- Create a digital character with persistent identity, memory, tone, and visual rules.
-- Generate contextual selfies and mirror photos through the built-in `selfie` tool.
-- Chat through **WhatsApp**, **Telegram**, **Discord**, **Slack**, **Email**, or **CLI** with persistent history and enhanced editing.
-- Give the character scoped access to Gmail, Calendar, Drive, Docs, Sheets, and Contacts through `gws`.
-- Let it use local tools for files, shell commands, schedules, media, and workflow packs.
-- Run models through **configurable OpenAI-compatible proxies** (MiniMax, CLIProxyAPI, vLLM, LiteLLM, etc.) via LiteLLM routing.
-- Keep durable memory across sessions (`MEMORY.md`, `PROFILE.md`, `PROJECTS.md`, `LESSONS.md`).
-- Schedule recurring jobs and proactive reminders.
-- Run workflow packs like `daily_brief`, `meeting_prep`, and `inbox_zero_batch`.
-- Send multimodal replies (text, image, voice, sticker, document).
+If your character cannot run reliably on your own machine, it is not really yours.
 
 ---
 
-## Requirements
+## What You Can Build
 
-- Linux, macOS, or Windows
-- Python `3.11+`
-- Node.js `20+` (for WhatsApp bridge)
-- Optional: `espeak-ng` + `ffmpeg` (generated voice-note output)
-- Optional: `GROQ_API_KEY` (voice-note transcription via Whisper)
+- **Agentic yourself**: a digital identity that carries your memory, values, voice, projects, and working style.
+- **Digital legacy**: a preserved self, mission, relationship, or worldview that can keep continuity over time.
+- **Companion character**: a bounded relationship-style persona with memory, voice notes, visual identity, and emotional context.
+- **Personal operator**: an always-on character for inbox, calendar, files, recurring jobs, and workflow packs.
+- **Fictional persona**: a designed character with its own face, voice, backstory, tools, and channel presence.
+
+---
+
+## What It Does Today
+
+- Persistent character identity through local workspace files and memory.
+- WhatsApp, Telegram, Discord, Email, and CLI channel surfaces.
+- Contextual selfie and mirror-photo generation through the `selfie` tool.
+- Google Workspace access through the local `gws` CLI.
+- Local tools for files, shell, schedules, media, and workflow packs.
+- LiteLLM model routing through direct providers or OpenAI-compatible proxies.
+- Durable memory across sessions (`MEMORY.md`, `PROFILE.md`, `PROJECTS.md`, `LESSONS.md`).
+- Scheduled jobs, proactive reminders, multimodal replies, and systemd user services.
+
+For the full setup guide, use the docs site: https://galyarderlabs.github.io/galyarder-agent/
 
 ---
 
 ## Quick Start
 
-### Option A: Installer script (recommended)
-
-| OS | Command |
-|---|---|
-| Arch / Arch-based | `curl -fsSL https://raw.githubusercontent.com/galyarderlabs/galyarder-agent/main/deploy/arch/install.sh \| bash` |
-| Debian / Ubuntu | `curl -fsSL https://raw.githubusercontent.com/galyarderlabs/galyarder-agent/main/deploy/debian/install.sh \| bash` |
-| macOS | `curl -fsSL https://raw.githubusercontent.com/galyarderlabs/galyarder-agent/main/deploy/macos/install.sh \| bash` |
-| Windows (PowerShell) | `irm https://raw.githubusercontent.com/galyarderlabs/galyarder-agent/main/deploy/windows/install.ps1 \| iex` |
-
-### Option B: From source
-
 ```bash
 git clone https://github.com/galyarderlabs/galyarder-agent.git
 cd galyarder-agent/backend/agent
 pip install -e .
-```
-
-### First run
-
-```bash
 g-agent onboard
 g-agent status
 g-agent gateway
 ```
 
-Then set provider/model in `~/.g-agent/config.json`.
+Requirements: Python `3.11+`, Node.js `20+` for the WhatsApp bridge, and a configured model provider.
 
----
+For installers, channel setup, proxy routing, Google Workspace, and service mode, read the docs:
 
-### Installer flags (optional)
+- [Getting Started](docs/getting-started.md)
+- [Install Matrix](docs/install-matrix.md)
+- [Configuration](docs/configuration.md)
+- [Channels](docs/channels.md)
+- [Operations](docs/operations.md)
+- [Troubleshooting](docs/troubleshooting.md)
 
-- Common:
-  - `G_AGENT_INSTALL_DIR=/path/to/repo` (default: `~/galyarder-agent`)
-  - `G_AGENT_DATA_DIR=/path/to/data` (default: `~/.g-agent`)
-- Arch:
-  - `G_AGENT_SKIP_PACMAN=1`
-  - `G_AGENT_SKIP_SERVICES=1`
-  - `G_AGENT_AUTO_START_SERVICES=0`
-- Debian/Ubuntu:
-  - `G_AGENT_SKIP_APT=1`
-  - `G_AGENT_SKIP_SERVICES=1`
-  - `G_AGENT_AUTO_START_SERVICES=0`
-- macOS:
-  - `G_AGENT_SKIP_BREW=1`
-  - `G_AGENT_SETUP_LAUNCHD=1`
-  - `G_AGENT_AUTO_START_SERVICES=0`
-- Windows:
-  - `G_AGENT_SKIP_WINGET=1`
-  - `G_AGENT_SETUP_TASKS=1`
-
----
-
-## Uninstall
-
-| OS | Command |
-|---|---|
-| Arch / Arch-based | `curl -fsSL https://raw.githubusercontent.com/galyarderlabs/galyarder-agent/main/deploy/arch/uninstall.sh \| bash` |
-| Debian / Ubuntu | `curl -fsSL https://raw.githubusercontent.com/galyarderlabs/galyarder-agent/main/deploy/debian/uninstall.sh \| bash` |
-| macOS | `curl -fsSL https://raw.githubusercontent.com/galyarderlabs/galyarder-agent/main/deploy/macos/uninstall.sh \| bash` |
-| Windows (PowerShell) | `irm https://raw.githubusercontent.com/galyarderlabs/galyarder-agent/main/deploy/windows/uninstall.ps1 \| iex` |
-
-Optional flags:
-
-- `G_AGENT_REMOVE_SERVICES=0` keep startup services/tasks
-- `G_AGENT_REMOVE_REPO=1` remove repo directory
-- `G_AGENT_WIPE_DATA=1` remove full `~/.g-agent` data
-
----
-
-## Usage Examples
-
-From CLI:
-
-```bash
-g-agent agent -m "Summarize my priorities for today."
-g-agent agent -m "/pack daily_brief focus revenue --sticker --silent"
-g-agent proactive-enable
-```
-
-From Telegram/WhatsApp:
-
-- Ask questions.
-- Request reminders.
-- Trigger workflow packs.
-- Send images/voice and get multimodal responses.
-
----
-
-## Core Commands
-
-| Command | Purpose |
-|---|---|
-| `g-agent onboard` | Initialize config and workspace |
-| `g-agent status` | Runtime and integration status |
-| `g-agent gateway` | Run Telegram/WhatsApp gateway |
-| `g-agent agent -m "..."` | One-shot chat from CLI |
-| `g-agent channels login` | Pair WhatsApp via QR |
-| `g-agent channels status` | Show channel config status |
-| `g-agent plugins list/doctor` | Inspect plugin loading and policy health |
-| `gws auth login` + `integrations.google.gwsPath` | Google Workspace auth and runtime access |
-| `g-agent doctor --network` | Connectivity diagnostics |
-| `g-agent proactive-enable` | Enable default proactive jobs |
-| `g-agent cron add/list/remove/enable/run` | Manage scheduled jobs |
-
----
-
-## Channel Setup
-
-Supported channels and typical setup effort:
-
-| Channel | Setup |
-|---|---|
-| Telegram | Easy (bot token + user ID allowlist) |
-| WhatsApp | Medium (Node bridge + QR pairing) |
-| Discord | Medium (bot token + intents + invite URL) |
-| Slack | Medium (Socket Mode app token + bot token) |
-| Email | Medium (IMAP/SMTP app password + explicit consent gate) |
-| Feishu* | Medium (app credentials + event subscription) |
-
-`*` Experimental in current release.
-
-### Telegram
-
-```json
-{
-  "channels": {
-    "telegram": {
-      "enabled": true,
-      "token": "BOTFATHER_TOKEN",
-      "allowFrom": ["123456789"]
-    }
-  }
-}
-```
-
-### WhatsApp
-
-```json
-{
-  "channels": {
-    "whatsapp": {
-      "enabled": true,
-      "bridgeUrl": "ws://localhost:3001",
-      "allowFrom": ["6281234567890"]
-    }
-  }
-}
-```
-
-Pair WhatsApp:
-
-```bash
-g-agent channels login
-g-agent gateway
-```
-
-### Discord / Slack / Email / Feishu
-
-- See `docs/channels.md` for full step-by-step setup.
-- Keep `allowFrom` strict for any public-facing deployment.
-
----
-
-## Google Workspace via `gws`
-
-```bash
-npm i -g @googleworkspace/cli
-gws auth login --services gmail,calendar,drive,docs,sheets,people
-gws auth status
-```
-
-`g-agent` runs Gmail, Calendar, Drive, Docs, Sheets, and Contacts through the
-local `gws` binary. If the gateway runs as a service and cannot find `gws`, set
-an absolute path in `~/.g-agent/config.json`:
-
-```json
-{
-  "integrations": {
-    "google": {
-      "gwsPath": "/home/you/.local/bin/gws",
-      "credentialsFile": "",
-      "calendarId": "primary"
-    }
-  }
-}
-```
-
-Leave `credentialsFile` empty for normal encrypted/keyring-backed `gws` auth.
-Only set it when you intentionally exported credentials for a headless runtime.
-
-Common scopes used by the tools:
-
-- `gmail.modify`
-- `calendar`
-- `drive.readonly`
-- `documents`
-- `spreadsheets`
-- `contacts.readonly`
-
----
-
-## Memory Model
-
-Memory lives in `workspace/memory`:
-
-- `MEMORY.md`: long-term notes
-- `PROFILE.md`: identity/preferences
-- `RELATIONSHIPS.md`: people context
-- `PROJECTS.md`: active project context
-- `LESSONS.md`: behavior improvements
-- `YYYY-MM-DD.md`: daily memory notes
+Docs site: https://galyarderlabs.github.io/galyarder-agent/
 
 ---
 
@@ -309,202 +127,67 @@ Memory lives in `workspace/memory`:
   <img src="docs/assets/architecture.webp" alt="g-agent architecture" width="900">
 </p>
 
-Execution flow:
+Core flow:
 
-`Channel Input -> Message Bus -> Agent Loop -> Tools + Memory + Scheduler -> Outbound Dispatcher`
+`Channel Input -> Identity + Memory Context -> Agent Loop -> Tools + Scheduler -> Response -> Learning Loop`
 
-Runtime model:
+Runtime pieces:
 
-- Python process for agent runtime
-- Node.js bridge for WhatsApp transport
-- local filesystem for state and memory
-
----
-
-## Security Model (Plain Language)
-
-- `tools.restrictToWorkspace` keeps file/shell access inside allowed workspace.
-- `tools.allowedPaths` can add trusted folders outside the workspace without disabling the sandbox.
-- `channels.*.allowFrom` controls who can send messages to the assistant.
-- approval mode can require confirmation for risky actions.
-- policy presets (`personal_full`, `guest_limited`, `guest_readonly`) control tool risk.
-- separate profiles via `G_AGENT_DATA_DIR` isolate personal and guest environments.
-
-For details, read `SECURITY.md` and `backend/agent/SECURITY.md`.
+- Python backend runtime in `backend/agent`
+- Node.js WhatsApp bridge in `backend/agent/bridge`
+- local config, memory, sessions, cron, and media under `~/.g-agent`
+- MkDocs documentation in `docs/`
 
 ---
 
-## 24/7 Service Mode (systemd --user)
+## Safety Model
 
-```bash
-systemctl --user enable --now g-agent-wa-bridge.service
-systemctl --user enable --now g-agent-gateway.service
-```
+`g-agent` is designed for personal, local-first operation with explicit boundaries.
 
-Check:
+- `channels.*.allowFrom` controls who can talk to the character.
+- `tools.restrictToWorkspace` keeps file/shell access inside the configured workspace.
+- `tools.allowedPaths` can add trusted media or project folders without disabling the sandbox.
+- approval mode can require confirmation for risky tool execution.
+- separate `G_AGENT_DATA_DIR` profiles isolate personal and guest environments.
 
-```bash
-systemctl --user status g-agent-wa-bridge.service
-systemctl --user status g-agent-gateway.service
-```
-
-Optional lingering:
-
-```bash
-sudo loginctl enable-linger "$USER"
-```
+Read [Security](docs/security.md) and [Configuration](docs/configuration.md) before exposing a channel to anyone else.
 
 ---
 
-## Docker Quick Run
+## Roadmap
 
-```bash
-docker build -t g-agent ./backend/agent
-docker run -v ~/.g-agent:/root/.g-agent --rm g-agent g-agent onboard
-docker run -v ~/.g-agent:/root/.g-agent --rm g-agent g-agent status
-docker run -v ~/.g-agent:/root/.g-agent -p 18790:18790 g-agent g-agent gateway
-```
+The next product direction is agentic character depth:
 
----
+- SQLite session store and searchable recall
+- owner-reviewed learning queue
+- procedural skills that improve from repeated workflows
+- stronger memory manager and character profile layers
+- Web UI and OpenAI-compatible API
+- routine engine for scheduled and triggered workflows
 
-## Guest Profile Isolation
-
-```bash
-mkdir -p ~/.g-agent-guest
-G_AGENT_DATA_DIR=~/.g-agent-guest g-agent onboard
-G_AGENT_DATA_DIR=~/.g-agent-guest g-agent status
-```
-
-Each profile has isolated config, memory, cron jobs, bridge data, and OAuth/session artifacts.
+See [ROADMAP.md](ROADMAP.md).
 
 ---
 
-## Troubleshooting
+## Reference Research
 
-### Telegram timeout
+The project is currently using Nanobot and Hermes Agent as references, not upstreams to merge wholesale.
 
-```bash
-curl -sS "https://api.telegram.org/bot<YOUR_TOKEN>/getMe"
-```
+- `nanobot-ref/` informs Web UI, WebSocket/API, channel reliability, MCP, runner, and test patterns.
+- `hermes-agent-ref/` informs session search, memory manager, learning loop, skills, approvals, context compression, and routines.
 
-### WhatsApp bridge reconnect loops
-
-```bash
-g-agent channels login --rebuild
-systemctl --user restart g-agent-wa-bridge.service g-agent-gateway.service
-```
-
----
-
-## Production Checklist
-
-### 1) Lock access
-
-- Keep `channels.*.allowFrom` non-empty on enabled channels.
-- Keep `tools.restrictToWorkspace: true`.
-- Keep `tools.approvalMode: "confirm"` or stricter.
-- Use separate `G_AGENT_DATA_DIR` for guest/public assistants.
-
-### 2) Monitor health
-
-```bash
-g-agent doctor --network
-systemctl --user status g-agent-gateway.service g-agent-wa-bridge.service
-journalctl --user -u g-agent-gateway.service -u g-agent-wa-bridge.service -n 120 --no-pager
-```
-
-### 3) Backup critical state
-
-```bash
-mkdir -p ~/.g-agent-backups
-tar -czf ~/.g-agent-backups/g-agent-$(date +%F).tar.gz \
-  ~/.g-agent/config.json \
-  ~/.g-agent/workspace/memory \
-  ~/.g-agent/cron
-```
-
-### 4) Rotate keys safely
-
-```bash
-NEW_TG_TOKEN='YOUR_NEW_TOKEN'
-tmp=$(mktemp) && jq --arg v "$NEW_TG_TOKEN" '.channels.telegram.token = $v' ~/.g-agent/config.json > "$tmp" && mv "$tmp" ~/.g-agent/config.json
-systemctl --user restart g-agent-gateway.service
-```
-
----
-
-## FAQ
-
-### Why choose `g-agent`?
-
-Choose `g-agent` if you want a lean runtime with faster auditability and simpler day-to-day operations.
-
-### What makes `g-agent` practical for daily use?
-
-It emphasizes focused workflows, policy presets, workflow packs, and operational docs that stay close to real runtime usage.
-
-### Is this suitable for production personal use?
-
-Yes, with proper allowlists, workspace restrictions, approval settings, and credential hygiene.
-
-### Can I use this as my always-on personal assistant?
-
-Yes. The typical production flow is user services + allowlists + restricted workspace + approval mode.
-
-### Is it safe enough for personal data?
-
-It is built with practical controls (`allowFrom`, `restrictToWorkspace`, approvals, profile isolation).  
-You still need to review your configuration and keep tokens scoped/rotated.
-
----
-
-## Runtime Roadmap
-
-Roadmap and implementation status:
-
-- `docs/roadmap/runtime-roadmap.md`
-
----
-
-## Documentation
-
-- Docs site: https://galyarderlabs.github.io/galyarder-agent/
-- Getting started: `docs/getting-started.md`
-- Configuration: `docs/configuration.md`
-- Channels: `docs/channels.md`
-- Install matrix: `docs/install-matrix.md`
-- Operations: `docs/operations.md`
-- Troubleshooting: `docs/troubleshooting.md`
-- FAQ: `docs/faq.md`
-- Backend docs: `backend/agent/README.md`
-- Roadmap: `docs/roadmap/runtime-roadmap.md`
-- Changelog: `CHANGELOG.md`
+See [Hermes And Nanobot Reference Audit](docs/reports/hermes-nanobot-reference-audit.md).
 
 ---
 
 ## Contributing
 
-We welcome focused contributions:
+Focused contributions are welcome:
 
-- security hardening,
-- reliability improvements,
-- performance improvements,
-- documentation clarity.
+- safety and approval hardening
+- channel reliability
+- memory and session search
+- visual identity and media workflows
+- docs clarity
 
-Please read `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md` before opening a PR.
-
----
-
-## License
-
-MIT — see `LICENSE`.
-
----
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=galyarderlabs/galyarder-agent&type=Date)](https://star-history.com/#galyarderlabs/galyarder-agent&Date)
-
----
-
-> “Digital sovereignty is not isolation — it is ascendancy with ownership: your memory, your tools, your systems, your future.”
+Please read [Contributing](docs/contributing.md) before opening a PR.

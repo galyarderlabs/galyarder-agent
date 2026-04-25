@@ -7,7 +7,7 @@
 - `backend/agent/` — Python runtime (`g_agent` package). **Most code lives here.**
 - `backend/agent/bridge/` — Node.js/TypeScript WhatsApp bridge (`package-lock.json` → use `npm`). Rarely touched.
 - `docs/` — MkDocs documentation site source.
-- `deploy/` — Install/uninstall scripts per OS (Arch, Debian, macOS, Windows).
+- `deploy/` — Install/uninstall scripts per platform (Linux, macOS, Windows).
 - `.githooks/` — Local pre-commit and pre-push guards.
 
 Package root: `backend/agent/g_agent/` with submodules: `agent/`, `bus/`, `channels/`, `cli/`, `config/`, `cron/`, `heartbeat/`, `observability/`, `plugins/`, `proactive/`, `providers/`, `security/`, `session/`, `skills/`, `utils/`.

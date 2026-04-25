@@ -7,7 +7,7 @@ Galyarder Agent is secured by layered controls:
 - identity gates (`allowFrom`)
 - tool boundaries (`restrictToWorkspace`, policy presets)
 - approval flow for risky actions
-- profile separation (`G_AGENT_DATA_DIR`) for personal vs guest assistants
+- profile separation (`G_AGENT_DATA_DIR`) for personal vs guest characters
 
 ## Minimum hardening baseline
 

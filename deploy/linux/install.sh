@@ -4,7 +4,7 @@ set -Eeuo pipefail
 REPO_URL="${G_AGENT_REPO_URL:-https://github.com/galyarderlabs/galyarder-agent.git}"
 INSTALL_DIR="${G_AGENT_INSTALL_DIR:-$HOME/galyarder-agent}"
 DATA_DIR="${G_AGENT_DATA_DIR:-$HOME/.g-agent}"
-SKIP_APT="${G_AGENT_SKIP_APT:-0}"
+SKIP_PACKAGES="${G_AGENT_SKIP_PACKAGES:-0}"
 SKIP_SERVICES="${G_AGENT_SKIP_SERVICES:-0}"
 AUTO_START_SERVICES="${G_AGENT_AUTO_START_SERVICES:-1}"
 
@@ -34,51 +34,60 @@ as_root() {
   fi
 }
 
-detect_debian_like() {
-  if [[ "${OSTYPE:-}" != linux* ]]; then
-    fail "This installer targets Linux (Debian/Ubuntu) environments."
-  fi
-  if [[ -f /etc/os-release ]]; then
-    # shellcheck disable=SC1091
-    source /etc/os-release
-    case "${ID:-}" in
-      ubuntu|debian|linuxmint|pop) return 0 ;;
-    esac
-    case "${ID_LIKE:-}" in
-      *debian*) return 0 ;;
-    esac
-  fi
-  warn "Non-Debian distro detected. Continuing, but apt step may fail."
+detect_linux() {
+  [[ "${OSTYPE:-}" == linux* ]] || fail "This installer targets Linux."
 }
 
 install_packages() {
-  if [[ "$SKIP_APT" == "1" ]]; then
-    warn "Skipping apt dependency install (G_AGENT_SKIP_APT=1)."
+  if [[ "$SKIP_PACKAGES" == "1" ]]; then
+    warn "Skipping package-manager dependency install (G_AGENT_SKIP_PACKAGES=1)."
     return 0
   fi
-  require_cmd apt-get
-  log "Installing dependencies via apt..."
-  as_root env DEBIAN_FRONTEND=noninteractive apt-get update -y
-  as_root env DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    git \
-    curl \
-    jq \
-    python3 \
-    python3-pip \
-    python3-venv \
-    pipx \
-    nodejs \
-    npm
+
+  if command -v pacman >/dev/null 2>&1; then
+    log "Installing dependencies via pacman..."
+    as_root pacman -S --noconfirm --needed git python python-pipx nodejs npm jq curl
+    return 0
+  fi
+
+  if command -v apt-get >/dev/null 2>&1; then
+    log "Installing dependencies via apt..."
+    as_root env DEBIAN_FRONTEND=noninteractive apt-get update -y
+    as_root env DEBIAN_FRONTEND=noninteractive apt-get install -y \
+      git curl jq python3 python3-pip python3-venv pipx nodejs npm
+    return 0
+  fi
+
+  if command -v dnf >/dev/null 2>&1; then
+    log "Installing dependencies via dnf..."
+    as_root dnf install -y git python3 python3-pip pipx nodejs npm jq curl
+    return 0
+  fi
+
+  warn "No supported package manager found. Install git, Python 3, pipx, Node.js, npm, jq, and curl manually."
+}
+
+python_cmd() {
+  if command -v python3 >/dev/null 2>&1; then
+    printf 'python3'
+    return 0
+  fi
+  if command -v python >/dev/null 2>&1; then
+    printf 'python'
+    return 0
+  fi
+  fail "Missing Python 3."
 }
 
 ensure_pipx() {
+  local py
+  py="$(python_cmd)"
   if ! command -v pipx >/dev/null 2>&1; then
     log "pipx not found in PATH, installing via pip --user..."
-    require_cmd python3
-    python3 -m pip install --user pipx
+    "$py" -m pip install --user pipx
   fi
 
-  python3 -m pipx ensurepath >/dev/null 2>&1 || true
+  "$py" -m pipx ensurepath >/dev/null 2>&1 || true
   export PATH="$HOME/.local/bin:$PATH"
 
   command -v pipx >/dev/null 2>&1 || fail "pipx is still unavailable in PATH."
@@ -196,37 +205,35 @@ EOF
 print_next_steps() {
   cat <<EOF
 
-✅ g-agent install complete.
+g-agent install complete.
 
 Paths:
 - Repo: $INSTALL_DIR
 - Data: $DATA_DIR
 
 Next steps:
-1) Configure model/provider + allowlists:
+1. Configure model/provider + allowlists:
    nano $DATA_DIR/config.json
 
-2) Pair WhatsApp once (QR flow):
+2. Pair WhatsApp once:
    G_AGENT_DATA_DIR="$DATA_DIR" g-agent channels login
 
-3) Check status:
+3. Check runtime:
    G_AGENT_DATA_DIR="$DATA_DIR" g-agent status
    G_AGENT_DATA_DIR="$DATA_DIR" g-agent doctor --network
 
-4) Check services:
+4. Check services:
    systemctl --user status g-agent-wa-bridge.service g-agent-gateway.service
 
-Tips:
-- If needed, enable user linger for true 24/7:
-  sudo loginctl enable-linger "\$USER"
-- Run ops scripts:
-  $INSTALL_DIR/deploy/ops/healthcheck.sh
-  $INSTALL_DIR/deploy/ops/backup.sh
+Optional:
+- sudo loginctl enable-linger "\$USER"
+- $INSTALL_DIR/deploy/ops/healthcheck.sh
+- $INSTALL_DIR/deploy/ops/backup.sh
 EOF
 }
 
 main() {
-  detect_debian_like
+  detect_linux
   install_packages
   ensure_pipx
   sync_repo

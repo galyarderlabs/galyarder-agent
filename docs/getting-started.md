@@ -37,11 +37,14 @@ g-agent gateway
 g-agent channels login
 ```
 
-Use Telegram/WhatsApp after login and allowlist setup.
+Use WhatsApp after QR login and allowlist setup. Telegram only needs bot-token
+configuration plus the sender allowlist.
 
-## Systemd (recommended for 24/7)
+## Systemd (recommended for 24/7 on Linux)
 
-Use service templates in `backend/agent/deploy/systemd/` and run as user units.
+The Linux installer can create the user units for you. If you install manually,
+use the commands in [Operations](operations.md) after creating matching
+`g-agent-gateway.service` and `g-agent-wa-bridge.service` user units.
 
 For day-to-day operations and diagnostics, see [Operations](operations.md).
 

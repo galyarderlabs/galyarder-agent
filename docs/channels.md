@@ -5,10 +5,11 @@
 - CLI
 - Telegram
 - WhatsApp
+- Discord
 - Email
 - Slack (Socket Mode)
 
-Discord/Feishu paths exist in runtime code and can be hardened as needed.
+Additional adapters should live as plugins or future-hardening work, not as core runtime promises.
 
 ## Telegram
 
@@ -52,6 +53,34 @@ Set `bridgeToken` to add a shared-secret auth gate on the WebSocket bridge. The 
 - Falls back to `espeak-ng`/`espeak` if edge-tts is not installed.
 - `ffmpeg` is required for OGG/Opus voice-note format (Telegram). If unavailable, g-agent auto-falls back to mp3/wav `audio` output.
 
+## Discord
+
+Discord uses the Discord Gateway websocket plus REST API replies.
+
+### Discord requirements
+
+- Discord application and bot token from the Developer Portal
+- Message Content Intent enabled when the character needs to read message text
+- User ID allowlist in `channels.discord.allowFrom`
+
+### Discord configuration
+
+```json
+{
+  "channels": {
+    "discord": {
+      "enabled": true,
+      "token": "DISCORD_BOT_TOKEN",
+      "allowFrom": ["123456789012345678"],
+      "intents": 37377
+    }
+  }
+}
+```
+
+Invite the bot to the server or DM it directly, then restart the gateway. Keep
+`allowFrom` strict for any shared server.
+
 ## Email
 
 Bidirectional email channel using IMAP polling and SMTP replies.
@@ -88,7 +117,7 @@ Bidirectional email channel using IMAP polling and SMTP replies.
 
 - The channel **will not start** unless `consent_granted` is explicitly `true`.
 - Use `allow_from` to restrict which senders the agent responds to.
-- Replies are threaded with subject prefix `G-Agent reply:`.
+- Replies are threaded with the configured subject prefix (`Re: ` by default).
 
 ## Slack (Socket Mode)
 
@@ -124,7 +153,8 @@ Real-time bidirectional Slack channel using Socket Mode (no public URL required)
 | Setting | Options | Description |
 | --- | --- | --- |
 | `group_policy` | `mention` / `open` | Respond to @mentions only, or all messages in channels |
-| `dm.policy` | `open` / `allowlist` / `disabled` | Control DM access |
+| `dm.enabled` | `true` / `false` | Enable or disable Slack DMs |
+| `dm.policy` | `open` / `allowlist` | Control DM access when DMs are enabled |
 | `dm.allow_from` | list of Slack user IDs | Restrict DMs when policy is `allowlist` |
 
 ## Channel troubleshooting

@@ -51,13 +51,11 @@ def _channel_allowlist_checks(config: Any) -> list[dict[str, str]]:
         "telegram": "Telegram",
         "whatsapp": "WhatsApp",
         "discord": "Discord",
-        "feishu": "Feishu",
     }
     channels = {
         "telegram": config.channels.telegram,
         "whatsapp": config.channels.whatsapp,
         "discord": config.channels.discord,
-        "feishu": config.channels.feishu,
     }
     for name, channel_cfg in channels.items():
         channel_label = display_names.get(name, name.capitalize())
@@ -176,7 +174,7 @@ def _policy_guardrail_checks(config: Any) -> list[dict[str, str]]:
         )
 
     channels_cfg = getattr(config, "channels", None)
-    candidate_channels = ("telegram", "whatsapp", "discord", "feishu", "email", "slack_channel")
+    candidate_channels = ("telegram", "whatsapp", "discord", "email", "slack_channel")
     enabled_channels: list[str] = []
     if channels_cfg:
         for name in candidate_channels:

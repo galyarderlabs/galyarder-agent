@@ -288,7 +288,7 @@ Your workspace is at: {workspace_path}
             skill_names: Optional skills to include.
             media: Optional list of local file paths for images/media.
             metadata: Optional message metadata (including attachment envelope).
-            channel: Current channel (telegram, feishu, etc.).
+            channel: Current channel (telegram, whatsapp, discord, email, slack, etc.).
             chat_id: Current chat/user ID.
 
         Returns:

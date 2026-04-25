@@ -83,11 +83,11 @@ cleanup_repo() {
 print_done() {
   cat <<EOF
 
-✅ g-agent uninstall flow complete.
+g-agent uninstall flow complete.
 
 Removed:
-- pipx package/binary (if present)
-- systemd user units (if enabled)
+- pipx package/binary if present
+- systemd user units if enabled
 - bridge runtime artifacts
 
 Kept by default:
@@ -96,8 +96,8 @@ Kept by default:
 - $DATA_DIR/cron
 - repo directory: $INSTALL_DIR
 
-To fully wipe everything, run with:
-G_AGENT_WIPE_DATA=1 G_AGENT_REMOVE_REPO=1 bash deploy/debian/uninstall.sh
+To fully wipe everything:
+G_AGENT_WIPE_DATA=1 G_AGENT_REMOVE_REPO=1 bash deploy/linux/uninstall.sh
 EOF
 }
 

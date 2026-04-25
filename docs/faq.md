@@ -2,16 +2,20 @@
 
 ## What is `g-agent` for?
 
-`g-agent` is a self-hosted runtime for agentic digital characters: persistent
-AI identities that can remember context, live in your channels, use tools, and
-show up visually through selfie or mirror-photo generation.
+`g-agent` is a self-hosted runtime for agentic digital identity.
+
+It is for building digital characters from a life, a mission, a relationship,
+an imagined person, or a version of yourself. The character can remember
+context, live in your channels, use tools, and show up visually through selfie
+or mirror-photo generation.
 
 Common uses:
 
+- agentic yourself: a digital identity that carries your values, memory, voice, and working style
+- digital legacy: a preserved self, mission, relationship, or worldview that keeps continuity over time
 - personal operators for inbox, calendar, files, and workflow automation
 - agentic girlfriend or companion characters with long-term memory and consistent style
-- agentic versions of yourself for drafts, review, and workflow automation
-- characters that can live in WhatsApp, Telegram, Discord, Slack, Email, and CLI
+- characters that can live in WhatsApp, Telegram, Discord, Email, and CLI
 - controlled tool execution under local policies
 
 ## Which channels are supported?
@@ -23,7 +27,7 @@ Common uses:
 - Email (IMAP/SMTP with consent gate)
 - Slack (Socket Mode)
 
-Feishu/Lark is available as an experimental path.
+Slack is available through Socket Mode. Other channels should be treated as plugins or future hardening work.
 
 ## Can I use local model endpoints (OpenAI-compatible proxy)?
 
@@ -42,6 +46,10 @@ A declarative system that replaces hardcoded if-elif chains for provider configu
 ## Does memory persist across sessions?
 
 Yes. Memory is persisted under your profile workspace (for example `~/.g-agent/workspace/memory/`).
+
+The goal is not only chat history. Memory is the continuity layer for identity,
+preferences, relationships, projects, lessons, and the parts of a character that
+should not reset.
 
 ## Can `g-agent` send proactive reminders/tasks?
 
@@ -96,4 +104,4 @@ Read:
 
 1. [Contributing](contributing.md)
 2. [Security](security.md)
-3. [Runtime Roadmap](roadmap/runtime-roadmap.md)
+3. [Configuration](configuration.md)

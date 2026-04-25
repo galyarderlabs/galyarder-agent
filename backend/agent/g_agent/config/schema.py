@@ -34,17 +34,6 @@ class TelegramConfig(BaseModel):
     reply_to_message: bool = True  # Whether to reply to the specific message or just send to chat
 
 
-class FeishuConfig(BaseModel):
-    """Feishu/Lark channel configuration using WebSocket long connection."""
-
-    enabled: bool = False
-    app_id: str = ""  # App ID from Feishu Open Platform
-    app_secret: str = ""  # App Secret from Feishu Open Platform
-    encrypt_key: str = ""  # Encrypt Key for event subscription (optional)
-    verification_token: str = ""  # Verification Token for event subscription (optional)
-    allow_from: list[str] = Field(default_factory=list)  # Allowed user open_ids
-
-
 class DiscordConfig(BaseModel):
     """Discord channel configuration."""
 
@@ -117,7 +106,6 @@ class ChannelsConfig(BaseModel):
     whatsapp: WhatsAppConfig = Field(default_factory=WhatsAppConfig)
     telegram: TelegramConfig = Field(default_factory=TelegramConfig)
     discord: DiscordConfig = Field(default_factory=DiscordConfig)
-    feishu: FeishuConfig = Field(default_factory=FeishuConfig)
     email: EmailConfig = Field(default_factory=EmailConfig)
     slack_channel: SlackChannelConfig = Field(default_factory=SlackChannelConfig)
 

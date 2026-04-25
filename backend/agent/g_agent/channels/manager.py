@@ -114,16 +114,6 @@ class ChannelManager:
             except ImportError as e:
                 logger.warning(f"Discord channel not available: {e}")
 
-        # Feishu channel
-        if self.config.channels.feishu.enabled:
-            try:
-                from g_agent.channels.feishu import FeishuChannel
-
-                self.channels["feishu"] = FeishuChannel(self.config.channels.feishu, self.bus)
-                logger.info("Feishu channel enabled")
-            except ImportError as e:
-                logger.warning(f"Feishu channel not available: {e}")
-
         # Email channel
         if self.config.channels.email.enabled:
             try:
