@@ -64,7 +64,7 @@
 
 .paperclip-image-container {
   width: 100%;
-  height: 52vh; /* Reduced height to pull content up */
+  height: 60vh; /* Restored to 60% exactly */
   overflow: hidden;
   position: relative;
   background-color: #000;
