@@ -44,17 +44,13 @@
 /* 1. LEFT: Logo & Title */
 .md-header__button.md-logo {
   margin-right: 0.75rem !important;
-  display: block !important;
+  display: flex !important;
+  align-items: center;
 }
 
 .md-header__button.md-logo img {
-  height: 2.2rem !important; /* Larger Logo */
+  height: 2rem !important; /* Fixed robust size */
   width: auto !important;
-  transition: transform 0.3s ease;
-}
-
-.md-header__button.md-logo:hover img {
-  transform: scale(1.1);
 }
 
 .md-header__title {
@@ -62,29 +58,70 @@
   flex-grow: 0 !important;
   width: auto !important;
   font-weight: 700 !important;
-  letter-spacing: -0.02em;
+  font-size: 1.1rem !important;
 }
 
-/* Custom Theme Toggle Icon Styles */
-.md-header__option [data-md-color-media] {
-  display: none !important; /* Hide original label if any */
-}
-
-/* Make the theme toggle icon look more premium */
+/* 2. THEME TOGGLE: Keep it simple but clean */
 .md-header__option .md-icon {
-  width: 1.4rem !important;
-  height: 1.4rem !important;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 50%;
-  padding: 0.4rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  width: 1.2rem !important;
+  height: 1.2rem !important;
+  transition: opacity 0.3s ease;
 }
 
-.md-header__option .md-icon:hover {
-  background: rgba(255, 255, 255, 0.1);
-  transform: rotate(15deg);
-  border-color: var(--gagent-accent);
+.md-header__option:hover .md-icon {
+  opacity: 0.7;
+}
+
+/* 3. NAVIGATION TABS: Restore and Fix Visibility */
+.md-tabs {
+  display: block !important; /* Ensure they are visible */
+  background-color: transparent !important;
+}
+
+@media screen and (min-width: 76.25em) {
+  .md-tabs {
+    position: absolute !important;
+    top: 5rem !important;
+    left: 0;
+    right: 0;
+    z-index: 99;
+    background: transparent !important;
+  }
+  
+  .md-tabs__list {
+    display: flex !important;
+    justify-content: center;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0;
+    list-style: none;
+  }
+  
+  .md-tabs__item {
+    margin: 0 0.5rem;
+  }
+  
+  .md-tabs__link {
+    color: var(--md-typeset-color) !important;
+    font-size: 0.75rem;
+    font-weight: 600;
+    opacity: 0.65;
+    padding: 0.5rem 0.8rem;
+    border-radius: 100px;
+    transition: all 0.2s ease;
+    display: block;
+  }
+  
+  .md-tabs__link:hover {
+    opacity: 1;
+    background: rgba(128, 128, 128, 0.1);
+  }
+  
+  .md-tabs__item--active .md-tabs__link {
+    opacity: 1;
+    color: var(--gagent-accent) !important;
+    background: rgba(15, 118, 110, 0.1);
+  }
 }
 
 .md-header__topic {
