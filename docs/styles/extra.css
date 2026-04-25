@@ -64,37 +64,29 @@
 
 /* --- PAGE SPECIFIC LOGIC --- */
 
-/* 1. HOME PAGE: True Absolute Over Artwork */
+/* Aggressive reset for home page containers to force true fullscreen */
+body.is-home,
+body.is-home .md-container,
+body.is-home .md-main,
+body.is-home .md-main__inner {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
 body.is-home .md-header {
   position: absolute;
-  top: 1.5rem; /* Float slightly from absolute top */
+  top: 1.5rem; /* The capsule floats, but background remains 0 */
   left: 0;
   right: 0;
   z-index: 100;
 }
 
-/* Aggressive reset for home page containers to force true fullscreen */
-body.is-home .md-main__inner {
-  margin: 0 !important;
-  max-width: 100% !important;
-  padding: 0 !important;
-}
-
-body.is-home .md-content {
-  max-width: 100% !important;
-  margin: 0 !important;
-  padding: 0 !important;
-}
-
-body.is-home .md-content__inner {
-  margin: 0 !important;
-  padding: 0 !important;
-}
-
+body.is-home .md-content,
+body.is-home .md-content__inner,
 body.is-home .md-grid {
   max-width: 100% !important;
-  padding: 0 !important;
   margin: 0 !important;
+  padding: 0 !important;
 }
 
 /* 2. ALL OTHER PAGES: Sticky with offset */
