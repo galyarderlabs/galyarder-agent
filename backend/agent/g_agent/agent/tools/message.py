@@ -258,8 +258,6 @@ class MessageTool(Tool):
                 return ogg_path
         return str(mp3_path.resolve())
 
-
-
     def _convert_to_ogg(self, input_path: Path, target_dir: Path, stem: str) -> str | None:
         """Convert audio to OGG/Opus for Telegram voice notes."""
         ffmpeg = shutil.which("ffmpeg")
