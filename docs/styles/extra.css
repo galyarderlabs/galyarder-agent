@@ -25,7 +25,6 @@
   box-shadow: none !important;
 }
 
-/* Common Capsule Styling for Desktop & Mobile */
 .md-header__inner {
   background: var(--gagent-nav-bg) !important;
   backdrop-filter: blur(16px);
@@ -40,7 +39,6 @@
   height: 3.2rem;
 }
 
-/* Navbar Text & Icon Visibility */
 .md-header__topic, 
 .md-header__button, 
 .md-header__link,
@@ -51,31 +49,30 @@
   color: var(--gagent-nav-text) !important;
 }
 
-/* Specific fix for search icon and repo link colors in light mode */
 .md-search__input + .md-search__icon,
 .md-source__icon .md-icon {
   color: var(--gagent-nav-text) !important;
 }
 
-/* Hide redundant sidebar title */
 .md-sidebar--primary .md-nav__title {
   display: none;
 }
 
-/* --- PAGE SPECIFIC LOGIC --- */
+/* --- THE NUCLEAR FULLSCREEN RESET (HOME PAGE) --- */
 
-/* 1. HOME PAGE: AGGRESSIVE ZERO RESET */
-body.is-home,
-body.is-home .md-container,
-body.is-home .md-main,
-body.is-home .md-main__inner,
-body.is-home .md-content,
-body.is-home .md-content__inner,
-body.is-home .md-grid {
+body.is-home .md-container {
+  padding-top: 0 !important;
+}
+
+body.is-home .md-main__inner {
+  margin: 0 !important;
+  max-width: 100% !important;
+  padding: 0 !important;
+}
+
+body.is-home .md-content__inner {
   margin: 0 !important;
   padding: 0 !important;
-  max-width: 100% !important;
-  top: 0 !important;
 }
 
 body.is-home .md-header {
@@ -86,24 +83,58 @@ body.is-home .md-header {
   z-index: 100;
 }
 
-/* Force the hero to the absolute top of the viewport */
-body.is-home .md-hero {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  margin: 0 !important;
+/* Immersive Hero Section (Paperclip Style) */
+.md-hero {
+  position: relative;
+  width: 100vw;
+  left: 50%;
+  right: 50%;
+  margin-left: -50vw;
+  margin-right: -50vw;
   padding: 0 !important;
+  margin-top: 0 !important;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
   z-index: 1;
 }
 
-/* Content below the hero artwork needs to be pushed down */
-body.is-home .md-hero__inner {
-  margin-top: 60vh; /* Match image height to start content below it */
-  padding-top: 2rem;
+.md-hero__image-container {
+  width: 100%;
+  height: 60vh;
+  overflow: hidden;
+  position: relative;
 }
 
-/* 2. ALL OTHER PAGES: Sticky with offset */
+.md-hero__image-container img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+.md-hero__image-container::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 40%;
+  background: linear-gradient(to bottom, transparent, var(--md-default-bg-color));
+}
+
+.md-hero__inner {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 2rem;
+  z-index: 10;
+  background-color: var(--md-default-bg-color);
+}
+
+/* --- INTERNAL PAGES --- */
+
 body:not(.is-home) .md-header {
   position: sticky;
   top: 1.5rem;
@@ -111,7 +142,6 @@ body:not(.is-home) .md-header {
   margin-bottom: 1.5rem;
 }
 
-/* Tabs Integration (Desktop Only): GHOST STYLE */
 @media screen and (min-width: 76.25em) {
   .md-tabs {
     background-color: transparent !important;
@@ -154,52 +184,13 @@ body:not(.is-home) .md-header {
   }
 }
 
-/* --- MOBILE SPECIFIC FIXES --- */
 @media screen and (max-width: 76.24em) {
   .md-header__inner {
-    margin: 1rem 1rem 0 !important; /* Side margin on mobile */
+    margin: 1rem 1rem 0 !important;
     max-width: calc(100% - 2rem) !important;
   }
-
-  .md-sidebar--primary {
-    z-index: 2000 !important;
-  }
-  
-  .md-overlay {
-    z-index: 1500 !important;
-    opacity: 1 !important;
-    background: rgba(0, 0, 0, 0.5);
-  }
-}
-
-/* Immersive Hero Section (Paperclip Style) */
-.md-hero {
-  display: flex;
-  flex-direction: column;
-}
-
-.md-hero__image-container {
-  width: 100%;
-  height: 60vh;
-  overflow: hidden;
-  position: relative;
-}
-
-.md-hero__image-container img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center;
-}
-
-.md-hero__image-container::after {
-  content: "";
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 40%;
-  background: linear-gradient(to bottom, transparent, var(--md-default-bg-color));
+  .md-sidebar--primary { z-index: 2000 !important; }
+  .md-overlay { z-index: 1500 !important; opacity: 1 !important; background: rgba(0, 0, 0, 0.5); }
 }
 
 .md-hero__content {
@@ -250,7 +241,6 @@ body:not(.is-home) .md-header {
   transform: translateY(-2px);
 }
 
-/* Feature Grid Overhaul */
 .gagent-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
