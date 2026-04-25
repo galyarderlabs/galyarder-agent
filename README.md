@@ -10,9 +10,10 @@
     <img src="https://img.shields.io/badge/License-MIT-22c55e" alt="MIT">
   </p>
   <p>
-    <img src="https://img.shields.io/badge/Channels-WhatsApp%20%7C%20Telegram%20%7C%20Discord%20%7C%20Email-10b981" alt="Channels">
-    <img src="https://img.shields.io/badge/Model%20Routing-LiteLLM%20%2B%20OpenAI%20Compatible-0ea5e9" alt="Model Routing">
-    <img src="https://img.shields.io/badge/Ops-systemd%20--user-f59e0b" alt="systemd user">
+    <img src="https://img.shields.io/badge/Presence-WhatsApp%20%7C%20Telegram%20%7C%20Discord%20%7C%20Email-10b981" alt="Presence channels">
+    <img src="https://img.shields.io/badge/Identity-Memory%20%2B%20Visuals%20%2B%20Tools-8b5cf6" alt="Identity">
+    <img src="https://img.shields.io/badge/Model%20Routing-Direct%20%7C%20Proxy%20%7C%20Local%20%7C%20Fallback-0ea5e9" alt="Model Routing">
+    <img src="https://img.shields.io/badge/Runtime-Local--first%20%2B%20Self--hosted-f59e0b" alt="Local-first self-hosted runtime">
     <img src="https://img.shields.io/badge/Safety-restrictToWorkspace%20%2B%20tool%20policy-ef4444" alt="Safety">
   </p>
 </div>
