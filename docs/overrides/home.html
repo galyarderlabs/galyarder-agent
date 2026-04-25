@@ -5,39 +5,50 @@
 
   {% if "home" in page.meta.template %}
     <style>
-      /* Integrated Home Page Overrides */
+      /* --- PAPERCLIP ZERO-GAP STICKY OVERRIDE --- */
+      
       .md-container {
         padding-top: 0 !important;
       }
       
-      /* THE STICKY GLASS FIX */
+      /* The Header: Fixed position to avoid pushing content down */
       .md-header {
-        position: sticky !important; /* Change back to sticky */
+        position: fixed !important;
         top: 0 !important;
         left: 0;
         right: 0;
         z-index: 1000;
-        transition: background-color 0.3s ease;
+        background-color: transparent !important;
       }
 
       .md-header__inner {
-        margin-top: 1.5rem !important; /* Restore float offset */
-        background: rgba(255, 255, 255, 0.15) !important;
+        margin-top: 1.5rem !important;
+        background: rgba(255, 255, 255, 0.1) !important;
         backdrop-filter: blur(20px) saturate(180%) !important;
         -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
         border: 1px solid rgba(255, 255, 255, 0.1) !important;
         box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2) !important;
+        border-radius: 100px !important;
       }
 
       [data-md-color-scheme="slate"] .md-header__inner {
-        background: rgba(13, 17, 23, 0.3) !important;
+        background: rgba(13, 17, 23, 0.2) !important;
         border-color: rgba(255, 255, 255, 0.05) !important;
       }
       
-      /* Force Hero to pixel 0 while allowing header to sit on top */
+      /* Hero: Start at absolute top 0 */
       .paperclip-hero {
-        margin-top: -5rem !important; /* Pull up further to account for sticky header height */
+        margin-top: 0 !important;
         padding-top: 0 !important;
+        z-index: 1;
+      }
+
+      /* Ensure tabs also float correctly if active */
+      .md-tabs {
+        position: fixed !important;
+        top: 5rem !important;
+        width: 100%;
+        z-index: 999;
       }
     </style>
 
