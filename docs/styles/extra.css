@@ -47,10 +47,44 @@
   display: block !important;
 }
 
+.md-header__button.md-logo img {
+  height: 2.2rem !important; /* Larger Logo */
+  width: auto !important;
+  transition: transform 0.3s ease;
+}
+
+.md-header__button.md-logo:hover img {
+  transform: scale(1.1);
+}
+
 .md-header__title {
-  display: block !important; /* Restore missing title */
+  display: block !important;
   flex-grow: 0 !important;
   width: auto !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.02em;
+}
+
+/* Custom Theme Toggle Icon Styles */
+.md-header__option [data-md-color-media] {
+  display: none !important; /* Hide original label if any */
+}
+
+/* Make the theme toggle icon look more premium */
+.md-header__option .md-icon {
+  width: 1.4rem !important;
+  height: 1.4rem !important;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 50%;
+  padding: 0.4rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.md-header__option .md-icon:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: rotate(15deg);
+  border-color: var(--gagent-accent);
 }
 
 .md-header__topic {
