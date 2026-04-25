@@ -38,40 +38,43 @@
   height: 3.4rem;
   display: flex !important;
   align-items: center;
+  position: relative; /* Base for absolute centering */
   transition: all 0.3s ease;
 }
 
-/* 1. Left Section: Logo & Title */
+/* 1. Left Section */
 .md-header__button.md-logo {
   order: 1;
-  margin-right: 1rem !important;
 }
 
 .md-header__title {
   order: 2;
-  margin-right: auto !important; /* Push everything else */
+  flex-grow: 0 !important; /* Stop pushing search */
+  width: auto !important;
+  margin-right: 0 !important;
 }
 
-/* 2. Center Section: Search Bar */
+/* 2. ABSOLUTE CENTER: Search Bar */
 .md-header__search {
   order: 3;
   position: absolute !important;
   left: 50% !important;
-  transform: translateX(-50%) !important;
-  width: 100%;
-  max-width: 400px;
+  top: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  width: 320px !important; /* Fixed width for better symmetry */
+  margin: 0 !important;
 }
 
-/* 3. Right Section: Theme Toggle & Repo */
+/* 3. Right Section */
 .md-header__option {
   order: 4;
-  margin-left: auto !important; /* Align to right */
+  margin-left: auto !important; /* Push everything else to left */
 }
 
 /* Theme Toggle Position */
 [data-md-color-scheme] .md-header__option {
   order: 5;
-  margin-left: 0.5rem !important;
+  margin-left: auto !important;
 }
 
 .md-header__source {
