@@ -58,69 +58,60 @@
   display: none;
 }
 
-/* --- THE NUCLEAR FULLSCREEN RESET (HOME PAGE) --- */
+/* --- THE PAPERCLIP FULLSCREEN OVERRIDE --- */
 
-/* Reset containers for Home */
+/* Force containers to start at the absolute top */
 body.is-home .md-container {
   padding-top: 0 !important;
-  margin-top: 0 !important;
 }
 
 body.is-home .md-header {
-  position: absolute;
-  top: 1.5rem;
+  position: absolute !important;
+  top: 1.5rem !important;
   left: 0;
   right: 0;
   z-index: 100;
 }
 
-/* PAPERCLIP HERO: Fixed from top 0 */
+/* The Hero Section itself */
 body.is-home .md-hero {
   position: relative;
+  background-image: url('../assets/header.webp'); /* Robust path */
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   width: 100vw;
+  height: 60vh;
   margin-left: calc(50% - 50vw);
   margin-top: 0 !important;
   padding: 0 !important;
   display: flex;
   flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 1;
 }
 
-.md-hero__image-container {
-  width: 100%;
-  height: 60vh;
-  overflow: hidden;
-  position: relative;
-  background-color: #000; /* Fallback */
-}
-
-.md-hero__image-container img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center;
-}
-
-.md-hero__image-container::after {
-  content: "";
+/* The Paperclip Gradient Mask Overlay */
+.md-hero__image-overlay {
   position: absolute;
-  bottom: 0;
+  top: 0;
   left: 0;
   right: 0;
-  height: 40%;
-  background: linear-gradient(to bottom, transparent, var(--md-default-bg-color));
+  bottom: 0;
+  background: linear-gradient(to bottom, transparent 60%, var(--md-default-bg-color) 100%);
+  z-index: 2;
 }
 
 .md-hero__inner {
-  background-color: var(--md-default-bg-color);
-  width: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  padding: 4rem 1rem 8rem !important;
+  position: relative;
   z-index: 10;
+  text-align: center;
+  max-width: 50rem !important;
+  padding: 0 1rem;
 }
 
-/* --- INTERNAL PAGES --- */
+/* --- INTERNAL PAGES & TABS --- */
 
 body:not(.is-home) .md-header {
   position: sticky;
@@ -178,11 +169,6 @@ body:not(.is-home) .md-header {
   }
   .md-sidebar--primary { z-index: 2000 !important; }
   .md-overlay { z-index: 1500 !important; opacity: 1 !important; background: rgba(0, 0, 0, 0.5); }
-}
-
-.md-hero__content {
-  text-align: center;
-  max-width: 50rem !important;
 }
 
 .md-hero__content h1 {
