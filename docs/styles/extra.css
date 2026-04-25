@@ -60,21 +60,29 @@
 
 /* --- THE NUCLEAR FULLSCREEN RESET (HOME PAGE) --- */
 
+/* Reset HTML/Body for home page */
+body.is-home {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Force container to ignore header height */
 body.is-home .md-container {
   padding-top: 0 !important;
 }
 
-body.is-home .md-main__inner {
+/* Remove all margins/paddings from layout stack */
+body.is-home .md-main,
+body.is-home .md-main__inner,
+body.is-home .md-content,
+body.is-home .md-content__inner,
+body.is-home .md-grid {
   margin: 0 !important;
+  padding: 0 !important;
   max-width: 100% !important;
-  padding: 0 !important;
 }
 
-body.is-home .md-content__inner {
-  margin: 0 !important;
-  padding: 0 !important;
-}
-
+/* Header placement on Home */
 body.is-home .md-header {
   position: absolute;
   top: 1.5rem;
@@ -93,7 +101,6 @@ body.is-home .md-header {
   margin-right: -50vw;
   padding: 0 !important;
   margin-top: 0 !important;
-  min-height: 100vh;
   display: flex;
   flex-direction: column;
   z-index: 1;
@@ -104,6 +111,7 @@ body.is-home .md-header {
   height: 60vh;
   overflow: hidden;
   position: relative;
+  margin: 0 !important;
 }
 
 .md-hero__image-container img {
@@ -124,13 +132,13 @@ body.is-home .md-header {
 }
 
 .md-hero__inner {
-  flex: 1;
+  background-color: var(--md-default-bg-color);
+  width: 100%;
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding-top: 2rem;
+  padding: 4rem 1rem 8rem !important;
   z-index: 10;
-  background-color: var(--md-default-bg-color);
 }
 
 /* --- INTERNAL PAGES --- */
