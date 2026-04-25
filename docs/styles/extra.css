@@ -18,7 +18,7 @@
   --md-primary-fg-color: #0d1117;
 }
 
-/* --- THE SOVEREIGN CAPSULE --- */
+/* --- THE SOVEREIGN CAPSULE (PERFECTIONIST SYMMETRY) --- */
 
 .md-header {
   background-color: transparent !important;
@@ -35,8 +35,48 @@
   margin: 1.5rem auto !important;
   padding: 0 1.5rem !important;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-  height: 3.2rem;
+  height: 3.4rem;
+  display: flex !important;
+  align-items: center;
   transition: all 0.3s ease;
+}
+
+/* 1. Left Section: Logo & Title */
+.md-header__button.md-logo {
+  order: 1;
+  margin-right: 1rem !important;
+}
+
+.md-header__title {
+  order: 2;
+  margin-right: auto !important; /* Push everything else */
+}
+
+/* 2. Center Section: Search Bar */
+.md-header__search {
+  order: 3;
+  position: absolute !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  width: 100%;
+  max-width: 400px;
+}
+
+/* 3. Right Section: Theme Toggle & Repo */
+.md-header__option {
+  order: 4;
+  margin-left: auto !important; /* Align to right */
+}
+
+/* Theme Toggle Position */
+[data-md-color-scheme] .md-header__option {
+  order: 5;
+  margin-left: 0.5rem !important;
+}
+
+.md-header__source {
+  order: 6;
+  margin-left: 0.5rem !important;
 }
 
 /* Navbar Text Visibility */
@@ -44,6 +84,16 @@
 .md-header__source .md-source__repository, .md-header__source .md-source__facts,
 .md-search__input + .md-search__icon, .md-source__icon .md-icon, .md-header__button .md-icon {
   color: var(--gagent-nav-text) !important;
+}
+
+/* Adjust Search Appearance */
+.md-search__form {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+  border-radius: 50px !important;
+}
+
+[data-md-color-scheme="slate"] .md-search__form {
+  background-color: rgba(255, 255, 255, 0.05) !important;
 }
 
 /* Sidebar Cleanup */
