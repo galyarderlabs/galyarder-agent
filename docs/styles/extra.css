@@ -64,29 +64,43 @@
 
 /* --- PAGE SPECIFIC LOGIC --- */
 
-/* Aggressive reset for home page containers to force true fullscreen */
+/* 1. HOME PAGE: AGGRESSIVE ZERO RESET */
 body.is-home,
 body.is-home .md-container,
 body.is-home .md-main,
-body.is-home .md-main__inner {
+body.is-home .md-main__inner,
+body.is-home .md-content,
+body.is-home .md-content__inner,
+body.is-home .md-grid {
   margin: 0 !important;
   padding: 0 !important;
+  max-width: 100% !important;
+  top: 0 !important;
 }
 
 body.is-home .md-header {
   position: absolute;
-  top: 1.5rem; /* The capsule floats, but background remains 0 */
+  top: 1.5rem;
   left: 0;
   right: 0;
   z-index: 100;
 }
 
-body.is-home .md-content,
-body.is-home .md-content__inner,
-body.is-home .md-grid {
-  max-width: 100% !important;
+/* Force the hero to the absolute top of the viewport */
+body.is-home .md-hero {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
   margin: 0 !important;
   padding: 0 !important;
+  z-index: 1;
+}
+
+/* Content below the hero artwork needs to be pushed down */
+body.is-home .md-hero__inner {
+  margin-top: 60vh; /* Match image height to start content below it */
+  padding-top: 2rem;
 }
 
 /* 2. ALL OTHER PAGES: Sticky with offset */
@@ -97,15 +111,11 @@ body:not(.is-home) .md-header {
   margin-bottom: 1.5rem;
 }
 
-body:not(.is-home) .md-container {
-  padding-top: 0; 
-}
-
 /* Tabs Integration (Desktop Only): GHOST STYLE */
 @media screen and (min-width: 76.25em) {
   .md-tabs {
     background-color: transparent !important;
-    position: absolute; /* Float over image */
+    position: absolute;
     top: 5.5rem;
     left: 0;
     right: 0;
@@ -157,28 +167,15 @@ body:not(.is-home) .md-container {
   
   .md-overlay {
     z-index: 1500 !important;
-    opacity: 1 !important; /* Force opacity to hide hero */
+    opacity: 1 !important;
     background: rgba(0, 0, 0, 0.5);
-  }
-
-  /* Fix for mobile text overlapping */
-  body:not(.is-home) .md-container {
-    padding-top: 1.5rem;
   }
 }
 
 /* Immersive Hero Section (Paperclip Style) */
 .md-hero {
-  position: relative;
-  background-color: var(--md-default-bg-color);
-  padding: 0 !important;
-  margin: 0 !important;
-  min-height: 100vh;
   display: flex;
   flex-direction: column;
-  width: 100vw;
-  left: 50%;
-  transform: translateX(-50%);
 }
 
 .md-hero__image-container {
@@ -203,15 +200,6 @@ body:not(.is-home) .md-container {
   right: 0;
   height: 40%;
   background: linear-gradient(to bottom, transparent, var(--md-default-bg-color));
-}
-
-.md-hero__inner {
-  flex: 1;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  padding-top: 2rem;
-  z-index: 10;
 }
 
 .md-hero__content {
