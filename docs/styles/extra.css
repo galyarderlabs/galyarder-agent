@@ -18,7 +18,7 @@
   --md-primary-fg-color: #0d1117;
 }
 
-/* --- THE SOVEREIGN CAPSULE (DEFINITIVE SYMMETRY) --- */
+/* --- SOVEREIGN CAPSULE: PERFECTIONIST ALIGNMENT --- */
 
 .md-header {
   background-color: transparent !important;
@@ -27,89 +27,107 @@
 
 .md-header__inner {
   background: var(--gagent-nav-bg) !important;
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
   border: 1px solid var(--gagent-nav-border);
   border-radius: 100px;
   max-width: 1200px !important;
   margin: 1.5rem auto !important;
-  padding: 0 1.5rem !important;
+  padding: 0 1.2rem !important;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-  height: 3.4rem;
+  height: 3.5rem;
   display: flex !important;
-  align-items: center;
-  position: relative; /* CRITICAL: Base for absolute search */
+  align-items: center !important; /* Center all items vertically */
 }
 
-/* 1. LEFT: Logo & Title */
-.md-header__button.md-logo {
-  margin-right: 0.75rem !important;
+/* Vertical Alignment for all header items */
+.md-header__button, .md-header__title, .md-header__option, .md-header__source {
   display: flex !important;
-  align-items: center;
+  align-items: center !important;
+  height: 100% !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
 }
 
-.md-header__button.md-logo img {
-  height: 2rem !important; /* Fixed robust size */
+/* Logo Fix */
+.md-logo img {
+  height: 2.2rem !important;
   width: auto !important;
 }
 
 .md-header__title {
-  display: block !important;
-  flex-grow: 0 !important;
-  width: auto !important;
   font-weight: 700 !important;
   font-size: 1.1rem !important;
+  margin-left: 0.5rem !important;
 }
 
-/* 2. THEME TOGGLE: Keep it simple but clean */
+/* Theme Toggle Fix (Sejajar & Clean) */
 .md-header__option .md-icon {
-  width: 1.2rem !important;
-  height: 1.2rem !important;
-  transition: opacity 0.3s ease;
+  width: 1.4rem !important;
+  height: 1.4rem !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
 }
 
-.md-header__option:hover .md-icon {
-  opacity: 0.7;
+/* Mobile Alignment & Order */
+@media screen and (max-width: 76.24em) {
+  .md-header__inner {
+    margin: 1rem !important;
+    width: calc(100% - 2rem) !important;
+  }
+  /* Hamburger Menu to far LEFT */
+  .md-header__button[for="__drawer"] {
+    order: -1 !important;
+    margin-right: 0.5rem !important;
+  }
+  .md-logo {
+    order: 0 !important;
+  }
 }
 
-/* 3. NAVIGATION TABS: Restore and Fix Visibility */
+/* --- TABS: RESTORE FULL LIST --- */
+
 .md-tabs {
-  display: block !important; /* Ensure they are visible */
   background-color: transparent !important;
+  border: none !important;
 }
 
 @media screen and (min-width: 76.25em) {
   .md-tabs {
     position: absolute !important;
-    top: 5rem !important;
+    top: 5.5rem !important;
     left: 0;
     right: 0;
     z-index: 99;
-    background: transparent !important;
   }
   
   .md-tabs__list {
     display: flex !important;
-    justify-content: center;
-    max-width: 1200px;
+    flex-wrap: nowrap !important; /* Don't wrap */
+    overflow-x: auto !important; /* Allow scroll if too many */
+    justify-content: center !important;
+    max-width: 1300px;
     margin: 0 auto;
-    padding: 0;
-    list-style: none;
+    padding: 0 1rem !important;
   }
   
+  /* Hide scrollbar for clean look */
+  .md-tabs__list::-webkit-scrollbar { display: none; }
+
   .md-tabs__item {
-    margin: 0 0.5rem;
+    padding: 0 !important;
   }
-  
+
   .md-tabs__link {
     color: var(--md-typeset-color) !important;
     font-size: 0.75rem;
     font-weight: 600;
-    opacity: 0.65;
-    padding: 0.5rem 0.8rem;
+    opacity: 0.6;
+    padding: 0.6rem 1rem !important;
     border-radius: 100px;
     transition: all 0.2s ease;
-    display: block;
+    white-space: nowrap;
   }
   
   .md-tabs__link:hover {
@@ -124,83 +142,19 @@
   }
 }
 
-.md-header__topic {
-  display: block !important;
-  white-space: nowrap;
+/* --- PAPERCLIP HERO: KEEP IT PERFECT --- */
+
+body.is-home .md-container {
+  padding-top: 0 !important;
 }
 
-/* 2. CENTER: Hard-Centered Search Bar */
-.md-header__search {
-  position: absolute !important;
-  left: 50% !important;
-  top: 50% !important;
-  transform: translate(-50%, -50%) !important;
-  width: 340px !important;
-  margin: 0 !important;
+body.is-home .md-header {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0;
+  right: 0;
+  z-index: 1000;
 }
-
-.md-search__form {
-  background-color: rgba(0, 0, 0, 0.05) !important;
-  border-radius: 50px !important;
-}
-
-[data-md-color-scheme="slate"] .md-search__form {
-  background-color: rgba(255, 255, 255, 0.05) !important;
-}
-
-/* 3. RIGHT: Options & Source */
-.md-header__option {
-  margin-left: auto !important; /* Push everything else to left */
-  display: flex !important;
-  align-items: center;
-}
-
-/* Theme toggle is inside .md-header__option or sibling */
-[data-md-color-scheme] .md-header__option {
-  margin-left: auto !important;
-}
-
-.md-header__source {
-  margin-left: 0.75rem !important;
-}
-
-/* Mobile: Disable absolute center to prevent overlap */
-@media screen and (max-width: 76.24em) {
-  .md-header__search {
-    position: static !important;
-    transform: none !important;
-    width: auto !important;
-    margin-left: auto !important;
-    left: auto !important;
-  }
-  .md-header__title {
-    display: none !important;
-  }
-}
-
-/* Navbar Text Visibility */
-.md-header__topic, .md-header__button, .md-header__link, .md-header__title,
-.md-header__source .md-source__repository, .md-header__source .md-source__facts,
-.md-search__input + .md-search__icon, .md-source__icon .md-icon, .md-header__button .md-icon {
-  color: var(--gagent-nav-text) !important;
-}
-
-/* Adjust Search Appearance */
-.md-search__form {
-  background-color: rgba(0, 0, 0, 0.05) !important;
-  border-radius: 50px !important;
-}
-
-[data-md-color-scheme="slate"] .md-search__form {
-  background-color: rgba(255, 255, 255, 0.05) !important;
-}
-
-/* Sidebar Cleanup */
-.md-sidebar--primary .md-nav__title {
-  display: none;
-}
-
-/* --- PAPERCLIP HERO COMPONENT --- */
 
 .paperclip-hero {
   position: relative;
@@ -213,7 +167,7 @@
 
 .paperclip-image-container {
   width: 100%;
-  height: 65vh; /* Increased to 65% to pull the edge lower */
+  height: 65vh;
   overflow: hidden;
   position: relative;
   background-color: #000;
@@ -223,7 +177,6 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: center;
 }
 
 .paperclip-mask {
@@ -233,7 +186,6 @@
   right: 0;
   height: 50%;
   background: linear-gradient(to bottom, transparent 20%, var(--md-default-bg-color) 100%);
-  z-index: 2;
   pointer-events: none;
 }
 
@@ -242,37 +194,23 @@
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding: 4rem 1rem 8rem !important;
+  padding: 2rem 1rem 8rem !important;
   z-index: 10;
-  text-align: center;
-}
-
-.paperclip-content {
-  max-width: 50rem !important;
 }
 
 .paperclip-content h1 {
   font-family: "Newsreader", serif;
   font-size: clamp(3rem, 8vw, 5.5rem);
   font-weight: 500;
-  line-height: 1.05;
-  margin: 0 0 1rem;
   color: var(--md-typeset-color);
 }
 
 .paperclip-subtitle {
   font-size: clamp(1.1rem, 3vw, 1.4rem) !important;
   opacity: 0.8;
-  margin: 0 auto 2.5rem !important;
   max-width: 38rem;
-  line-height: 1.4;
+  margin: 0 auto 2.5rem !important;
   color: var(--md-typeset-color);
-}
-
-.paperclip-actions {
-  display: flex;
-  justify-content: center;
-  gap: 1rem;
 }
 
 .paperclip-actions .md-button {
@@ -284,75 +222,14 @@
 .paperclip-actions .md-button--primary {
   background-color: var(--md-typeset-color) !important;
   color: var(--md-default-bg-color) !important;
-  border: none;
 }
 
-/* --- INTERNAL PAGES & NAVIGATION --- */
-
-body:not(.is-home) .md-header {
-  position: sticky;
-  top: 1.5rem;
-  z-index: 100;
-  margin-bottom: 2rem;
-}
-
-@media screen and (min-width: 76.25em) {
-  .md-tabs {
-    background-color: transparent !important;
-    position: absolute;
-    top: 5.5rem;
-    left: 0;
-    right: 0;
-    z-index: 99;
-  }
-  
-  .md-tabs__list {
-    justify-content: center;
-    max-width: 1000px;
-    margin: 0 auto;
-    background: transparent !important;
-    border: none !important;
-    padding: 0;
-  }
-  
-  .md-tabs__link {
-    color: var(--gagent-nav-text) !important;
-    font-size: 0.75rem;
-    font-weight: 600;
-    opacity: 0.6;
-    padding: 0.5rem 1rem;
-    border-radius: 100px;
-  }
-  
-  .md-tabs__link:hover {
-    opacity: 1;
-    background: rgba(255, 255, 255, 0.05);
-  }
-  
-  .md-tabs__item--active .md-tabs__link {
-    opacity: 1;
-    color: var(--gagent-accent) !important;
-    background: rgba(255, 255, 255, 0.08);
-  }
-}
-
-/* Mobile Specifics */
-@media screen and (max-width: 76.24em) {
-  .md-header__inner {
-    margin: 1rem 1rem 0 !important;
-    max-width: calc(100% - 2rem) !important;
-  }
-  .md-sidebar--primary { z-index: 2000 !important; }
-  .md-overlay { z-index: 1500 !important; opacity: 1 !important; background: rgba(0, 0, 0, 0.5); }
-}
-
-/* Grid Layout */
+/* Grid Cleanup */
 .gagent-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 1.5rem;
   margin: 4rem 0;
-  padding: 0 1rem;
 }
 
 .gagent-card {
@@ -360,8 +237,7 @@ body:not(.is-home) .md-header {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
-  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-  text-decoration: none !important;
+  transition: all 0.4s ease;
   display: flex;
   flex-direction: column;
 }
@@ -369,16 +245,4 @@ body:not(.is-home) .md-header {
 .gagent-card:hover {
   transform: translateY(-8px);
   border-color: var(--gagent-accent);
-}
-
-.gagent-card strong {
-  font-size: 1.2rem;
-  color: var(--md-typeset-color);
-}
-
-.gagent-card span {
-  font-size: 0.95rem;
-  color: var(--md-typeset-color);
-  opacity: 0.6;
-  line-height: 1.6;
 }
