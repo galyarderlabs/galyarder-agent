@@ -1,0 +1,256 @@
+# Hermes And Nanobot Reference Audit
+
+This report maps the valuable ideas from `hermes-agent-ref/` and `nanobot-ref/` into G-Agent decisions. It is not a file-by-file inventory. It is a feature-by-feature audit with source evidence, fit, and implementation direction.
+
+G-Agent's target is an agentic character runtime: persistent identity, relationship memory, visual presence, owner workflows, and daily-use channels. References are useful only when they support that direction.
+
+## Decision Legend
+
+| Decision | Meaning |
+| --- | --- |
+| Adopt | Bring the capability into G-Agent with similar architecture. |
+| Adapt | Borrow the pattern, but reshape it for G-Agent's character-first product. |
+| Later | Valuable, but not needed until the core runtime is stable. |
+| Drop | Not worth carrying into G-Agent core. |
+
+## Executive Summary
+
+Hermes should influence G-Agent's internal learning loop. Nanobot should influence G-Agent's app surfaces and operational reliability.
+
+The highest-value items to implement first are:
+
+1. SQLite session store with FTS search.
+2. Session search and summarization tool.
+3. Shared slash command router with logs, status, approvals, memory, and skills commands.
+4. Dangerous action approval system per session/channel.
+5. Built-in memory manager with context fencing and one optional external provider.
+6. Owner-reviewed learning queue.
+7. Skill lifecycle as procedural memory.
+8. WebSocket/Web UI and OpenAI-compatible API.
+9. WhatsApp, Telegram, and Discord media/session hardening.
+10. Routine engine for cron and webhook-triggered workflows.
+
+## G-Agent Baseline
+
+Current G-Agent already has useful foundations:
+
+| Area | Current source | Current state | Gap |
+| --- | --- | --- | --- |
+| Memory | `backend/agent/g_agent/agent/memory.py` | Markdown memory files, profile, relationships, projects, facts scaffold. | Needs structured recall, review queue, context fencing, and write lifecycle. |
+| Skills | `backend/agent/g_agent/agent/skills.py` | Built-in and workspace `SKILL.md` loader with metadata and requirements. | Needs create/patch/validate/activate lifecycle and procedural learning loop. |
+| Sessions | `backend/agent/g_agent/session/manager.py` | JSONL sessions with metadata, cache, archive/delete/list. | Needs SQLite, FTS5 search, concurrent gateway safety, source filtering, and cost/tool metadata. |
+| Commands | `backend/agent/g_agent/channels/slash_commands.py` | Native slash commands for status, context, memory, model, cron, tools, search. | Needs approvals, logs, session search, skills, learning review, and cross-channel consistency. |
+| Channels | `backend/agent/g_agent/channels/` | WhatsApp, Telegram, Discord, Slack, email, Feishu, manager. | Needs media reliability, session mapping, errors, reconnect behavior, and tests. |
+| Cron/proactive | `backend/agent/g_agent/cron/`, `backend/agent/g_agent/proactive/` | Existing scheduling/proactive surface. | Needs routine model tied to character, approvals, destination channels, and script preprocessing. |
+
+## Audit Matrix
+
+### Session Store And Conversation Recall
+
+| Capability | Source | Evidence files | Decision | Fit for G-Agent | Implementation notes |
+| --- | --- | --- | --- | --- | --- |
+| SQLite session database | Hermes | `hermes-agent-ref/hermes_state.py` | Adopt | This is the substrate for long-term character continuity. JSONL is readable but weak for search, concurrency, and analytics. | Add `g_agent/session/store.py` with sessions/messages tables, WAL, FTS5, source/channel metadata, parent session ids, token/tool counters, and migration from existing JSONL. |
+| Full-text session search | Hermes | `hermes-agent-ref/hermes_state.py`, `hermes-agent-ref/tools/session_search_tool.py` | Adopt | The character must recall old conversations, decisions, commands, and owner preferences. | Build `session_search` tool and `/search` command. Summarize top sessions with auxiliary model. Preserve paths, commands, URLs, decisions, and unresolved items. |
+| Session title/lineage | Hermes | `hermes-agent-ref/hermes_state.py`, `hermes-agent-ref/agent/title_generator.py` | Adapt | Useful for Web UI and owner review. Parent chains matter after compression. | Add automatic titles later, but start with channel/source/date and optional title. |
+| Cost/token/session insights | Hermes | `hermes-agent-ref/hermes_state.py`, `hermes-agent-ref/agent/insights.py` | Later | Useful for owner trust and debugging, but after session store lands. | Add token/cost fields now, dashboards later. |
+| JSONL-only session persistence | Current G-Agent | `backend/agent/g_agent/session/manager.py` | Replace gradually | Good for simplicity, insufficient for G-Agent's memory ambitions. | Keep export/import compatibility while moving primary store to SQLite. |
+
+### Memory And User Modeling
+
+| Capability | Source | Evidence files | Decision | Fit for G-Agent | Implementation notes |
+| --- | --- | --- | --- | --- | --- |
+| Memory manager as single integration point | Hermes | `hermes-agent-ref/agent/memory_manager.py` | Adopt | Prevents scattered memory logic and provider conflicts. | Add manager around current `MemoryStore`. Built-in provider always enabled; allow one optional external provider. |
+| Context fencing for recalled memory | Hermes | `hermes-agent-ref/agent/memory_manager.py` | Adopt | Critical so recalled facts are not treated as new user instructions. | Use fenced `<memory-context>` or G-Agent equivalent. Strip leaked fences from provider outputs. |
+| Built-in local fact memory | Current G-Agent + Hermes holographic | `backend/agent/g_agent/agent/memory.py`, `hermes-agent-ref/plugins/memory/holographic/README.md` | Adapt | Best first default: local/private, no external service dependency. | Keep markdown-facing files for readability, add SQLite fact index for retrieval, confidence, source, and contradiction metadata. |
+| Honcho-style user/AI peer model | Hermes | `hermes-agent-ref/plugins/memory/honcho/README.md` | Later | Very aligned with agentic character depth, but external and complex. | Defer until local memory works. Borrow concepts: owner model, AI self model, relationship card, session summaries. |
+| Multiple external memory plugins | Hermes | `hermes-agent-ref/plugins/memory/` | Drop from core | Too much provider sprawl for early G-Agent. | Support plugin interface later, but core should ship one local provider plus one optional external. |
+| Markdown memory files | Current G-Agent | `backend/agent/g_agent/agent/memory.py` | Keep | Owner-readable memory is valuable for trust. | Make markdown a human view/export, not the only query engine. |
+
+### Learning Loop
+
+| Capability | Source | Evidence files | Decision | Fit for G-Agent | Implementation notes |
+| --- | --- | --- | --- | --- | --- |
+| Background memory/skill review | Hermes | `hermes-agent-ref/run_agent.py` | Adapt | This is the heart of "the character grows with use." | Run review after response delivery. Do not block user response. Generate candidates for review, not automatic writes at first. |
+| Nudge intervals | Hermes | `hermes-agent-ref/run_agent.py` | Adapt | Prevents constant self-reflection spam. | Configurable intervals for memory review, skill review, and routine review. |
+| Learning queue | G-Agent target | `ROADMAP.md` | Adopt | Owner needs review/edit/rollback before character changes. | Add queue table with candidate type, diff, reason, risk, source session ids, state, and rollback metadata. |
+| Auto-apply memory/skills | Hermes pattern | `hermes-agent-ref/run_agent.py`, `hermes-agent-ref/tools/skill_manager_tool.py` | Later | Too risky until review UX and tests exist. | Start manual approval only; maybe low-risk facts auto-apply later. |
+| Research/RL learning | Hermes | `hermes-agent-ref/environments/`, `hermes-agent-ref/batch_runner.py`, `hermes-agent-ref/agent/trajectory.py` | Drop from core | Not aligned with first G-Agent product. | Keep as distant research inspiration only. |
+
+### Skills As Procedural Memory
+
+| Capability | Source | Evidence files | Decision | Fit for G-Agent | Implementation notes |
+| --- | --- | --- | --- | --- | --- |
+| Progressive skill loading | Current G-Agent + Hermes + Nanobot | `backend/agent/g_agent/agent/skills.py`, `hermes-agent-ref/tools/skills_tool.py`, `nanobot-ref/nanobot/agent/skills.py` | Adopt | Keeps prompts small while letting the character use specialized procedures. | Keep summary-first loading; add `skill_view`/`skills_list` tools if missing. |
+| Skill create/patch/delete lifecycle | Hermes | `hermes-agent-ref/tools/skill_manager_tool.py` | Adapt | Required for procedural memory and self-improvement. | Agent may create drafts; owner activates. Validate frontmatter, size, paths, and supporting dirs. |
+| Supporting files in skills | Hermes | `hermes-agent-ref/tools/skill_manager_tool.py` | Adopt | Useful for templates, scripts, assets, and references. | Allow `references/`, `templates/`, `scripts/`, `assets/`; block traversal. |
+| Skill command invocation | Hermes | `hermes-agent-ref/agent/skill_commands.py`, `hermes-agent-ref/agent/skill_preprocessing.py` | Later | Good UX, but lifecycle should land first. | Add `/skills`, `/skill <name>`, and optional template substitution after review system exists. |
+| Skill hub/public marketplace | Hermes/Nanobot | `hermes-agent-ref/hermes_cli/skills_hub.py`, `nanobot-ref/nanobot/skills/` | Later | Useful eventually, risky before local skills mature. | Keep local/private skill development first. |
+| China/community skill packs | Nanobot | `nanobot-ref/nanobot/skills/` | Drop from core | Some examples are fine, but not product-defining. | Do not import wholesale. |
+
+### Commands, Approvals, And Owner Control
+
+| Capability | Source | Evidence files | Decision | Fit for G-Agent | Implementation notes |
+| --- | --- | --- | --- | --- | --- |
+| Native slash command router | Current G-Agent + Nanobot + Hermes | `backend/agent/g_agent/channels/slash_commands.py`, `nanobot-ref/nanobot/command/router.py`, `hermes-agent-ref/hermes_cli/commands.py` | Adopt | Owner needs deterministic controls without LLM ambiguity. | Extend existing dispatcher instead of replacing it. |
+| Dangerous command approval | Hermes | `hermes-agent-ref/tools/approval.py` | Adopt | Directly addresses user concern about exec approvals and unsafe local actions. | Add pattern detection, per-session pending state, `/approve`, `/deny`, narrow allowlist. |
+| Logs/status commands | Current G-Agent + Hermes | `backend/agent/g_agent/channels/slash_commands.py`, `hermes-agent-ref/hermes_cli/logs.py`, `hermes-agent-ref/gateway/status.py` | Adopt | Debugging via chat is essential for owner runtime. | Add `/logs` and richer `/status` across all primary channels. |
+| Permission policy UI | Hermes | `hermes-agent-ref/tools/approval.py` | Adapt | Useful but must be simpler than Hermes initially. | Chat first, Web UI later. |
+| Natural-language operational commands only | Existing behavior risk | N/A | Drop | Too ambiguous for safety-critical actions. | Keep deterministic slash commands. |
+
+### Web UI, WebSocket, And API
+
+| Capability | Source | Evidence files | Decision | Fit for G-Agent | Implementation notes |
+| --- | --- | --- | --- | --- | --- |
+| WebSocket channel | Nanobot | `nanobot-ref/nanobot/channels/websocket.py`, `nanobot-ref/docs/websocket.md` | Adopt | Foundation for first-party Web UI and real-time control. | Add token auth, session mapping, media envelopes, streaming deltas, lifecycle events. |
+| Web UI | Nanobot | `nanobot-ref/webui/`, `nanobot-ref/images/nanobot_webui.png` | Adapt | Needed, but G-Agent UI should control character/memory/skills/routines, not just chat. | Build after session store and commands so UI has real surfaces. |
+| OpenAI-compatible chat completions | Nanobot + Hermes | `nanobot-ref/nanobot/api/server.py`, `nanobot-ref/docs/openai-api.md`, `hermes-agent-ref/gateway/platforms/api_server.py` | Adopt | Lets Open WebUI, LobeChat, LibreChat, and local tools use G-Agent. | Start with `/v1/models` and `/v1/chat/completions`; add `/v1/responses` later. |
+| Stateful responses API | Hermes | `hermes-agent-ref/gateway/platforms/api_server.py` | Later | Good compatibility, but more complex than initial chat completions. | Defer until session store and chat completions are stable. |
+| API multimodal normalization | Nanobot + Hermes | `nanobot-ref/nanobot/api/server.py`, `hermes-agent-ref/gateway/platforms/api_server.py` | Adopt | Important for image input and visual workflows. | Support base64 data URLs, uploads, size limits, and explicit remote URL policy. |
+
+### Channels And Gateway
+
+| Capability | Source | Evidence files | Decision | Fit for G-Agent | Implementation notes |
+| --- | --- | --- | --- | --- | --- |
+| WhatsApp reliability patterns | Nanobot + Hermes | `nanobot-ref/bridge/src/whatsapp.ts`, `nanobot-ref/nanobot/channels/whatsapp.py`, `hermes-agent-ref/gateway/platforms/whatsapp.py` | Adopt | WhatsApp is one of G-Agent's primary surfaces. | Focus media, routing, restart, login state, self-chat, and clear sandbox/file errors. |
+| Telegram channel hardening | Nanobot + Hermes | `nanobot-ref/nanobot/channels/telegram.py`, `hermes-agent-ref/gateway/platforms/telegram.py` | Adopt | Primary channel. | Improve media, Markdown safety, group/DM policy, topic/thread mapping if useful, rate handling. |
+| Discord channel hardening | Nanobot + Hermes | `nanobot-ref/nanobot/channels/discord.py`, `hermes-agent-ref/gateway/platforms/discord.py` | Adopt | Primary channel. | Improve attachments, DM/mention policy, persistent session mapping, reconnect. |
+| Gateway platform abstraction | Hermes | `hermes-agent-ref/gateway/platforms/base.py`, `hermes-agent-ref/gateway/run.py`, `hermes-agent-ref/gateway/session.py` | Adapt | Useful if G-Agent channel manager gets too coupled. | Borrow patterns selectively; avoid full gateway rewrite too early. |
+| China-first channels | Nanobot + Hermes | `nanobot-ref/nanobot/channels/feishu.py`, `nanobot-ref/nanobot/channels/qq.py`, `nanobot-ref/nanobot/channels/weixin.py`, `hermes-agent-ref/gateway/platforms/dingtalk.py`, `hermes-agent-ref/gateway/platforms/wecom.py` | Drop from core | Not aligned with user's current use case. | Keep out of core. Maybe plugin examples later. |
+| Slack/Matrix/Microsoft Teams | Nanobot + Hermes | `nanobot-ref/nanobot/channels/slack.py`, `nanobot-ref/nanobot/channels/matrix.py`, `nanobot-ref/nanobot/channels/msteams.py`, `hermes-agent-ref/gateway/platforms/slack.py`, `hermes-agent-ref/gateway/platforms/matrix.py` | Later | Useful for broader users, not first focus. | Plugin or later optional channel pack. |
+
+### MCP, Tools, And Toolsets
+
+| Capability | Source | Evidence files | Decision | Fit for G-Agent | Implementation notes |
+| --- | --- | --- | --- | --- | --- |
+| MCP schema normalization and retry | Nanobot | `nanobot-ref/nanobot/agent/tools/mcp.py`, `nanobot-ref/tests/agent/test_mcp_connection.py`, `nanobot-ref/tests/agent/test_mcp_transient_retry.py` | Adopt | G-Agent already wants app/tool integrations; MCP must be boring and safe. | Add nullable schema normalization, per-tool timeout, transient retry, clear errors. |
+| Toolsets/capability groups | Hermes | `hermes-agent-ref/toolsets.py` | Adopt | Prevents every character/session from getting every tool. | Define toolsets: safe, file, terminal, web/search, vision, image, messaging, memory, skills, routines, MCP, subagents. |
+| File/shell tool UX | Nanobot + Hermes | `nanobot-ref/nanobot/agent/tools/filesystem.py`, `nanobot-ref/nanobot/agent/tools/shell.py`, `hermes-agent-ref/tools/terminal_tool.py` | Adapt | Useful, but must respect G-Agent sandbox and allowed paths. | Improve error messages, path roots, file state, and approval integration. |
+| Notebook/scratch tools | Nanobot | `nanobot-ref/nanobot/agent/tools/notebook.py` | Later | Nice for complex tasks, not first priority. | Consider after session store/skills. |
+| Tool hints and progress events | Nanobot | `nanobot-ref/nanobot/utils/tool_hints.py`, `nanobot-ref/nanobot/utils/progress_events.py` | Adapt | Useful for chat UX and Web UI. | Add progress/lifecycle events to WebSocket/API first. |
+
+### Agent Runner, Subagents, And Execution
+
+| Capability | Source | Evidence files | Decision | Fit for G-Agent | Implementation notes |
+| --- | --- | --- | --- | --- | --- |
+| Shared agent runner | Nanobot | `nanobot-ref/nanobot/agent/runner.py` | Adopt | Separates tool loop from product/session/channel concerns. | Refactor carefully after tests; use for CLI, channels, API, subagents. |
+| Subagent lifecycle | Nanobot + Hermes | `nanobot-ref/nanobot/agent/subagent.py`, `nanobot-ref/nanobot/agent/tools/spawn.py`, `hermes-agent-ref/tools/delegate_tool.py`, `hermes-agent-ref/tests/tools/test_delegate.py` | Adapt | Useful for background work and research, but owner needs status and summaries. | Add bounded tools, cancellation, status events, artifacts, and completion summaries. |
+| Local execution default | Current G-Agent | `backend/agent/g_agent/` | Keep | Best for user's setup and privacy. | Improve approvals and path policy first. |
+| Docker/SSH/remote backends | Hermes | `hermes-agent-ref/tools/environments/` | Later | Useful for always-on or risky work, not first core. | Start with local; add Docker sandbox next; SSH/VPS later. |
+| Modal/Daytona/Singularity | Hermes | `hermes-agent-ref/tools/environments/` | Later/drop from core | Interesting but too heavy for early G-Agent. | Keep as optional backend only if demand appears. |
+
+### Context Compression And Prompt Assembly
+
+| Capability | Source | Evidence files | Decision | Fit for G-Agent | Implementation notes |
+| --- | --- | --- | --- | --- | --- |
+| Pluggable context engine | Hermes | `hermes-agent-ref/agent/context_engine.py` | Adopt | Character context will become complex: profile, memory, sessions, skills, routines. | Add interface before compression gets tangled into loop code. |
+| Structured compression | Hermes + Nanobot | `hermes-agent-ref/agent/context_compressor.py`, `nanobot-ref/nanobot/agent/autocompact.py` | Adapt | Needed for long-lived characters. | Protect identity/profile and recent tail. Summaries must be reference-only, not instructions. |
+| Dream/consolidation loop | Nanobot | `nanobot-ref/nanobot/templates/agent/dream_phase1.md`, `nanobot-ref/nanobot/templates/agent/dream_phase2.md`, `nanobot-ref/nanobot/agent/autocompact.py` | Adapt | Very aligned with character development. | Merge with owner-reviewed learning queue instead of autonomous hidden mutation. |
+| Prompt injection checks for context files | Hermes | `hermes-agent-ref/agent/prompt_builder.py` | Adopt | AGENTS/SOUL/profile/memory files are untrusted inputs in practice. | Add scans for hidden chars and injection patterns. |
+
+### Routines, Cron, And Triggers
+
+| Capability | Source | Evidence files | Decision | Fit for G-Agent | Implementation notes |
+| --- | --- | --- | --- | --- | --- |
+| Cron jobs | Current G-Agent + Nanobot + Hermes | `backend/agent/g_agent/cron/`, `nanobot-ref/nanobot/agent/tools/cron.py`, `hermes-agent-ref/cron/scheduler.py` | Adopt | Character should run reminders, reports, and check-ins. | Tie jobs to character, destination channel, allowed tools, and approval policy. |
+| Script pre-processing before agent | Hermes | `hermes-agent-ref/hermes-already-has-routines.md` | Adapt | Very useful for workflows: gather data first, then let character interpret. | Add routine step that runs approved script and injects stdout as context. |
+| Webhook/API triggers | Hermes | `hermes-agent-ref/hermes-already-has-routines.md`, `hermes-agent-ref/gateway/platforms/webhook.py` | Later | Useful after API/session store exist. | Add after routine model and auth. |
+| Multi-skill workflows | Hermes | `hermes-agent-ref/hermes-already-has-routines.md` | Later | Powerful but requires stable skills. | Defer until skill lifecycle works. |
+
+### Image Generation And Visual Identity
+
+| Capability | Source | Evidence files | Decision | Fit for G-Agent | Implementation notes |
+| --- | --- | --- | --- | --- | --- |
+| Image provider registry | Hermes | `hermes-agent-ref/agent/image_gen_provider.py`, `hermes-agent-ref/agent/image_gen_registry.py` | Adapt | G-Agent already has visual/selfie direction and proxy image need. | Keep provider config simple. Prioritize OpenAI-compatible proxy and local reference image roots. |
+| Selfie/mirror character workflows | Current G-Agent product direction | `backend/agent/g_agent/agent/tools/selfie.py`, `ROADMAP.md` | Adopt | This is a differentiator. | Make profile-level visual config, prompt templates, reference paths, and error logs. |
+| Provider sprawl | Hermes/Nanobot | provider directories | Drop from core | Too much maintenance. | One clean OpenAI-compatible image path plus optional extras. |
+
+### Docs, Packaging, And Tests
+
+| Capability | Source | Evidence files | Decision | Fit for G-Agent | Implementation notes |
+| --- | --- | --- | --- | --- | --- |
+| Organized test matrix | Nanobot | `nanobot-ref/tests/agent/`, `nanobot-ref/tests/channels/`, `nanobot-ref/tests/tools/`, `nanobot-ref/tests/providers/` | Adopt | G-Agent needs confidence before learning loop changes memory/skills. | Gradually organize tests by domain. No huge test move without code changes. |
+| MkDocs user docs | Current G-Agent + Nanobot docs | `docs/`, `nanobot-ref/docs/` | Adapt | G-Agent docs should explain product surfaces, not upstream internals. | Add docs for allowed paths, image proxy, commands, memory, skills, routines, Web UI/API as they land. |
+| Install matrix | Current G-Agent | `docs/install-matrix.md`, `deploy/` | Keep | Important for public trust. | Update after runtime stabilizes. |
+| Third-party notices | Nanobot | `nanobot-ref/THIRD_PARTY_NOTICES.md` | Later | Only needed when borrowing assets/code/deps. | If code is copied, add notices. Prefer reimplementation from concepts. |
+
+## Recommended Implementation Order
+
+### Milestone 1: Inspectable Runtime
+
+1. Add SQLite session store behind current session manager.
+2. Add FTS search and `/search`.
+3. Add `/logs`, richer `/status`, and `/sessions`.
+4. Add dangerous action approval state and `/approve`/`/deny`.
+5. Fix image proxy docs/config and remove dead Nebius assumptions.
+
+Why first: the owner needs to see what happened, approve risky work, and retrieve old context before any self-improvement loop can be trusted.
+
+### Milestone 2: Character Memory
+
+1. Wrap current markdown memory in a Memory Manager.
+2. Add context-fenced recall blocks.
+3. Add structured local fact index.
+4. Add memory write candidates instead of direct autonomous writes.
+5. Add `/memory review` command.
+
+Why second: this turns memory from static files into a safe learning substrate.
+
+### Milestone 3: Skills And Learning Queue
+
+1. Add learning queue table.
+2. Add background review that proposes memory/profile/skill/routine candidates.
+3. Add skill draft/create/patch/validate/activate/rollback.
+4. Add `/skills` and skill review commands.
+5. Keep all activation owner-reviewed.
+
+Why third: this is the Hermes-style growth loop, but constrained for G-Agent safety.
+
+### Milestone 4: Channels And Web Surface
+
+1. Harden WhatsApp media and sandbox path errors.
+2. Harden Telegram/Discord media/session mapping.
+3. Add WebSocket channel and events.
+4. Add minimal OpenAI-compatible `/v1/models` and `/v1/chat/completions`.
+5. Build Web UI around sessions, approvals, memory, skills, and character profiles.
+
+Why fourth: once the backend has real state and controls, Web UI becomes useful instead of decorative.
+
+### Milestone 5: Routines And Advanced Runtime
+
+1. Add routine model with cron, destination channel, allowed tools, and approval policy.
+2. Add script preprocessing.
+3. Add webhook/API triggers.
+4. Add toolsets and MCP hardening.
+5. Add Docker sandbox, then SSH/VPS backend if needed.
+
+Why fifth: routines are powerful only after approvals, memory, sessions, and tools are reliable.
+
+## Drop List For Core
+
+These should not be part of the G-Agent core roadmap now:
+
+- Feishu, DingTalk, QQ, WeCom, Weixin, Mochat.
+- Hermes RL environments and batch trajectory generation.
+- Every Hermes memory provider.
+- Public skill hub before local skill lifecycle is stable.
+- Modal, Daytona, Singularity as first-class early backends.
+- Generic chat-only Web UI.
+- Provider sprawl beyond clean OpenAI-compatible routing.
+- Hidden autonomous skill/profile mutation.
+
+## Open Questions
+
+1. Should the first SQLite store live under the existing session manager or as a parallel store with migration command?
+2. Should local memory be markdown-first with SQLite index, or SQLite-first with markdown export?
+3. Should owner-reviewed learning queue be exposed first through chat commands or CLI?
+4. Should Web UI wait for learning queue, or start earlier with sessions/logs/approvals only?
+5. Should Docker sandbox be part of the first public release or documented as an advanced deployment?
+6. Should Honcho-style external memory be considered a plugin in v1, or deferred until local memory feels excellent?
+
+## Bottom Line
+
+The valuable core from Hermes is the growth loop: session recall, memory manager, learning review, procedural skills, approvals, and context compression.
+
+The valuable core from Nanobot is the operating surface: WebSocket/Web UI, OpenAI API, channel reliability, MCP hardening, shared runner, and test organization.
+
+G-Agent should combine those into a narrower product: an agentic character runtime that grows with the owner across real chat channels, visual identity, memory, skills, and routines.

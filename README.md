@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="backend/agent/header.webp" alt="Galyarder Agent header" width="900">
+  <img src="docs/assets/header.webp" alt="Galyarder Agent header" width="900">
 
   ---
   <p><b>Build agentic digital characters that live where you already talk: WhatsApp, Telegram, Discord, Slack, Email, and CLI. Give them memory, a face, tools, Google Workspace access, workflow automation, and the ability to send selfies or mirror photos.</b></p>
@@ -306,7 +306,7 @@ Memory lives in `workspace/memory`:
 ## Architecture
 
 <p align="center">
-  <img src="backend/agent/architecture.webp" alt="g-agent architecture" width="900">
+  <img src="docs/assets/architecture.webp" alt="g-agent architecture" width="900">
 </p>
 
 Execution flow:

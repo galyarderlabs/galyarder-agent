@@ -57,6 +57,6 @@
 
 ## Architecture
 
-![g-agent architecture](https://raw.githubusercontent.com/galyarderlabs/galyarder-agent/main/backend/agent/g-agent_arch.png)
+![g-agent architecture](assets/architecture.webp)
 
 <p class="gagent-note"><i>Execution path: channel input -> agent loop -> tools/memory/scheduler -> outbound dispatch.</i></p>
