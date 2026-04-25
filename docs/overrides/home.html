@@ -9,27 +9,34 @@
       .md-container {
         padding-top: 0 !important;
       }
+      
+      /* THE STICKY GLASS FIX */
       .md-header {
-        position: absolute !important;
+        position: sticky !important; /* Change back to sticky */
         top: 0 !important;
         left: 0;
         right: 0;
         z-index: 1000;
+        transition: background-color 0.3s ease;
       }
+
       .md-header__inner {
-        background: rgba(255, 255, 255, 0.1) !important;
-        backdrop-filter: blur(20px) !important;
-        -webkit-backdrop-filter: blur(20px) !important;
+        margin-top: 1.5rem !important; /* Restore float offset */
+        background: rgba(255, 255, 255, 0.15) !important;
+        backdrop-filter: blur(20px) saturate(180%) !important;
+        -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
         border: 1px solid rgba(255, 255, 255, 0.1) !important;
         box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2) !important;
       }
+
       [data-md-color-scheme="slate"] .md-header__inner {
-        background: rgba(13, 17, 23, 0.2) !important;
+        background: rgba(13, 17, 23, 0.3) !important;
+        border-color: rgba(255, 255, 255, 0.05) !important;
       }
       
-      /* Force Hero to pixel 0 */
+      /* Force Hero to pixel 0 while allowing header to sit on top */
       .paperclip-hero {
-        margin-top: 0 !important;
+        margin-top: -5rem !important; /* Pull up further to account for sticky header height */
         padding-top: 0 !important;
       }
     </style>
