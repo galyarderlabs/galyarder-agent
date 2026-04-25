@@ -50,11 +50,16 @@
   display: none;
 }
 
-/* --- PAPERCLIP FULLSCREEN RESET --- */
+/* --- THE PAPERCLIP FULLSCREEN RESET (HOME PAGE) --- */
 
-/* KILL TOP GAP FOR HOME PAGE */
+body.is-home {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
 body.is-home .md-container {
   padding-top: 0 !important;
+  margin-top: 0 !important;
 }
 
 body.is-home .md-header {
@@ -66,17 +71,19 @@ body.is-home .md-header {
 }
 
 /* HERO SECTION: START FROM TOP 0 */
-.md-hero {
+.paperclip-hero {
   position: relative;
   background-color: var(--md-default-bg-color);
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
   padding: 0 !important;
-  margin: 0 !important;
+  margin-top: 0 !important;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
 }
 
-.md-hero__image-container {
+.paperclip-image-container {
   width: 100%;
   height: 60vh;
   overflow: hidden;
@@ -84,7 +91,7 @@ body.is-home .md-header {
   background-color: #000;
 }
 
-.md-hero__image-container img {
+.paperclip-image-container img {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -92,8 +99,7 @@ body.is-home .md-header {
 }
 
 /* Gradient Mask Overlay */
-.md-hero__image-container::after {
-  content: "";
+.paperclip-mask {
   position: absolute;
   bottom: 0;
   left: 0;
@@ -103,7 +109,7 @@ body.is-home .md-header {
   z-index: 2;
 }
 
-.md-hero__inner {
+.paperclip-inner {
   flex: 1;
   display: flex;
   justify-content: center;
@@ -113,11 +119,11 @@ body.is-home .md-header {
   text-align: center;
 }
 
-.md-hero__content {
+.paperclip-content {
   max-width: 50rem !important;
 }
 
-.md-hero__content h1 {
+.paperclip-content h1 {
   font-family: "Newsreader", serif;
   font-size: clamp(3rem, 8vw, 5.5rem);
   font-weight: 500;
@@ -126,7 +132,7 @@ body.is-home .md-header {
   color: var(--md-typeset-color);
 }
 
-.md-hero__subtitle {
+.paperclip-subtitle {
   font-size: clamp(1.1rem, 3vw, 1.4rem) !important;
   opacity: 0.8;
   margin: 0 auto 2.5rem !important;
@@ -135,19 +141,19 @@ body.is-home .md-header {
   color: var(--md-typeset-color);
 }
 
-.md-hero__actions {
+.paperclip-actions {
   display: flex;
   justify-content: center;
   gap: 1rem;
 }
 
-.md-hero__actions .md-button {
+.paperclip-actions .md-button {
   padding: 0.8rem 2.2rem;
   border-radius: 100px;
   font-weight: 600;
 }
 
-.md-hero__actions .md-button--primary {
+.paperclip-actions .md-button--primary {
   background-color: var(--md-typeset-color) !important;
   color: var(--md-default-bg-color) !important;
   border: none;
