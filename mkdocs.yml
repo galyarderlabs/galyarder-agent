@@ -102,5 +102,7 @@ extra:
     - icon: fontawesome/brands/github
       link: https://github.com/galyarderlabs/galyarder-agent
 
+copyright: "© 2026 Galyarder Labs."
+
 extra_css:
   - styles/extra.css

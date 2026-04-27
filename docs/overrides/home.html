@@ -41,6 +41,14 @@
         margin-top: 0 !important;
         padding-top: 0 !important;
         z-index: 1;
+        border: none !important;
+      }
+
+      /* Force hide any remaining layout lines on home */
+      [data-md-color-scheme="slate"] .md-main__inner,
+      [data-md-color-scheme="slate"] article {
+        border: none !important;
+        box-shadow: none !important;
       }
 
       /* Ensure tabs also float correctly if active */
