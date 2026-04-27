@@ -1076,10 +1076,34 @@ def agent(
         visual_config=config.visual,
     )
 
+    async def _process_cli_input(text: str) -> str:
+        from g_agent.channels.slash_commands import SlashCommandDispatcher
+
+        chat_id = session_id.split(":", 1)[1] if ":" in session_id else session_id
+        dispatcher = SlashCommandDispatcher(
+            config.workspace_path,
+            model_name=route.model,
+            brave_api_key=config.tools.web.search.api_key or "",
+            tool_names=agent_loop.tools.tool_names,
+            version=__version__,
+        )
+        command_result = await dispatcher.try_handle(
+            text,
+            session_id,
+            "cli",
+            chat_id,
+            sender_id="cli",
+        )
+        if isinstance(command_result, dict):
+            return str(command_result.get("text") or "")
+        if isinstance(command_result, str):
+            return command_result
+        return await agent_loop.process_direct(text, session_id)
+
     if message:
         # Single message mode
         async def run_once():
-            response = await agent_loop.process_direct(message, session_id)
+            response = await _process_cli_input(message)
             console.print(f"\n{__logo__} {response}")
 
         asyncio.run(run_once())
@@ -1105,7 +1129,7 @@ def agent(
                     if not user_input.strip():
                         continue
 
-                    response = await agent_loop.process_direct(user_input, session_id)
+                    response = await _process_cli_input(user_input)
                     console.print(f"\n{__logo__} {response}\n")
                 except (KeyboardInterrupt, EOFError):
                     console.print("\nGoodbye!")

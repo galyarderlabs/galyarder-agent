@@ -41,6 +41,7 @@ class SlashCommandDispatcher:
         self.tool_names = tool_names or []
         self.version = version or "dev"
         self._boot_time = time.monotonic()
+        self._command_router = self._build_command_router()
 
         # Ordered command registry: (command, aliases, description, usage)
         self._registry: list[tuple[str, list[str], str, str]] = [
@@ -50,9 +51,14 @@ class SlashCommandDispatcher:
             ("reset", [], "Clear context & start fresh", ""),
             ("compact", [], "Summarize current session", ""),
             ("context", [], "Current session info", ""),
+            ("history", ["hists"], "Search session history", "<query>"),
+            ("sessions", [], "List recent sessions", ""),
             # Info
             ("status", [], "System diagnostics", ""),
             ("whoami", [], "Your profile from memory", ""),
+            ("logs", [], "View recent activity logs", ""),
+            ("deny", [], "Deny pending approval", "[tool|all]"),
+            ("approve", [], "Approve pending tool call", "[tool|all]"),
             ("memory", ["mem"], "View stored memories", "[query]"),
             ("model", [], "Active model", ""),
             # Tools & Integrations
@@ -90,13 +96,16 @@ class SlashCommandDispatcher:
         if not stripped.startswith("/"):
             return None
 
-        parts = stripped.split(maxsplit=1)
-        raw_cmd = parts[0][1:].lower()  # Remove leading /
-        args = parts[1].strip() if len(parts) > 1 else ""
+        raw_cmd, args = self._command_router.parse(stripped)
+
+        # Approval replay is implemented in AgentLoop so it can execute the
+        # pending tool call with the live registry. Let /approve pass through.
+        if raw_cmd == "approve":
+            return None
 
         canonical = self._handlers.get(raw_cmd)
         if canonical is None:
-            return None
+            return "⚠️ Unknown command. Try /commands."
 
         dispatch = {
             "start": lambda: self._cmd_start(),
@@ -104,11 +113,22 @@ class SlashCommandDispatcher:
             "reset": lambda: self._cmd_reset(session_key),
             "compact": lambda: self._cmd_compact(session_key),
             "context": lambda: self._cmd_context(session_key, channel, chat_id),
+            "history": lambda: self._cmd_history(args),
+            "sessions": lambda: self._cmd_sessions(),
             "status": lambda: self._cmd_status(session_key),
             "whoami": lambda: self._cmd_whoami(
                 channel=channel, chat_id=chat_id,
                 username=sender_username, user_id=sender_id,
             ),
+            "logs": lambda: self._cmd_router(
+                text=text,
+                session_key=session_key,
+                channel=channel,
+                chat_id=chat_id,
+                sender_username=sender_username,
+                sender_id=sender_id,
+            ),
+            "deny": lambda: self._cmd_deny(session_key, args),
             "memory": lambda: self._cmd_memory(args),
             "model": lambda: self._cmd_model(args),
             "tools": lambda: self._cmd_tools(),
@@ -134,6 +154,38 @@ class SlashCommandDispatcher:
             return f"⚠️ Error executing /{raw_cmd}: {e}"
 
     # -- Session Commands --------------------------------------------------
+
+    @staticmethod
+    def _build_command_router():
+        from g_agent.command.builtin import register_builtin_commands
+        from g_agent.command.router import CommandRouter
+
+        router = CommandRouter()
+        register_builtin_commands(router)
+        return router
+
+    async def _cmd_router(
+        self,
+        *,
+        text: str,
+        session_key: str,
+        channel: str,
+        chat_id: str,
+        sender_username: str = "",
+        sender_id: str = "",
+    ) -> str | dict | None:
+        from g_agent.command.context import CommandContext
+
+        context = CommandContext(
+            workspace=self.workspace,
+            channel=channel,
+            chat_id=chat_id,
+            session_key=session_key,
+            user_id=sender_id,
+            username=sender_username,
+            metadata={"model_name": self.model_name},
+        )
+        return await self._command_router.handle(text, context)
 
     def _cmd_start(self) -> str:
         return "👋 <b>yo.</b> send me a message, I'm listening."
@@ -216,6 +268,74 @@ class SlashCommandDispatcher:
                 ],
             ],
         }
+
+    def _cmd_history(self, query: str) -> str:
+        if not query:
+            return "⚠️ Usage: /history <query>\n\nExample: /history 'database schema'"
+
+        from g_agent.session.manager import SessionManager
+        sessions = SessionManager(self.workspace)
+        results = sessions.sqlite_store.search_messages(query, limit=5)
+
+        if not results:
+            return f"🔍 No history found for: <code>{query}</code>"
+
+        lines = [f"📜 <b>History: {query}</b>\n"]
+        for res in results:
+            role = res["role"].upper()
+            content = res["content"][:150].replace("<", "&lt;").replace(">", "&gt;")
+            if len(res["content"]) > 150:
+                content += "..."
+            lines.append(
+                f"• [{res['channel']}] <b>{role}</b>: {content}\n"
+                f"  <i>Session: {res['session_key']}</i>"
+            )
+
+        return "\n\n".join(lines)
+
+    def _cmd_sessions(self) -> str:
+        from g_agent.session.manager import SessionManager
+        sessions = SessionManager(self.workspace)
+        rows = sessions.sqlite_store.list_sessions(limit=10)
+
+        if not rows:
+            return "🧵 No sessions found."
+
+        lines = ["🧵 <b>Recent Sessions</b>\n"]
+        for row in rows:
+            ts = time.strftime('%Y-%m-%d %H:%M', time.localtime(row['updated_at']))
+            lines.append(f"• <code>{row['key']}</code> — <i>{ts} ({row['message_count']} msgs)</i>")
+
+        return "\n".join(lines)
+
+    def _cmd_deny(self, session_key: str, args: str) -> str:
+        from g_agent.session.manager import SessionManager
+
+        sessions = SessionManager(self.workspace)
+        session = sessions.get_or_create(session_key)
+        pending: list[dict] = session.metadata.get("pending_approvals", [])
+        if not pending:
+            return "✅ No pending approvals."
+
+        target = (args or "").strip().lower()
+        if not target:
+            denied = [pending[0]]
+            remaining = pending[1:]
+        elif target == "all":
+            denied = pending
+            remaining = []
+        else:
+            denied = [item for item in pending if item.get("tool_name", "").lower() == target]
+            remaining = [
+                item for item in pending if item.get("tool_name", "").lower() != target
+            ]
+            if not denied:
+                return f"✅ No pending approval for <code>{target}</code>."
+
+        session.metadata["pending_approvals"] = remaining
+        sessions.save(session)
+        names = ", ".join(item.get("tool_name", "unknown") for item in denied)
+        return f"🚫 Denied pending approval: <code>{names}</code>."
 
     # -- Info Commands -----------------------------------------------------
 

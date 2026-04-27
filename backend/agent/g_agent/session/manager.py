@@ -1,8 +1,8 @@
 """Session management for conversation history."""
 
 import json
-import weakref
 import threading
+import weakref
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -10,6 +10,7 @@ from typing import Any
 
 from loguru import logger
 
+from g_agent.session.sqlite_store import SessionSQLiteStore
 from g_agent.utils.helpers import ensure_dir, get_data_path, safe_filename
 
 
@@ -22,6 +23,7 @@ class Session:
     """
 
     key: str  # channel:chat_id
+    id: str | None = None  # SQLite session ID
     messages: list[dict[str, Any]] = field(default_factory=list)
     created_at: datetime = field(default_factory=lambda: datetime.now().astimezone())
     updated_at: datetime = field(default_factory=lambda: datetime.now().astimezone())
@@ -74,6 +76,7 @@ class SessionManager:
     def __init__(self, workspace: Path):
         self.workspace = workspace
         self.sessions_dir = ensure_dir(get_data_path() / "sessions")
+        self.sqlite_store = SessionSQLiteStore(self.sessions_dir / "sessions.db")
         self._cache: weakref.WeakValueDictionary[str, Session] = weakref.WeakValueDictionary()
         self._session_locks: weakref.WeakValueDictionary[str, threading.Lock] = weakref.WeakValueDictionary()
         self._global_lock = threading.Lock()
@@ -108,8 +111,18 @@ class SessionManager:
 
             # Try to load from disk
             session = self._load(key)
+
+            # Sync with SQLite
+            sqlite_session = self.sqlite_store.get_or_create_session(key)
+
             if session is None:
-                session = Session(key=key)
+                session = Session(
+                    key=key,
+                    id=sqlite_session["id"],
+                    created_at=datetime.fromtimestamp(sqlite_session["created_at"]).astimezone(),
+                )
+            else:
+                session.id = sqlite_session["id"]
 
             self._cache[key] = session
             return session
@@ -173,6 +186,10 @@ class SessionManager:
                 for msg in session.messages:
                     f.write(json.dumps(msg) + "\n")
 
+            sqlite_session = self.sqlite_store.get_or_create_session(session.key)
+            session.id = sqlite_session["id"]
+            self.sqlite_store.replace_messages(session.id, session.messages)
+
             self._cache[session.key] = session
 
     def delete(self, key: str) -> bool:
@@ -189,12 +206,13 @@ class SessionManager:
             # Remove from cache
             self._cache.pop(key, None)
 
-            # Remove file
+            deleted = self.sqlite_store.delete_session_by_key(key)
+
             path = self._get_session_path(key)
             if path.exists():
                 path.unlink()
-                return True
-            return False
+                deleted = True
+            return deleted
 
     def list_sessions(self) -> list[dict[str, Any]]:
         """

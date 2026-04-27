@@ -59,6 +59,7 @@ from g_agent.agent.tools.integrations import (
 from g_agent.agent.tools.message import MessageTool
 from g_agent.agent.tools.registry import ToolRegistry
 from g_agent.agent.tools.shell import ExecTool
+from g_agent.agent.tools.session_search import SessionSearchTool
 from g_agent.agent.tools.spawn import SpawnTool
 from g_agent.agent.tools.web import WebFetchTool, WebSearchTool
 from g_agent.agent.workflow_packs import (
@@ -246,6 +247,7 @@ class AgentLoop:
         self.tools.register(RecallTool(workspace=self.workspace))
         self.tools.register(UpdateProfileTool(workspace=self.workspace))
         self.tools.register(LogFeedbackTool(workspace=self.workspace))
+        self.tools.register(SessionSearchTool(session_manager=self.sessions))
         self.tools.register(SlackWebhookTool(webhook_url=self.slack_webhook_url))
         self.tools.register(
             SendEmailTool(
@@ -748,8 +750,27 @@ class AgentLoop:
             else:
                 # Strip runtime context from user message before persisting
                 clean_user_content = ContextBuilder.strip_runtime_context(msg.content)
-                session.add_message("user", clean_user_content)
-                session.add_message("assistant", log_content)
+                user_message_kwargs: dict[str, Any] = {}
+                if msg.media:
+                    user_message_kwargs["media"] = list(msg.media)
+                    user_message_kwargs["content_type"] = "media"
+                session.add_message("user", clean_user_content, **user_message_kwargs)
+                tool_call_metadata = [
+                    {
+                        "tool_name": name,
+                        "result_summary": result[:1000],
+                        "status": "success"
+                        if not result.strip().lower().startswith("error")
+                        else "failure",
+                    }
+                    for name, result in executed_tool_results
+                ]
+                assistant_kwargs = (
+                    {"metadata": {"tool_calls": tool_call_metadata}}
+                    if tool_call_metadata
+                    else {}
+                )
+                session.add_message("assistant", log_content, **assistant_kwargs)
                 self.sessions.save(session)
                 self._maybe_write_session_summary(session)
 

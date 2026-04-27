@@ -51,6 +51,51 @@ def test_archive_creates_copy_and_deletes_original(tmp_path):
     assert len(archived) == 1
 
 
+def test_archive_removes_sqlite_history_for_reused_key(tmp_path, monkeypatch):
+    sm = _patch_session_env(monkeypatch, tmp_path)
+    session = sm.get_or_create("cli:default")
+    session.add_message("user", "old unique archived content")
+    sm.save(session)
+
+    assert sm.sqlite_store.list_sessions(limit=1)[0]["message_count"] == 1
+
+    assert sm.archive("cli:default") is True
+    assert sm.sqlite_store.list_sessions() == []
+
+    next_session = sm.get_or_create("cli:default")
+    next_session.add_message("user", "new unique active content")
+    sm.save(next_session)
+
+    rows = sm.sqlite_store.list_sessions(limit=1)
+    assert rows[0]["message_count"] == 1
+    assert sm.sqlite_store.search_messages("old unique archived content") == []
+    assert len(sm.sqlite_store.search_messages("new unique active content")) == 1
+
+
+def test_sqlite_search_filters_by_channel_and_session(tmp_path, monkeypatch):
+    sm = _patch_session_env(monkeypatch, tmp_path)
+
+    cli_session = sm.get_or_create("cli:default")
+    cli_session.add_message("user", "shared needle from cli")
+    sm.save(cli_session)
+
+    telegram_session = sm.get_or_create("telegram:123")
+    telegram_session.add_message("user", "shared needle from telegram")
+    sm.save(telegram_session)
+
+    all_results = sm.sqlite_store.search_messages("shared needle")
+    assert {row["session_key"] for row in all_results} == {"cli:default", "telegram:123"}
+
+    cli_results = sm.sqlite_store.search_messages("shared needle", channel="cli")
+    assert [row["session_key"] for row in cli_results] == ["cli:default"]
+
+    excluded_results = sm.sqlite_store.search_messages(
+        "shared needle",
+        exclude_session_key="cli:default",
+    )
+    assert [row["session_key"] for row in excluded_results] == ["telegram:123"]
+
+
 def test_archive_nonexistent_returns_false(tmp_path):
     sm = _make_session_manager(tmp_path)
     assert sm.archive("nonexistent:key") is False
@@ -181,4 +226,3 @@ def test_archive_empty_session_no_digest(tmp_path):
 
     inbox = sm.workspace / "memory" / "INBOX.md"
     assert not inbox.exists()
-
