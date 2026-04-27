@@ -45,6 +45,12 @@ yarn-error.log*
 credentials.json
 token.json
 
+# temporary scripts and local reference
+test_filter.py
+.codex
+hermes-agent-ref/
+nanobot-ref/
+
 # Python
 __pycache__/
 *.py[cod]
