@@ -65,7 +65,23 @@ nav:
   - FAQ: faq.md
   - Security: security.md
   - Contributing: contributing.md
+  - Code Review: code-review.md
   - CLI Error Style: cli-error-style.md
+  - Roadmap:
+      - Overview: roadmap/README.md
+      - v0.1 Stabilize Current Runtime: roadmap/v0.1-stabilize-current-runtime.md
+      - v0.2 Session Store And Recall: roadmap/v0.2-session-store-and-recall.md
+      - v0.3 Commands Logs And Approvals: roadmap/v0.3-commands-logs-approvals.md
+      - v0.4 Core Channel Reliability: roadmap/v0.4-core-channel-reliability.md
+      - v0.5 Web UI And OpenAI API: roadmap/v0.5-web-ui-openai-api.md
+      - v0.6 Character Profiles And Visual Identity: roadmap/v0.6-character-profiles-visual-identity.md
+      - v0.7 Memory Manager And Owner Model: roadmap/v0.7-memory-manager-owner-model.md
+      - v0.8 Owner Reviewed Learning Loop: roadmap/v0.8-owner-reviewed-learning-loop.md
+      - v0.9 Skills As Procedural Memory: roadmap/v0.9-skills-procedural-memory.md
+      - v0.10 Context Engine And Compression: roadmap/v0.10-context-engine-compression.md
+      - v0.11 Routines Cron And Triggers: roadmap/v0.11-routines-cron-triggers.md
+      - v0.12 Toolsets MCP And Execution Backends: roadmap/v0.12-toolsets-mcp-execution.md
+      - v0.13 Insights Packaging And Public Trust: roadmap/v0.13-insights-packaging-public-trust.md
   - Release Notes:
       - v0.1.13: release-notes/v0.1.13.md
       - v0.1.12: release-notes/v0.1.12.md
