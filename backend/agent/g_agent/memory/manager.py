@@ -52,6 +52,14 @@ class MemoryManager:
                 blocks.append(fenced)
         return "\n\n".join(blocks)
 
+    def append_today(self, entry: str) -> None:
+        """Compatibility helper for daily-note writes through builtin memory."""
+        builtin = next((provider for provider in self.providers if provider.builtin), None)
+        store = getattr(builtin, "store", None)
+        if store is None:
+            return
+        store.append_today(entry)
+
     def sync_turn_all(
         self,
         *,

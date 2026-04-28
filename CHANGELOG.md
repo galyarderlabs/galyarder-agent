@@ -18,6 +18,7 @@ All notable changes to this project are documented in this file.
 - Added Discord DM/thread session mapping metadata.
 - Wired channel long-message splitting through channel capability limits.
 - Added the first `MemoryManager` slice with provider fencing and builtin markdown memory adapter.
+- Added an opt-in background learning reviewer skeleton for memory, tool-quirk, and skill candidates.
 
 ### Fixed
 - Skill candidate rollback now restores the previous active skill when one existed, or removes the newly activated skill when it did not.

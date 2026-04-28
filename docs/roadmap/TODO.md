@@ -42,7 +42,7 @@ runner structure, and operational hardening.
 - [ ] No first-party `webui/` exists.
 - [ ] No formal memory manager exists under `g_agent/memory/`.
 - [x] Formal MemoryManager first slice exists under `g_agent/memory/`.
-- [ ] No background learning reviewer exists.
+- [x] Background learning reviewer first slice exists.
 - [ ] No streamable HTTP MCP transport exists.
 - [ ] No Docker execution backend exists.
 
@@ -771,11 +771,11 @@ Every task is not done until:
 
 ### Then
 
-- [ ] v0.8/v0.9 background reviewer:
-  - [ ] reviewer skeleton
-  - [ ] candidate generation
-  - [ ] dedupe/rejection suppression
-  - [ ] skill proposal path
+- [x] v0.8/v0.9 background reviewer:
+  - [x] reviewer skeleton
+  - [x] candidate generation
+  - [x] dedupe/rejection suppression
+  - [x] skill proposal path
 
 ### Then
 

@@ -38,8 +38,8 @@ intent.
 | Status | Reference value | Current G-Agent evidence | Remaining gap |
 | --- | --- | --- | --- |
 | Adopted first slice | SQLite sessions, FTS recall, command controls, approval commands, profile core, skill store, routines, toolsets, MCP stdio/SSE, shared runner, local execution, observability insights, skill candidate apply/rollback. | `session/sqlite_store.py`, `agent/tools/session_search.py`, `command/`, `character/`, `skills/`, `learning/`, `routines/`, `agent/tools/toolsets.py`, `mcp/manager.py`, `agent/runner.py`, `agent/environments.py`, `observability/insights.py`. | Backfill/import polish, persisted approvals, profile switching isolation, and streamable HTTP MCP remain. |
-| Partial | Channel reliability, multimodal handling, learning queue, context compression, and routine execution. | `channels/manager.py`, channel tests, `learning/`, `context/engine.py`, `context/compressor.py`, `routines/scheduler.py`. | Shared media envelope/capability flags, background reviewer, non-skill learning apply flows, automatic compression integration, webhook/API routine triggers, and multi-skill routines are still open. |
-| Not shipped | First-party Web UI, WebSocket channel, OpenAI-compatible product API, Docker execution backend, background reviewer, prompt-injection scanner, third-party notices. | No `g_agent/api/`, no `channels/websocket.py`, no `webui/`, no Docker execution backend. | These remain future implementation work, not completed roadmap claims. |
+| Partial | Channel reliability, multimodal handling, learning queue/reviewer, context compression, and routine execution. | `channels/manager.py`, channel tests, `learning/`, `context/engine.py`, `context/compressor.py`, `routines/scheduler.py`. | Smarter split preservation, non-skill learning apply flows, automatic compression integration, webhook/API routine triggers, and multi-skill routines are still open. |
+| Not shipped | First-party Web UI, WebSocket channel, OpenAI-compatible product API, Docker execution backend, prompt-injection scanner, third-party notices. | No `g_agent/api/`, no `channels/websocket.py`, no `webui/`, no Docker execution backend. | These remain future implementation work, not completed roadmap claims. |
 
 ## G-Agent Baseline
 
@@ -48,7 +48,7 @@ Current G-Agent already has useful foundations:
 | Area | Current source | Current state | Gap |
 | --- | --- | --- | --- |
 | Memory | `backend/agent/g_agent/agent/memory.py`, `backend/agent/g_agent/memory/` | Markdown memory files, profile, relationships, projects, FACTS index, recall and consolidation helpers plus first MemoryManager/provider/fencing slice. | Needs write cadence, manager-routed legacy memory tools, feedback/update/remove actions, and owner-reviewed write lifecycle. |
-| Skills | `backend/agent/g_agent/agent/skills.py`, `backend/agent/g_agent/skills/`, `backend/agent/g_agent/agent/tools/skills.py`, `backend/agent/g_agent/command/builtin.py` | Built-in/workspace `SKILL.md` loader plus skill store/validator/manager/draft tooling, atomic draft patching, `skill_manage`, `/skills`, and owner-reviewed `/learn apply`/`rollback` for skill candidates. | Needs background skill proposal review and broader file-level lifecycle commands. |
+| Skills | `backend/agent/g_agent/agent/skills.py`, `backend/agent/g_agent/skills/`, `backend/agent/g_agent/agent/tools/skills.py`, `backend/agent/g_agent/command/builtin.py`, `backend/agent/g_agent/learning/reviewer.py` | Built-in/workspace `SKILL.md` loader plus skill store/validator/manager/draft tooling, atomic draft patching, `skill_manage`, `/skills`, owner-reviewed `/learn apply`/`rollback`, and opt-in background skill proposals. | Needs broader file-level lifecycle commands and richer proposal quality. |
 | Sessions | `backend/agent/g_agent/session/manager.py`, `backend/agent/g_agent/session/sqlite_store.py` | JSONL sessions remain readable, with a SQLite dual-write store, WAL, FTS5 search, media refs, and tool-call metadata. | Needs explicit JSONL backfill/import and richer context windows around search hits. |
 | Commands | `backend/agent/g_agent/channels/slash_commands.py`, `backend/agent/g_agent/command/` | Native slash commands now include shared parsing for direct CLI/chat, `/history`, `/sessions`, `/logs`, `/approve`, and `/deny`. | Needs first-class persisted approval state, narrow allowlists, skills commands, learning review, and broader handler extraction. |
 | Channels | `backend/agent/g_agent/channels/` | WhatsApp, Telegram, Discord, Slack, email, manager; supervisor/retry and multimodal tests exist. | Needs shared capability flags, normalized media envelope, long-message splitting contract, normalized delivery errors, and broader diagnostics. |
@@ -214,7 +214,7 @@ Why second: this turns memory from static files into a safe learning substrate.
 2. Still open: background review that proposes memory/profile/skill/routine candidates.
 3. Partially done: skill store/validator/manager/drafts and `skill_manage` exist.
 4. Partially done: `/learn` supports approve/reject/edit plus skill apply/rollback.
-5. Still open: background skill proposal review and broader supporting-file lifecycle commands.
+5. Still open: broader supporting-file lifecycle commands and richer proposal quality.
 
 Why third: this is the Hermes-style growth loop, but constrained for G-Agent safety.
 

@@ -133,6 +133,7 @@ class AgentLoop:
         provider_resolver: Callable[[str], LLMProvider] | None = None,
         tts_voice: str = "id-ID-GadisNeural",
         mcp_config: dict[str, dict[str, Any]] | None = None,
+        enable_learning_review: bool = False,
     ):
         from g_agent.config.schema import (
             BrowserToolsConfig,
@@ -172,6 +173,7 @@ class AgentLoop:
         if self.approval_mode not in {"off", "confirm"}:
             self.approval_mode = "off"
         self.enable_reflection = enable_reflection
+        self.enable_learning_review = enable_learning_review
         self.summary_interval = max(2, summary_interval)
         models = [self.model]
         for raw in fallback_models or []:
@@ -194,6 +196,12 @@ class AgentLoop:
         self.active_profile = self.characters.get_default()
         self.runtime = TaskCheckpointStore(workspace)
         self.metrics = MetricsStore(workspace / "state" / "metrics" / "events.jsonl")
+        self._learning_review_tasks: set[asyncio.Task[None]] = set()
+        self._learning_reviewer = None
+        if self.enable_learning_review:
+            from g_agent.learning.reviewer import BackgroundLearningReviewer
+
+            self._learning_reviewer = BackgroundLearningReviewer(workspace)
         self.tools = ToolRegistry()
         self.toolsets = ToolsetResolver(self.tools)
         self.mcp = MCPManager(workspace, self.tools)
@@ -419,6 +427,11 @@ class AgentLoop:
         """Stop loop services and cancel running background subagents."""
         self.stop()
         self.bus.stop()
+        for task in list(self._learning_review_tasks):
+            task.cancel()
+        if self._learning_review_tasks:
+            await asyncio.gather(*list(self._learning_review_tasks), return_exceptions=True)
+            self._learning_review_tasks.clear()
         await self.mcp.disconnect_all()
         await self.subagents.shutdown()
 
@@ -838,6 +851,12 @@ class AgentLoop:
                 session.add_message("assistant", log_content, **assistant_kwargs)
                 self.sessions.save(session)
                 self._maybe_write_session_summary(session)
+                self._schedule_learning_review(
+                    session_key=session.key,
+                    user_content=clean_user_content,
+                    assistant_content=log_content,
+                    tool_calls=tool_call_metadata,
+                )
 
             self.runtime.complete(
                 task_id,
@@ -895,6 +914,37 @@ class AgentLoop:
             self.context.memory.append_today(entry)
         except Exception as e:
             logger.warning(f"Failed to append daily memory: {e}")
+
+    def _schedule_learning_review(
+        self,
+        *,
+        session_key: str,
+        user_content: str,
+        assistant_content: str,
+        tool_calls: list[dict[str, str]],
+    ) -> None:
+        """Schedule non-blocking owner-reviewed learning candidate generation."""
+        if not self.enable_learning_review or self._learning_reviewer is None:
+            return
+
+        from g_agent.learning.reviewer import LearningReviewInput
+
+        review = LearningReviewInput(
+            session_key=session_key,
+            user_content=user_content,
+            assistant_content=assistant_content,
+            tool_calls=tool_calls,
+        )
+
+        async def _run_review() -> None:
+            try:
+                self._learning_reviewer.enqueue_turn(review)
+            except Exception as exc:
+                logger.warning("Background learning review failed: {}", exc)
+
+        task = asyncio.create_task(_run_review())
+        self._learning_review_tasks.add(task)
+        task.add_done_callback(self._learning_review_tasks.discard)
 
     async def _process_system_message(self, msg: InboundMessage) -> OutboundMessage | None:
         """
