@@ -1,7 +1,6 @@
 """Base class for all G-Agent execution environment backends."""
 
 import codecs
-import logging
 import os
 import select
 import shlex
@@ -12,8 +11,7 @@ import uuid
 from abc import ABC, abstractmethod
 from typing import IO, Protocol
 
-
-logger = logging.getLogger(__name__)
+from loguru import logger
 
 
 def _cwd_marker(session_id: str) -> str:
@@ -98,14 +96,16 @@ class BaseEnvironment(ABC):
 
     def init_session(self):
         """Capture login shell environment into a snapshot file."""
+        snapshot_path = shlex.quote(self._snapshot_path)
+        cwd_file = shlex.quote(self._cwd_file)
         bootstrap = (
-            f"export -p > {self._snapshot_path}\n"
-            f"declare -f | grep -vE '^_[^_]' >> {self._snapshot_path}\n"
-            f"alias -p >> {self._snapshot_path}\n"
-            f"echo 'shopt -s expand_aliases' >> {self._snapshot_path}\n"
-            f"echo 'set +e' >> {self._snapshot_path}\n"
-            f"echo 'set +u' >> {self._snapshot_path}\n"
-            f"pwd -P > {self._cwd_file} 2>/dev/null || true\n"
+            f"export -p > {snapshot_path}\n"
+            f"declare -f | grep -vE '^_[^_]' >> {snapshot_path}\n"
+            f"alias -p >> {snapshot_path}\n"
+            f"echo 'shopt -s expand_aliases' >> {snapshot_path}\n"
+            f"echo 'set +e' >> {snapshot_path}\n"
+            f"echo 'set +u' >> {snapshot_path}\n"
+            f"pwd -P > {cwd_file} 2>/dev/null || true\n"
             f"printf '\\n{self._cwd_marker}%s{self._cwd_marker}\\n' \"$(pwd -P)\"\n"
         )
         try:
@@ -130,10 +130,12 @@ class BaseEnvironment(ABC):
 
     def _wrap_command(self, command: str, cwd: str) -> str:
         escaped = command.replace("'", "'\\''")
+        snapshot_path = shlex.quote(self._snapshot_path)
+        cwd_file = shlex.quote(self._cwd_file)
         parts = []
 
         if self._snapshot_ready:
-            parts.append(f"source {self._snapshot_path} 2>/dev/null || true")
+            parts.append(f"source {snapshot_path} 2>/dev/null || true")
 
         quoted_cwd = self._quote_cwd_for_cd(cwd)
         parts.append(f"builtin cd {quoted_cwd} || exit 126")
@@ -142,9 +144,9 @@ class BaseEnvironment(ABC):
         parts.append("__g_agent_ec=$?")
 
         if self._snapshot_ready:
-            parts.append(f"export -p > {self._snapshot_path} 2>/dev/null || true")
+            parts.append(f"export -p > {snapshot_path} 2>/dev/null || true")
 
-        parts.append(f"pwd -P > {self._cwd_file} 2>/dev/null || true")
+        parts.append(f"pwd -P > {cwd_file} 2>/dev/null || true")
         parts.append(f"printf '\\n{self._cwd_marker}%s{self._cwd_marker}\\n' \"$(pwd -P)\"")
         parts.append("exit $__g_agent_ec")
 

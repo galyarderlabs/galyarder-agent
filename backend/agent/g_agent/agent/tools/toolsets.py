@@ -1,86 +1,31 @@
-"""
-Toolsets Module
+"""Toolset definitions for capability-scoped tool exposure."""
 
-Provides a flexible system for defining and managing tool aliases/toolsets.
-Toolsets allow you to group tools together for specific scenarios and can be composed
-from individual tools or other toolsets.
-
-Adapted from Hermes reference to support G-Agent's instance-based ToolRegistry.
-"""
-
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 
 from g_agent.agent.tools.registry import ToolRegistry
 
 
-# Shared tool list for CLI and all messaging platform toolsets.
-_HERMES_CORE_TOOLS = [
-    # Web
-    "web_search",
-    "web_extract",
-    # Terminal + process management
-    "terminal",
-    "process",
-    # File manipulation
-    "read_file",
-    "write_file",
-    "patch",
-    "search_files",
-    # Vision + image generation
-    "vision_analyze",
-    "image_generate",
-    # Skills
-    "skills_list",
-    "skill_view",
-    "skill_manage",
-    # Browser automation
-    "browser_navigate",
-    "browser_snapshot",
-    "browser_click",
-    "browser_type",
-    "browser_scroll",
-    "browser_back",
-    "browser_press",
-    "browser_get_images",
-    "browser_vision",
-    "browser_console",
-    "browser_cdp",
-    "browser_dialog",
-    # Text-to-speech
-    "text_to_speech",
-    # Planning & memory
-    "todo",
-    "memory",
-    # Session history search
-    "session_search",
-    # Clarifying questions
-    "clarify",
-    # Code execution + delegation
-    "execute_code",
-    "delegate_task",
-    # Cronjob management
-    "cronjob",
-    # Cross-platform messaging
-    "send_message",
-]
-
-
-# Core toolset definitions
+# Static capability groups. The runtime intersects these names with the active
+# registry, so optional tools such as cron/selfie are exposed only when registered.
 TOOLSETS = {
-    # Basic toolsets - individual tool categories
     "web": {
         "description": "Web research and content extraction tools",
-        "tools": ["web_search", "web_extract", "web_fetch"],
+        "tools": ["web_search", "web_fetch"],
         "includes": [],
     },
     "terminal": {
-        "description": "Terminal/command execution and process management tools",
-        "tools": ["exec", "process"],
+        "description": "Host shell command execution",
+        "tools": ["exec"],
         "includes": [],
     },
-    "skills": {
-        "description": "Access, create, edit, and manage skill documents with specialized instructions and knowledge",
-        "tools": ["skill_manage"],
+    "code_execution": {
+        "description": "Code and command execution tools",
+        "tools": ["exec"],
+        "includes": [],
+    },
+    "file": {
+        "description": "Workspace file inspection and editing tools",
+        "tools": ["read_file", "write_file", "edit_file", "list_dir"],
         "includes": [],
     },
     "browser": {
@@ -91,23 +36,45 @@ TOOLSETS = {
             "browser_click",
             "browser_type",
             "browser_extract",
+            "browser_screenshot",
         ],
         "includes": ["web"],
     },
-    "cronjob": {"description": "Cronjob management tool", "tools": ["cron"], "includes": []},
-    "file": {
-        "description": "File manipulation tools",
-        "tools": ["read_file", "write_file", "edit_file", "list_dir"],
+    "vision": {
+        "description": "Visual identity and image-oriented tools",
+        "tools": ["selfie"],
+        "includes": [],
+    },
+    "image": {
+        "description": "Image generation and image delivery tools",
+        "tools": ["selfie", "message"],
+        "includes": [],
+    },
+    "messaging": {
+        "description": "Cross-channel outbound messaging tools",
+        "tools": ["message", "send_email", "slack_webhook_send"],
         "includes": [],
     },
     "memory": {
-        "description": "Persistent memory across sessions",
-        "tools": ["remember", "recall", "update_profile"],
-        "includes": [],
+        "description": "Persistent memory and profile recall",
+        "tools": ["remember", "recall", "update_profile", "log_feedback"],
+        "includes": ["session_search"],
     },
     "session_search": {
         "description": "Search and recall past conversations with summarization",
         "tools": ["session_search"],
+        "includes": [],
+    },
+    "skills": {
+        "description": "Access, create, edit, and manage skill documents with specialized instructions and knowledge",
+        "tools": ["skill_manage"],
+        "includes": [],
+    },
+    "routines": {"description": "Routine and cron scheduling tools", "tools": ["cron"], "includes": []},
+    "cronjob": {"description": "Alias for routine scheduling tools", "tools": [], "includes": ["routines"]},
+    "subagents": {
+        "description": "Background delegation tools",
+        "tools": ["spawn"],
         "includes": [],
     },
     "google_workspace": {
@@ -157,6 +124,8 @@ TOOLSETS = {
             "memory",
             "session_search",
             "google_workspace",
+            "messaging",
+            "subagents",
         ],
     },
 }
@@ -168,10 +137,18 @@ class ToolsetResolver:
     def __init__(self, registry: ToolRegistry):
         self.registry = registry
 
-    def get_toolset(self, name: str) -> Optional[Dict[str, Any]]:
+    def get_toolset(self, name: str) -> dict[str, Any] | None:
         toolset = TOOLSETS.get(name)
         if toolset:
             return toolset
+
+        if name == "mcp":
+            mcp_tools = [tool for tool in self.registry.tool_names if tool.startswith("mcp_")]
+            return {
+                "description": "All registered MCP tools",
+                "tools": mcp_tools,
+                "includes": [],
+            }
 
         # MCP or Plugin Toolsets mapped directly from the registry
         # We assume `mcp_{server_name}_*` tools are loaded, but the registry
@@ -189,12 +166,12 @@ class ToolsetResolver:
 
         return None
 
-    def resolve_toolset(self, name: str, visited: Optional[Set[str]] = None) -> List[str]:
+    def resolve_toolset(self, name: str, visited: set[str] | None = None) -> list[str]:
         if visited is None:
             visited = set()
 
         if name in {"all", "*"}:
-            all_tools: Set[str] = set()
+            all_tools: set[str] = set()
             for toolset_name in self.get_toolset_names():
                 resolved = self.resolve_toolset(toolset_name, visited.copy())
                 all_tools.update(resolved)
@@ -220,15 +197,17 @@ class ToolsetResolver:
 
         return sorted(tools)
 
-    def resolve_multiple_toolsets(self, toolset_names: List[str]) -> List[str]:
+    def resolve_multiple_toolsets(self, toolset_names: list[str]) -> list[str]:
         all_tools = set()
         for name in toolset_names:
             tools = self.resolve_toolset(name)
             all_tools.update(tools)
         return sorted(all_tools)
 
-    def get_toolset_names(self) -> List[str]:
+    def get_toolset_names(self) -> list[str]:
         names = set(TOOLSETS.keys())
+        if any(tool_name.startswith("mcp_") for tool_name in self.registry.tool_names):
+            names.add("mcp")
 
         # Add MCP server prefixes dynamically
         for tool_name in self.registry.tool_names:

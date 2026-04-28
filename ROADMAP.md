@@ -565,5 +565,5 @@ this document.
 - [x] `docs/roadmap/v0.9-skills-procedural-memory.md`
 - [x] `docs/roadmap/v0.10-context-engine-compression.md` — first slice shipped
 - [x] `docs/roadmap/v0.11-routines-cron-triggers.md` — first slice shipped
-- [x] `docs/roadmap/v0.12-toolsets-mcp-execution.md` — full backend alignment shipped
-- `docs/roadmap/v0.13-insights-packaging-public-trust.md`
+- [x] `docs/roadmap/v0.12-toolsets-mcp-execution.md` — local backend/toolset/MCP slice shipped; Docker remains optional follow-up
+- [x] `docs/roadmap/v0.13-insights-packaging-public-trust.md` — shipped

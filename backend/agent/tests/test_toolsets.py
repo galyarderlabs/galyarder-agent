@@ -38,9 +38,8 @@ def test_toolset_resolution_basic(registry):
     resolver = ToolsetResolver(registry)
     tools = resolver.resolve_toolset("web")
     
-    # 'web' toolset has: web_search, web_extract, web_fetch
+    # 'web' toolset mirrors the actual runtime web tools.
     assert "web_search" in tools
-    assert "web_extract" in tools
     assert "web_fetch" in tools
 
 

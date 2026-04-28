@@ -1,8 +1,8 @@
 """Built-in command handlers for G-Agent."""
 
-import time
-import re
 import json
+import re
+import time
 from typing import Any
 
 from g_agent.command.context import CommandContext
@@ -140,6 +140,24 @@ async def cmd_new(ctx: CommandContext) -> str:
             f"<i>Archived {msg_count} messages.</i>"
         )
     return "✅ <b>Session already empty.</b>"
+
+
+async def cmd_insights(ctx: CommandContext) -> str:
+    """Generate session usage and cost insights."""
+    from g_agent.observability.insights import InsightsEngine
+
+    sessions = SessionManager(ctx.workspace)
+    engine = InsightsEngine(sessions.sqlite_store)
+
+    days = 30
+    if ctx.args:
+        try:
+            days = int(ctx.args.strip())
+        except ValueError:
+            pass
+
+    report = engine.generate(days=days)
+    return engine.format_gateway(report)
 
 
 async def cmd_whoami(ctx: CommandContext) -> dict:
@@ -315,6 +333,12 @@ async def cmd_routines(ctx: CommandContext) -> str:
 def register_builtin_commands(router: Any):
     """Register all built-in commands to a router."""
     router.register("status", cmd_status, description="System diagnostics")
+    router.register(
+        "insights",
+        cmd_insights,
+        description="Generate session usage and cost insights",
+        usage="[days]",
+    )
     router.register("logs", cmd_logs, description="View recent activity logs")
     router.register(
         "history",

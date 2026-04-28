@@ -4,6 +4,20 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [0.1.15] - 2026-04-28
+
+### Added
+- **Milestone v0.13 first slice**: runtime insights and release checklist.
+- `InsightsEngine` for session usage, token counts, stored cost totals, tool usage patterns, and activity trends.
+- `/insights` built-in slash command to generate reports directly from chat channels.
+- `docs/release-notes/checklist.md` to ensure stable and secure releases.
+- Expanded `docs/security.md` to match current execution guards, tool policies, memory separation, and channel allowlists.
+
+### Fixed
+- Hardened execution backend shell wrapping by quoting snapshot and CWD temp paths.
+- Aligned toolset capability groups with the actual registered tool names and roadmap categories.
+- Corrected v0.12 roadmap wording so Docker remains an optional follow-up rather than claimed as shipped.
+
 ## [0.1.14] - 2026-04-28
 
 ### Added
