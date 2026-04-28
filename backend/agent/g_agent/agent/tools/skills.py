@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from g_agent.agent.tools.base import Tool
 from g_agent.skills.manager import SkillManager
@@ -46,8 +46,8 @@ class SkillManageTool(Tool):
     async def execute(
         self,
         action: str,
-        name: Optional[str] = None,
-        content: Optional[str] = None,
+        name: str | None = None,
+        content: str | None = None,
         location: str = "custom",
         **kwargs: Any,
     ) -> str:

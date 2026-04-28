@@ -1,11 +1,14 @@
 """Learning candidate model for G-Agent."""
 
+from __future__ import annotations
+
 from datetime import datetime
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Literal
+
 from pydantic import BaseModel, Field
 
-
 CandidateKind = Literal["memory", "profile", "skill", "routine", "relationship", "tool_quirk"]
+CandidateStatus = Literal["pending", "approved", "rejected", "applied", "rolled_back"]
 
 
 class LearningCandidate(BaseModel):
@@ -15,12 +18,12 @@ class LearningCandidate(BaseModel):
 
     id: str
     kind: CandidateKind
-    status: Literal["pending", "approved", "rejected", "applied"] = "pending"
+    status: CandidateStatus = "pending"
     title: str
     rationale: str
-    content: Dict[str, Any]  # The actual data to be updated/added
-    diff_preview: Optional[str] = None
+    content: dict[str, Any]
+    diff_preview: str | None = None
     created_at: datetime = Field(default_factory=lambda: datetime.now())
-    applied_at: Optional[datetime] = None
-    source_session: Optional[str] = None
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    applied_at: datetime | None = None
+    source_session: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)

@@ -4,6 +4,13 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Extended the owner-reviewed learning queue with approve/reject/edit plus skill-candidate apply and rollback commands.
+- Added rollback metadata persistence for learning candidates and skill activation backups.
+
+### Fixed
+- Skill candidate rollback now restores the previous active skill when one existed, or removes the newly activated skill when it did not.
+
 ## [0.1.15] - 2026-04-28
 
 ### Added

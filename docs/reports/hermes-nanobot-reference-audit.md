@@ -37,8 +37,8 @@ intent.
 
 | Status | Reference value | Current G-Agent evidence | Remaining gap |
 | --- | --- | --- | --- |
-| Adopted first slice | SQLite sessions, FTS recall, command controls, approval commands, profile core, skill store, routines, toolsets, MCP stdio/SSE, shared runner, local execution, observability insights. | `session/sqlite_store.py`, `agent/tools/session_search.py`, `command/`, `character/`, `skills/`, `routines/`, `agent/tools/toolsets.py`, `mcp/manager.py`, `agent/runner.py`, `agent/environments.py`, `observability/insights.py`. | Backfill/import polish, persisted approvals, profile switching isolation, full skill lifecycle, and streamable HTTP MCP remain. |
-| Partial | Channel reliability, multimodal handling, learning queue, context compression, and routine execution. | `channels/manager.py`, channel tests, `learning/`, `context/engine.py`, `context/compressor.py`, `routines/scheduler.py`. | Shared media envelope/capability flags, learning apply/reject/edit/rollback, automatic compression integration, webhook/API routine triggers, and multi-skill routines are still open. |
+| Adopted first slice | SQLite sessions, FTS recall, command controls, approval commands, profile core, skill store, routines, toolsets, MCP stdio/SSE, shared runner, local execution, observability insights, skill candidate apply/rollback. | `session/sqlite_store.py`, `agent/tools/session_search.py`, `command/`, `character/`, `skills/`, `learning/`, `routines/`, `agent/tools/toolsets.py`, `mcp/manager.py`, `agent/runner.py`, `agent/environments.py`, `observability/insights.py`. | Backfill/import polish, persisted approvals, profile switching isolation, atomic skill patching, and streamable HTTP MCP remain. |
+| Partial | Channel reliability, multimodal handling, learning queue, context compression, and routine execution. | `channels/manager.py`, channel tests, `learning/`, `context/engine.py`, `context/compressor.py`, `routines/scheduler.py`. | Shared media envelope/capability flags, background reviewer, non-skill learning apply flows, automatic compression integration, webhook/API routine triggers, and multi-skill routines are still open. |
 | Not shipped | First-party Web UI, WebSocket channel, OpenAI-compatible product API, formal MemoryManager, Docker execution backend, background reviewer, prompt-injection scanner, third-party notices. | No `g_agent/api/`, no `channels/websocket.py`, no `webui/`, no `g_agent/memory/manager.py`, no Docker execution backend. | These remain future implementation work, not completed roadmap claims. |
 
 ## G-Agent Baseline
@@ -48,7 +48,7 @@ Current G-Agent already has useful foundations:
 | Area | Current source | Current state | Gap |
 | --- | --- | --- | --- |
 | Memory | `backend/agent/g_agent/agent/memory.py` | Markdown memory files, profile, relationships, projects, FACTS index, recall and consolidation helpers. | Needs formal `MemoryManager`, context fencing, provider boundary, and owner-reviewed write lifecycle. |
-| Skills | `backend/agent/g_agent/agent/skills.py`, `backend/agent/g_agent/skills/`, `backend/agent/g_agent/agent/tools/skills.py` | Built-in/workspace `SKILL.md` loader plus first skill store/validator/manager/draft tooling and `skill_manage`. | Needs owner-reviewed activate/edit/rollback flow, lifecycle commands, and background skill proposal review. |
+| Skills | `backend/agent/g_agent/agent/skills.py`, `backend/agent/g_agent/skills/`, `backend/agent/g_agent/agent/tools/skills.py`, `backend/agent/g_agent/command/builtin.py` | Built-in/workspace `SKILL.md` loader plus skill store/validator/manager/draft tooling, `skill_manage`, and owner-reviewed `/learn apply`/`rollback` for skill candidates. | Needs atomic patching, full lifecycle command polish, and background skill proposal review. |
 | Sessions | `backend/agent/g_agent/session/manager.py`, `backend/agent/g_agent/session/sqlite_store.py` | JSONL sessions remain readable, with a SQLite dual-write store, WAL, FTS5 search, media refs, and tool-call metadata. | Needs explicit JSONL backfill/import and richer context windows around search hits. |
 | Commands | `backend/agent/g_agent/channels/slash_commands.py`, `backend/agent/g_agent/command/` | Native slash commands now include shared parsing for direct CLI/chat, `/history`, `/sessions`, `/logs`, `/approve`, and `/deny`. | Needs first-class persisted approval state, narrow allowlists, skills commands, learning review, and broader handler extraction. |
 | Channels | `backend/agent/g_agent/channels/` | WhatsApp, Telegram, Discord, Slack, email, manager; supervisor/retry and multimodal tests exist. | Needs shared capability flags, normalized media envelope, long-message splitting contract, normalized delivery errors, and broader diagnostics. |
@@ -83,7 +83,7 @@ Current G-Agent already has useful foundations:
 | --- | --- | --- | --- | --- | --- |
 | Background memory/skill review | Hermes | `hermes-agent-ref/run_agent.py` | Adapt | This is the heart of "the character grows with use." | Run review after response delivery. Do not block user response. Generate candidates for review, not automatic writes at first. |
 | Nudge intervals | Hermes | `hermes-agent-ref/run_agent.py` | Adapt | Prevents constant self-reflection spam. | Configurable intervals for memory review, skill review, and routine review. |
-| Learning queue | G-Agent target | `ROADMAP.md`, `backend/agent/g_agent/learning/` | Adopted first slice | Owner needs review/edit/rollback before character changes. | `LearningCandidate` and `LearningQueue` exist with list/inspect style command support. Accept/reject/edit/apply, reviewer, rollback metadata, and persistence coverage remain. |
+| Learning queue | G-Agent target | `ROADMAP.md`, `backend/agent/g_agent/learning/` | Adopted partial | Owner needs review/edit/rollback before character changes. | `LearningCandidate` and `LearningQueue` persist lifecycle fields. `/learn` supports list/info/approve/reject/edit and skill apply/rollback. Background reviewer and non-skill apply flows remain. |
 | Auto-apply memory/skills | Hermes pattern | `hermes-agent-ref/run_agent.py`, `hermes-agent-ref/tools/skill_manager_tool.py` | Later | Too risky until review UX and tests exist. | Start manual approval only; maybe low-risk facts auto-apply later. |
 | Research/RL learning | Hermes | `hermes-agent-ref/environments/`, `hermes-agent-ref/batch_runner.py`, `hermes-agent-ref/agent/trajectory.py` | Drop from core | Not aligned with first G-Agent product. | Keep as distant research inspiration only. |
 
@@ -92,7 +92,7 @@ Current G-Agent already has useful foundations:
 | Capability | Source | Evidence files | Decision | Fit for G-Agent | Implementation notes |
 | --- | --- | --- | --- | --- | --- |
 | Progressive skill loading | Current G-Agent + Hermes + Nanobot | `backend/agent/g_agent/agent/skills.py`, `hermes-agent-ref/tools/skills_tool.py`, `nanobot-ref/nanobot/agent/skills.py` | Adopt | Keeps prompts small while letting the character use specialized procedures. | Keep summary-first loading; add `skill_view`/`skills_list` tools if missing. |
-| Skill create/patch/delete lifecycle | Hermes | `hermes-agent-ref/tools/skill_manager_tool.py` | Adapted first slice | Required for procedural memory and self-improvement. | `skills/store.py`, `skills/validator.py`, `skills/manager.py`, drafts, and `skill_manage` exist. Owner-reviewed activation/edit/rollback and full command coverage remain. |
+| Skill create/patch/delete lifecycle | Hermes | `hermes-agent-ref/tools/skill_manager_tool.py` | Adapted partial | Required for procedural memory and self-improvement. | `skills/store.py`, `skills/validator.py`, `skills/manager.py`, drafts, `skill_manage`, and owner-reviewed skill candidate activation/rollback exist. Atomic patching and background skill proposal review remain. |
 | Supporting files in skills | Hermes | `hermes-agent-ref/tools/skill_manager_tool.py` | Adopted first slice | Useful for templates, scripts, assets, and references. | Current skill package handling supports local skill directories and validation. More explicit policy for `references/`, `templates/`, `scripts/`, `assets/` and traversal tests should remain in the lifecycle work. |
 | Skill command invocation | Hermes | `hermes-agent-ref/agent/skill_commands.py`, `hermes-agent-ref/agent/skill_preprocessing.py` | Later | Good UX, but lifecycle should land first. | Add `/skills`, `/skill <name>`, and optional template substitution after review system exists. |
 | Skill hub/public marketplace | Hermes/Nanobot | `hermes-agent-ref/hermes_cli/skills_hub.py`, `nanobot-ref/nanobot/skills/` | Later | Useful eventually, risky before local skills mature. | Keep local/private skill development first. |
@@ -204,7 +204,7 @@ Why first: the owner needs to see what happened, approve risky work, and retriev
 2. Still open: add context-fenced recall blocks.
 3. Partially done: local fact memory exists; manager-level fact lifecycle is still open.
 4. Partially done: learning candidate storage exists; memory apply/reject/edit flow is still open.
-5. Still open: `/memory review` command and rollback-safe owner workflow.
+5. Still open: `/memory review` command and rollback-safe non-skill owner workflow.
 
 Why second: this turns memory from static files into a safe learning substrate.
 
@@ -213,8 +213,8 @@ Why second: this turns memory from static files into a safe learning substrate.
 1. Completed first slice: learning candidate/queue model exists.
 2. Still open: background review that proposes memory/profile/skill/routine candidates.
 3. Partially done: skill store/validator/manager/drafts and `skill_manage` exist.
-4. Still open: full `/skills` and learning review command surface.
-5. Still open: owner-reviewed activation/edit/rollback for skill changes.
+4. Partially done: `/learn` supports approve/reject/edit plus skill apply/rollback.
+5. Still open: atomic skill patching, `/skills` polish, and background skill proposal review.
 
 Why third: this is the Hermes-style growth loop, but constrained for G-Agent safety.
 
@@ -255,7 +255,7 @@ These should not be part of the G-Agent core roadmap now:
 
 1. What exact historical JSONL backfill/import contract should ship for old sessions?
 2. Should the formal Memory Manager stay markdown-first with indexes, or become provider-first with markdown export?
-3. What is the owner UX for learning apply/reject/edit/rollback: chat commands first, CLI first, or both?
+3. Should non-skill learning candidates apply through current stores now, or wait for MemoryManager/profile/routine manager polish?
 4. Should Web UI wait for learning review, or start earlier with sessions/logs/approvals only?
 5. Should Docker sandbox be part of the first public release or documented as an advanced deployment?
 6. Should Honcho-style external memory be considered a plugin in v1, or deferred until local memory feels excellent?

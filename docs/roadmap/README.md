@@ -16,8 +16,8 @@ and acceptance criteria.
 - [v0.5: Web UI And OpenAI-Compatible API](v0.5-web-ui-openai-api.md) — not shipped
 - [v0.6: Character Profiles And Visual Identity](v0.6-character-profiles-visual-identity.md) — core shipped
 - [v0.7: Memory Manager And Owner Model](v0.7-memory-manager-owner-model.md) — not shipped
-- [v0.8: Owner-Reviewed Learning Loop](v0.8-owner-reviewed-learning-loop.md) — first slice shipped
-- [v0.9: Skills As Procedural Memory](v0.9-skills-procedural-memory.md) — first slice shipped
+- [v0.8: Owner-Reviewed Learning Loop](v0.8-owner-reviewed-learning-loop.md) — partial
+- [v0.9: Skills As Procedural Memory](v0.9-skills-procedural-memory.md) — partial
 - [v0.10: Context Engine And Compression](v0.10-context-engine-compression.md) — partial
 - [v0.11: Routines, Cron, And Triggers](v0.11-routines-cron-triggers.md) — partial
 - [v0.12: Toolsets, MCP, And Execution Backends](v0.12-toolsets-mcp-execution.md) — partial

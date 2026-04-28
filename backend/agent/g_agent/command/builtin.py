@@ -222,6 +222,8 @@ async def cmd_profile(ctx: CommandContext) -> str:
 
 async def cmd_learn(ctx: CommandContext) -> str:
     """Manage the learning queue."""
+    from datetime import datetime
+
     from g_agent.learning.queue import LearningQueue
 
     queue = LearningQueue(ctx.workspace)
@@ -230,13 +232,17 @@ async def cmd_learn(ctx: CommandContext) -> str:
     subcmd = args[0] if args else "list"
 
     if subcmd == "list":
-        pending = queue.list_pending()
-        if not pending:
-            return "🧠 <b>Learning Queue</b> is empty. No candidates for review."
+        status_filter = args[1] if len(args) > 1 else "pending"
+        candidates = queue.list(status=status_filter if status_filter != "all" else None)
+        if not candidates:
+            return f"🧠 <b>Learning Queue</b> has no <code>{status_filter}</code> candidates."
 
-        lines = [f"🧠 <b>Learning Queue ({len(pending)})</b>\n"]
-        for c in pending:
-            lines.append(f"• <code>{c.id}</code> — <b>{c.title}</b> (<i>{c.kind}</i>)")
+        lines = [f"🧠 <b>Learning Queue ({len(candidates)} {status_filter})</b>\n"]
+        for c in candidates:
+            lines.append(
+                f"• <code>{c.id}</code> — <b>{c.title}</b> "
+                f"(<i>{c.kind}</i>, <code>{c.status}</code>)"
+            )
         return "\n".join(lines)
 
     if subcmd in ["approve", "reject"] and len(args) > 1:
@@ -247,23 +253,82 @@ async def cmd_learn(ctx: CommandContext) -> str:
 
         status = "approved" if subcmd == "approve" else "rejected"
         queue.update_status(candidate_id, status)
-
-        # If it's a skill candidate and approved, activate it
-        if status == "approved" and c.kind == "skill":
-            from g_agent.skills.manager import SkillManager
-
-            skills = SkillManager(ctx.workspace)
-            skill_name = c.content.get("name")
-            if skill_name:
-                ok, errors = skills.activate_skill(skill_name)
-                if ok:
-                    return f"✅ Candidate <code>{candidate_id}</code> approved and skill <b>{skill_name}</b> activated."
-                else:
-                    return "⚠️ Candidate approved but skill activation failed:\n" + "\n".join(
-                        f"- {e}" for e in errors
-                    )
-
         return f"✅ Candidate <code>{candidate_id}</code> marked as <b>{status}</b>."
+
+    if subcmd == "edit" and len(args) > 2:
+        candidate_id = args[1]
+        c = queue.get(candidate_id)
+        if not c:
+            return f"❌ Candidate <code>{candidate_id}</code> not found."
+
+        raw_payload = ctx.args.split(maxsplit=2)[2]
+        try:
+            content = json.loads(raw_payload)
+        except json.JSONDecodeError as exc:
+            return f"❌ Invalid JSON payload: <code>{exc}</code>"
+        if not isinstance(content, dict):
+            return "❌ Edit payload must be a JSON object."
+        if queue.update_content(candidate_id, content, diff_preview="Edited by owner command."):
+            return f"✅ Candidate <code>{candidate_id}</code> updated."
+        return f"❌ Candidate <code>{candidate_id}</code> could not be edited."
+
+    if subcmd in {"apply", "rollback"} and len(args) > 1:
+        from g_agent.skills.manager import SkillManager
+
+        candidate_id = args[1]
+        c = queue.get(candidate_id)
+        if not c:
+            return f"❌ Candidate <code>{candidate_id}</code> not found."
+        if c.kind != "skill":
+            return f"⚠️ <code>{subcmd}</code> currently supports skill candidates only."
+
+        skill_name = c.content.get("name")
+        if not isinstance(skill_name, str) or not skill_name.strip():
+            return f"❌ Candidate <code>{candidate_id}</code> is missing skill <code>name</code>."
+
+        skills = SkillManager(ctx.workspace)
+
+        if subcmd == "rollback":
+            if c.status != "applied":
+                return f"⚠️ Candidate <code>{candidate_id}</code> is not applied."
+            ok, errors = skills.rollback_activation(skill_name, activation_id=candidate_id)
+            if not ok:
+                return "⚠️ Skill rollback failed:\n" + "\n".join(f"- {e}" for e in errors)
+            queue.update_status(candidate_id, "rolled_back")
+            return (
+                f"↩️ Candidate <code>{candidate_id}</code> rolled back and skill "
+                f"<b>{skill_name}</b> restored."
+            )
+
+        if c.status not in {"pending", "approved"}:
+            return f"⚠️ Candidate <code>{candidate_id}</code> cannot be applied from {c.status}."
+
+        draft_content = c.content.get("content") or c.content.get("skill_md")
+        if isinstance(draft_content, str) and not skills.store.get_skill_path(
+            skill_name, location="draft"
+        ):
+            ok, errors = skills.create_draft(skill_name, draft_content)
+            if not ok:
+                return "⚠️ Skill draft validation failed:\n" + "\n".join(
+                    f"- {e}" for e in errors
+                )
+
+        ok, errors, metadata = skills.activate_skill_with_metadata(
+            skill_name, activation_id=candidate_id
+        )
+        if not ok:
+            return "⚠️ Skill activation failed:\n" + "\n".join(f"- {e}" for e in errors)
+
+        queue.update_status(
+            candidate_id,
+            "applied",
+            applied_at=datetime.now(),
+            metadata={"skill_activation": metadata},
+        )
+        return (
+            f"✅ Candidate <code>{candidate_id}</code> applied and skill "
+            f"<b>{skill_name}</b> activated."
+        )
 
     if subcmd == "info" and len(args) > 1:
         candidate_id = args[1]
@@ -275,11 +340,20 @@ async def cmd_learn(ctx: CommandContext) -> str:
         lines.append(f"<code>Kind     : {c.kind}</code>")
         lines.append(f"<code>Rationale: {c.rationale}</code>")
         lines.append(f"<code>Session  : {c.source_session or 'n/a'}</code>")
+        if c.applied_at:
+            lines.append(f"<code>Applied  : {c.applied_at.isoformat()}</code>")
         lines.append("\n<b>Proposed Change</b>")
         lines.append(f"<pre>{json.dumps(c.content, indent=2)}</pre>")
+        if c.metadata:
+            lines.append("\n<b>Metadata</b>")
+            lines.append(f"<pre>{json.dumps(c.metadata, indent=2)}</pre>")
         return "\n".join(lines)
 
-    return "⚠️ Usage: /learn [list|approve <id>|reject <id>|info <id>]"
+    return (
+        "⚠️ Usage: /learn "
+        "[list [pending|approved|rejected|applied|rolled_back|all]|info <id>|"
+        "approve <id>|reject <id>|edit <id> <json>|apply <id>|rollback <id>]"
+    )
 
 
 async def cmd_routines(ctx: CommandContext) -> str:
@@ -357,7 +431,7 @@ def register_builtin_commands(router: Any):
         "learn",
         cmd_learn,
         description="Review learning candidates",
-        usage="[list|approve|reject <id>]",
+        usage="[list|info|approve|reject|edit|apply|rollback]",
     )
     router.register(
         "routines",
