@@ -16,7 +16,7 @@ and acceptance criteria.
 - [v0.4: Core Channel Reliability](v0.4-core-channel-reliability.md) — partial, not shipped
 - [v0.5: Web UI And OpenAI-Compatible API](v0.5-web-ui-openai-api.md) — not shipped
 - [v0.6: Character Profiles And Visual Identity](v0.6-character-profiles-visual-identity.md) — core shipped
-- [v0.7: Memory Manager And Owner Model](v0.7-memory-manager-owner-model.md) — not shipped
+- [v0.7: Memory Manager And Owner Model](v0.7-memory-manager-owner-model.md) — partial
 - [v0.8: Owner-Reviewed Learning Loop](v0.8-owner-reviewed-learning-loop.md) — partial
 - [v0.9: Skills As Procedural Memory](v0.9-skills-procedural-memory.md) — partial
 - [v0.10: Context Engine And Compression](v0.10-context-engine-compression.md) — partial

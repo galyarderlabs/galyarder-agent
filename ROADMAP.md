@@ -560,7 +560,7 @@ this document.
 - [ ] `docs/roadmap/v0.4-core-channel-reliability.md` — channel supervisor/retry/media basics exist; capability flags, media envelopes, splitting, and delivery diagnostics remain.
 - [ ] `docs/roadmap/v0.5-web-ui-openai-api.md` — not shipped; no first-party product API server, WebSocket channel, or Web UI exists.
 - [x] `docs/roadmap/v0.6-character-profiles-visual-identity.md` — core profile model/store/context shipped; full switching isolation, per-profile visual merge, and reviewable profile diffs remain.
-- [ ] `docs/roadmap/v0.7-memory-manager-owner-model.md` — not shipped; current code still uses markdown-backed `MemoryStore`, not a `MemoryManager`/provider layer.
+- [x] `docs/roadmap/v0.7-memory-manager-owner-model.md` — first MemoryManager/provider/fencing slice shipped; write cadence and manager-routed memory tools remain.
 - [x] `docs/roadmap/v0.8-owner-reviewed-learning-loop.md` — queue/model/chat command and skill candidate edit/apply/rollback shipped; background reviewer and non-skill apply flows remain.
 - [x] `docs/roadmap/v0.9-skills-procedural-memory.md` — skill store/validator/manager/tool plus `/skills`, draft patching, and owner-reviewed skill apply/rollback shipped; background skill proposals remain.
 - [x] `docs/roadmap/v0.10-context-engine-compression.md` — first slice shipped; automated compression triggering in `AgentLoop` and `/compact` replacement remain.

@@ -41,6 +41,7 @@ runner structure, and operational hardening.
 - [ ] No WebSocket channel exists at `channels/websocket.py`.
 - [ ] No first-party `webui/` exists.
 - [ ] No formal memory manager exists under `g_agent/memory/`.
+- [x] Formal MemoryManager first slice exists under `g_agent/memory/`.
 - [ ] No background learning reviewer exists.
 - [ ] No streamable HTTP MCP transport exists.
 - [ ] No Docker execution backend exists.
@@ -762,11 +763,11 @@ Every task is not done until:
 
 ### Then
 
-- [ ] v0.7 MemoryManager first PR:
-  - [ ] provider interface
-  - [ ] builtin adapter
-  - [ ] manager prefetch
-  - [ ] memory context fencing
+- [x] v0.7 MemoryManager first PR:
+  - [x] provider interface
+  - [x] builtin adapter
+  - [x] manager prefetch
+  - [x] memory context fencing
 
 ### Then
 

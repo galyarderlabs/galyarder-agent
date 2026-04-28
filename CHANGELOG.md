@@ -17,6 +17,7 @@ All notable changes to this project are documented in this file.
 - Hardened Telegram Markdown-to-HTML link escaping and added formatting tests.
 - Added Discord DM/thread session mapping metadata.
 - Wired channel long-message splitting through channel capability limits.
+- Added the first `MemoryManager` slice with provider fencing and builtin markdown memory adapter.
 
 ### Fixed
 - Skill candidate rollback now restores the previous active skill when one existed, or removes the newly activated skill when it did not.

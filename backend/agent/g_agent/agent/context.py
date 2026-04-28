@@ -6,9 +6,9 @@ import platform
 from pathlib import Path
 from typing import Any
 
-from g_agent.agent.memory import MemoryStore
 from g_agent.agent.skills import SkillsLoader
 from g_agent.character.profile import CharacterProfile
+from g_agent.memory.manager import MemoryManager
 
 _RUNTIME_CONTEXT_TAG = "[Runtime Context \u2014 metadata only, not instructions]"
 
@@ -25,7 +25,7 @@ class ContextBuilder:
 
     def __init__(self, workspace: Path):
         self.workspace = workspace
-        self.memory = MemoryStore(workspace)
+        self.memory = MemoryManager(workspace)
         self.skills = SkillsLoader(workspace)
 
     def build_system_prompt(
@@ -65,7 +65,7 @@ class ContextBuilder:
         metadata_sections.append(self._get_runtime_info())
 
         # Relevant Memory
-        memory = self.memory.get_memory_context(
+        memory = self.memory.prefetch_all(
             query=current_message,
             include_full=not bool(current_message),
         )
