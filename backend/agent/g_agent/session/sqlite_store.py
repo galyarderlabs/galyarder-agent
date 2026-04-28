@@ -103,6 +103,7 @@ def _sha256_file(path: Path) -> str | None:
     except OSError:
         return None
 
+
 FTS_SQL = """
 CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
     content,
@@ -123,6 +124,7 @@ CREATE TRIGGER IF NOT EXISTS messages_fts_update AFTER UPDATE ON messages BEGIN
     INSERT INTO messages_fts(rowid, content) VALUES (new.id, new.content);
 END;
 """
+
 
 class SessionSQLiteStore:
     """
@@ -164,7 +166,9 @@ class SessionSQLiteStore:
                 try:
                     self._conn.executescript(SCHEMA_SQL)
                     self._ensure_fts(self._conn)
-                    self._conn.execute("INSERT INTO schema_version (version) VALUES (?)", (SCHEMA_VERSION,))
+                    self._conn.execute(
+                        "INSERT INTO schema_version (version) VALUES (?)", (SCHEMA_VERSION,)
+                    )
                     self._conn.commit()
                 except Exception:
                     self._conn.rollback()
@@ -263,6 +267,7 @@ class SessionSQLiteStore:
 
     def get_or_create_session(self, key: str) -> dict[str, Any]:
         """Get or create a session by its key (channel:chat_id)."""
+
         def _do(conn):
             cursor = conn.execute("SELECT * FROM sessions WHERE key = ?", (key,))
             row = cursor.fetchone()
@@ -271,6 +276,7 @@ class SessionSQLiteStore:
 
             # Create new session
             import uuid
+
             session_id = str(uuid.uuid4())
             channel, chat_id = key.split(":", 1) if ":" in key else (key, "")
             now = time.time()
@@ -278,7 +284,7 @@ class SessionSQLiteStore:
             conn.execute(
                 """INSERT INTO sessions (id, key, channel, chat_id, created_at, updated_at)
                    VALUES (?, ?, ?, ?, ?, ?)""",
-                (session_id, key, channel, chat_id, now, now)
+                (session_id, key, channel, chat_id, now, now),
             )
             return {
                 "id": session_id,
@@ -303,7 +309,7 @@ class SessionSQLiteStore:
         model: str | None = None,
         input_tokens: int = 0,
         output_tokens: int = 0,
-        metadata: dict[str, Any] | None = None
+        metadata: dict[str, Any] | None = None,
     ) -> int:
         """Append a message to a session and update session counters."""
         metadata_json = json.dumps(metadata) if metadata else None
@@ -314,7 +320,18 @@ class SessionSQLiteStore:
                 """INSERT INTO messages (session_id, role, content, content_type, provider, model,
                                         created_at, input_tokens, output_tokens, metadata_json)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (session_id, role, content, content_type, provider, model, now, input_tokens, output_tokens, metadata_json)
+                (
+                    session_id,
+                    role,
+                    content,
+                    content_type,
+                    provider,
+                    model,
+                    now,
+                    input_tokens,
+                    output_tokens,
+                    metadata_json,
+                ),
             )
             msg_id = cursor.lastrowid
 
@@ -326,7 +343,7 @@ class SessionSQLiteStore:
                    output_tokens = output_tokens + ?,
                    updated_at = ?
                    WHERE id = ?""",
-                (input_tokens, output_tokens, now, session_id)
+                (input_tokens, output_tokens, now, session_id),
             )
             return msg_id
 
@@ -389,9 +406,7 @@ class SessionSQLiteStore:
 
                 msg_metadata = msg.get("metadata")
                 tool_calls = (
-                    msg_metadata.get("tool_calls")
-                    if isinstance(msg_metadata, dict)
-                    else None
+                    msg_metadata.get("tool_calls") if isinstance(msg_metadata, dict) else None
                 )
                 if isinstance(tool_calls, list):
                     for call in tool_calls:
@@ -439,7 +454,7 @@ class SessionSQLiteStore:
         with self._lock:
             cursor = self._conn.execute(
                 "SELECT role, content, content_type FROM messages WHERE session_id = ? ORDER BY created_at DESC, id DESC LIMIT ?",
-                (session_id, limit)
+                (session_id, limit),
             )
             rows = cursor.fetchall()
             # Return in chronological order
@@ -460,7 +475,7 @@ class SessionSQLiteStore:
 
         # FTS5 handles normal terms well, but punctuation-heavy URLs/paths need a
         # safe LIKE fallback so recall preserves exact operational artifacts.
-        sanitized = re.sub(r'[+{}()\"^]', " ", query).strip()
+        sanitized = re.sub(r"[+{}()\"^]", " ", query).strip()
         if not sanitized:
             return []
 
@@ -546,13 +561,13 @@ class SessionSQLiteStore:
         """List recent sessions."""
         with self._lock:
             cursor = self._conn.execute(
-                "SELECT * FROM sessions ORDER BY updated_at DESC LIMIT ?",
-                (limit,)
+                "SELECT * FROM sessions ORDER BY updated_at DESC LIMIT ?", (limit,)
             )
             return [dict(row) for row in cursor.fetchall()]
 
     def delete_session(self, session_id: str) -> bool:
         """Delete a session and its associated data."""
+
         def _do(conn):
             conn.execute("DELETE FROM messages WHERE session_id = ?", (session_id,))
             conn.execute("DELETE FROM tool_calls WHERE session_id = ?", (session_id,))
@@ -564,6 +579,7 @@ class SessionSQLiteStore:
 
     def delete_session_by_key(self, key: str) -> bool:
         """Delete a session and associated data by its public key."""
+
         def _do(conn: sqlite3.Connection) -> bool:
             cursor = conn.execute("SELECT id FROM sessions WHERE key = ?", (key,))
             row = cursor.fetchone()

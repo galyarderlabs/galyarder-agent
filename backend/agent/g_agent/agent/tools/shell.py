@@ -157,7 +157,9 @@ class ExecTool(Tool):
                     p = Path(raw.strip()).resolve()
                 except Exception:
                     continue
-                if p.is_absolute() and not any(p == root or root in p.parents for root in allowed_roots):
+                if p.is_absolute() and not any(
+                    p == root or root in p.parents for root in allowed_roots
+                ):
                     allowed = ", ".join(str(root) for root in allowed_roots)
                     return (
                         "Error: Command blocked by safety guard "

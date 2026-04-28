@@ -8,7 +8,6 @@ from typing import List, Optional
 
 from loguru import logger
 from g_agent.learning.candidate import LearningCandidate
-from g_agent.utils.helpers import ensure_dir
 
 
 class LearningQueue:
@@ -43,14 +42,14 @@ class LearningQueue:
                 conn.execute(
                     "INSERT INTO candidates (id, kind, status, title, rationale, content_json, source_session) VALUES (?, ?, ?, ?, ?, ?, ?)",
                     (
-                        candidate.id, 
-                        candidate.kind, 
-                        candidate.status, 
-                        candidate.title, 
-                        candidate.rationale, 
+                        candidate.id,
+                        candidate.kind,
+                        candidate.status,
+                        candidate.title,
+                        candidate.rationale,
                         json.dumps(candidate.content),
-                        candidate.source_session
-                    )
+                        candidate.source_session,
+                    ),
                 )
             return True
         except Exception as e:
@@ -62,7 +61,9 @@ class LearningQueue:
         candidates = []
         with self._lock, sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
-            cursor = conn.execute("SELECT * FROM candidates WHERE status = 'pending' ORDER BY created_at DESC")
+            cursor = conn.execute(
+                "SELECT * FROM candidates WHERE status = 'pending' ORDER BY created_at DESC"
+            )
             for row in cursor:
                 candidates.append(self._row_to_candidate(row))
         return candidates
@@ -79,7 +80,9 @@ class LearningQueue:
         """Update the status of a candidate."""
         try:
             with self._lock, sqlite3.connect(self.db_path) as conn:
-                conn.execute("UPDATE candidates SET status = ? WHERE id = ?", (status, candidate_id))
+                conn.execute(
+                    "UPDATE candidates SET status = ? WHERE id = ?", (status, candidate_id)
+                )
             return True
         except Exception:
             return False
@@ -92,5 +95,5 @@ class LearningQueue:
             title=row["title"],
             rationale=row["rationale"],
             content=json.loads(row["content_json"]),
-            source_session=row["source_session"]
+            source_session=row["source_session"],
         )

@@ -12,6 +12,7 @@ class LearningCandidate(BaseModel):
     """
     A proposed improvement or addition to the agent's knowledge or behavior.
     """
+
     id: str
     kind: CandidateKind
     status: Literal["pending", "approved", "rejected", "applied"] = "pending"

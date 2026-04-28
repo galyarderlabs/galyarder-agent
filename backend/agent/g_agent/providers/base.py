@@ -97,5 +97,5 @@ class LLMProvider(ABC):
             # Remove any internal kwargs that shouldn't go to LLM
             clean_msg.pop("cache_control", None)
             sanitized.append(clean_msg)
-            
+
         return LLMProvider._sanitize_empty_content(sanitized)

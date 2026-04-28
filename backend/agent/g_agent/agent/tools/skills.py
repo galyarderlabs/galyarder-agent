@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from g_agent.agent.tools.base import Tool
 from g_agent.skills.manager import SkillManager
@@ -22,24 +22,21 @@ class SkillManageTool(Tool):
             "action": {
                 "type": "string",
                 "enum": ["list", "view", "create_draft", "deactivate"],
-                "description": "Action to perform"
+                "description": "Action to perform",
             },
-            "name": {
-                "type": "string",
-                "description": "Skill name (folder name)"
-            },
+            "name": {"type": "string", "description": "Skill name (folder name)"},
             "content": {
                 "type": "string",
-                "description": "Full SKILL.md content (required for create_draft)"
+                "description": "Full SKILL.md content (required for create_draft)",
             },
             "location": {
                 "type": "string",
                 "enum": ["builtin", "custom", "draft"],
                 "default": "custom",
-                "description": "Location to look for the skill"
-            }
+                "description": "Location to look for the skill",
+            },
         },
-        "required": ["action"]
+        "required": ["action"],
     }
 
     def __init__(self, workspace: Path):
@@ -64,22 +61,24 @@ class SkillManageTool(Tool):
             path = self.manager.store.get_skill_path(name, location=location)
             if not path:
                 return f"Error: Skill '{name}' not found in {location}."
-            
+
             skill_md = path / "SKILL.md"
             if not skill_md.exists():
                 return f"Error: SKILL.md missing for '{name}'."
-            
+
             return skill_md.read_text(encoding="utf-8")
 
         if action == "create_draft":
             if not name or not content:
                 return "Error: 'name' and 'content' are required for 'create_draft'."
-            
+
             ok, errors = self.manager.create_draft(name, content)
             if ok:
                 return f"Success: Draft skill '{name}' created and validated."
             else:
-                return f"Validation failed for draft '{name}':\n" + "\n".join(f"- {e}" for e in errors)
+                return f"Validation failed for draft '{name}':\n" + "\n".join(
+                    f"- {e}" for e in errors
+                )
 
         if action == "deactivate":
             if not name:
@@ -87,6 +86,8 @@ class SkillManageTool(Tool):
             if self.manager.disable_skill(name):
                 return f"Success: Skill '{name}' moved to drafts."
             else:
-                return f"Error: Could not deactivate skill '{name}' (maybe it's builtin or not found)."
+                return (
+                    f"Error: Could not deactivate skill '{name}' (maybe it's builtin or not found)."
+                )
 
         return f"Error: Unknown action '{action}'."

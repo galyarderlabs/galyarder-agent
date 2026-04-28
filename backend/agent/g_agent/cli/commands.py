@@ -40,7 +40,7 @@ def _missing_api_key_fix(provider: str, config_path: Path) -> str:
     if provider == "unresolved":
         return (
             f"Set providers.<name>.apiKey in {config_path}. If you use a local proxy key "
-            "(`sk-local-*`), set agents.defaults.routing.mode=\"proxy\" and "
+            '(`sk-local-*`), set agents.defaults.routing.mode="proxy" and '
             "agents.defaults.routing.proxyProvider to that provider (usually `proxy` or `vllm`)."
         )
     return f"Set providers.{provider}.apiKey in {config_path}"
@@ -175,7 +175,9 @@ def onboard(
         merged_data = deep_merge_config(existing_data, default_data)
         merged_config = Config.model_validate(convert_keys(merged_data))
         save_config(merged_config)
-        console.print(f"[green]✓[/green] Merged config at {config_path} (existing values preserved)")
+        console.print(
+            f"[green]✓[/green] Merged config at {config_path} (existing values preserved)"
+        )
     else:
         config = Config()
         save_config(config)
@@ -195,7 +197,7 @@ def onboard(
         save_config(config)
 
     console.print(f"\n{__logo__} {__brand__} is ready!")
-    console.print("\n  Chat: [cyan]g-agent agent -m \"Hello!\"[/cyan]")
+    console.print('\n  Chat: [cyan]g-agent agent -m "Hello!"[/cyan]')
 
 
 _PROVIDER_CHOICES = [
@@ -681,7 +683,11 @@ def gateway(
         is_quiet_hours_now,
         resolve_timezone,
     )
-    from g_agent.providers.factory import build_provider, collect_provider_factories, has_provider_factory
+    from g_agent.providers.factory import (
+        build_provider,
+        collect_provider_factories,
+        has_provider_factory,
+    )
 
     if verbose:
         import logging
@@ -699,7 +705,9 @@ def gateway(
     )
     provider_factories = collect_provider_factories(config, plugins)
     if plugins:
-        console.print(f"[green]✓[/green] Plugins loaded: {', '.join(plugin_label(p) for p in plugins)}")
+        console.print(
+            f"[green]✓[/green] Plugins loaded: {', '.join(plugin_label(p) for p in plugins)}"
+        )
 
     # Create components
     bus = MessageBus()
@@ -813,6 +821,7 @@ def gateway(
         now_utc = datetime.now(timezone.utc)
         horizon = max(10, int(config.proactive.calendar_watch_horizon_minutes))
         import json
+
         params = {
             "calendarId": google.calendar_id or "primary",
             "singleEvents": True,
@@ -821,9 +830,7 @@ def gateway(
             "timeMax": (now_utc + timedelta(minutes=horizon)).isoformat(),
             "maxResults": 25,
         }
-        ok, data = await google.run(
-            ["calendar", "events", "list", "--params", json.dumps(params)]
-        )
+        ok, data = await google.run(["calendar", "events", "list", "--params", json.dumps(params)])
         if not ok:
             return f"calendar_watch error: {data}"
 
@@ -1004,7 +1011,11 @@ def agent(
     from g_agent.bus.queue import MessageBus
     from g_agent.config.loader import get_config_path, load_config
     from g_agent.plugins.loader import filter_plugins, load_installed_plugins
-    from g_agent.providers.factory import build_provider, collect_provider_factories, has_provider_factory
+    from g_agent.providers.factory import (
+        build_provider,
+        collect_provider_factories,
+        has_provider_factory,
+    )
 
     config = load_config()
 
@@ -1382,7 +1393,9 @@ def _bridge_port_pids(port: int) -> list[str]:
     return sorted(set(pids))
 
 
-def _stop_bridge_processes(port: int, pids: list[str], *, timeout_seconds: float = 3.0) -> list[str]:
+def _stop_bridge_processes(
+    port: int, pids: list[str], *, timeout_seconds: float = 3.0
+) -> list[str]:
     """Send SIGTERM to listed PIDs and return still-listening bridge PIDs."""
     import os
     import signal
@@ -1528,8 +1541,7 @@ def channels_login(
     pids = _bridge_port_pids(port)
     if pids and restart_existing:
         console.print(
-            f"[yellow]Stopping existing bridge process on port {port}: "
-            f"{', '.join(pids)}[/yellow]"
+            f"[yellow]Stopping existing bridge process on port {port}: {', '.join(pids)}[/yellow]"
         )
         survivors = _stop_bridge_processes(port, pids)
         if survivors and force_kill:
@@ -1564,8 +1576,7 @@ def channels_login(
                 f"Check listener with `lsof -i :{port} -n -P`, then stop the blocking process.",
             )
         console.print(
-            f"[yellow]Bridge already running at {bridge_url} "
-            f"(port {port} is in use).[/yellow]"
+            f"[yellow]Bridge already running at {bridge_url} (port {port} is in use).[/yellow]"
         )
         console.print(
             "[dim]If you need a fresh QR, stop existing process first:[/dim] "
@@ -1583,9 +1594,7 @@ def channels_login(
                 "channels.whatsapp.bridgeUrl to another free port.",
             )
         if bind_error.errno == errno.EADDRINUSE:
-            console.print(
-                f"[yellow]Bridge port {port} is already in use ({bind_error}).[/yellow]"
-            )
+            console.print(f"[yellow]Bridge port {port} is already in use ({bind_error}).[/yellow]")
             console.print("[dim]Stop existing process, then run login again.[/dim]")
             raise typer.Exit(0)
         _cli_fail(
@@ -1656,10 +1665,7 @@ def plugins_list():
 
     allow_text = ", ".join(sorted(allow_set)) if allow_set else "all"
     deny_text = ", ".join(sorted(deny_set)) if deny_set else "none"
-    console.print(
-        "Policy: "
-        f"enabled={str(enabled).lower()}, allow={allow_text}, deny={deny_text}"
-    )
+    console.print(f"Policy: enabled={str(enabled).lower()}, allow={allow_text}, deny={deny_text}")
 
     if not discovered:
         console.print(
@@ -1727,9 +1733,7 @@ def plugins_doctor(
         "Plugin discovery",
         "pass" if discovered else "warn",
         f"{len(discovered)} discovered",
-        ""
-        if discovered
-        else "Install plugin package(s) exposing `g_agent.plugins` entry points",
+        "" if discovered else "Install plugin package(s) exposing `g_agent.plugins` entry points",
     )
     add(
         "Plugin switch",
@@ -1746,11 +1750,7 @@ def plugins_doctor(
                 if allow_unknown
                 else f"{len(allow_set)} configured"
             ),
-            (
-                "Run `g-agent plugins list` and update tools.plugins.allow"
-                if allow_unknown
-                else ""
-            ),
+            ("Run `g-agent plugins list` and update tools.plugins.allow" if allow_unknown else ""),
         )
     else:
         add("Allow list names", "pass", "not configured (all discovered allowed)")
@@ -2359,7 +2359,11 @@ def digest(
     from g_agent.bus.queue import MessageBus
     from g_agent.config.loader import get_config_path, load_config
     from g_agent.plugins.loader import filter_plugins, load_installed_plugins
-    from g_agent.providers.factory import build_provider, collect_provider_factories, has_provider_factory
+    from g_agent.providers.factory import (
+        build_provider,
+        collect_provider_factories,
+        has_provider_factory,
+    )
 
     config = load_config()
     route = config.resolve_model_route()

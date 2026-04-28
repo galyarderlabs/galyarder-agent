@@ -141,7 +141,9 @@ class AgentDefaults(BaseModel):
     enable_reflection: bool = True
     summary_interval: int = 6
     stream_progress: bool = True  # Whether to stream tool progress / thought events to the channel
-    send_tool_hints: bool = True  # Whether to send tool execution hint messages (e.g. 'Running shell...')
+    send_tool_hints: bool = (
+        True  # Whether to send tool execution hint messages (e.g. 'Running shell...')
+    )
     routing: "RoutingConfig" = Field(default_factory=RoutingConfig)
 
 
@@ -283,7 +285,9 @@ class ExecToolConfig(BaseModel):
     """Shell exec tool configuration."""
 
     timeout: int = 60
-    path_append: list[str] = Field(default_factory=list)  # Append directories to PATH (e.g. /opt/homebrew/bin)
+    path_append: list[str] = Field(
+        default_factory=list
+    )  # Append directories to PATH (e.g. /opt/homebrew/bin)
 
 
 class ImageGenProviderConfig(BaseModel):
@@ -595,7 +599,7 @@ class Config(BaseSettings):
             provider_cfg = providers.get(provider_name)
             if provider_cfg and provider_cfg.api_key:
                 return provider_name
-                
+
         # If explicit provider configured, try it first
         explicit_config_provider = self.agents.defaults.routing.provider.strip().lower()
         if explicit_config_provider and explicit_config_provider in providers:

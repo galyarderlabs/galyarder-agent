@@ -14,7 +14,9 @@ from g_agent.providers.litellm_provider import LiteLLMProvider
 ProviderFactory = Callable[[LLMRoute, Config], LLMProvider]
 
 
-def collect_provider_factories(config: Config, plugins: list[Any] | None = None) -> dict[str, ProviderFactory]:
+def collect_provider_factories(
+    config: Config, plugins: list[Any] | None = None
+) -> dict[str, ProviderFactory]:
     """Collect provider factories registered by plugins."""
     provider_factories: dict[str, ProviderFactory] = {}
     if not plugins:

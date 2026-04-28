@@ -41,11 +41,15 @@ class ChannelManager:
         self.config = config
         self.bus = bus
         self.channels: dict[str, BaseChannel] = {}
-        self.plugins = plugins if plugins is not None else filter_plugins(
-            load_installed_plugins(),
-            enabled=self.config.tools.plugins.enabled,
-            allow=self.config.tools.plugins.allow,
-            deny=self.config.tools.plugins.deny,
+        self.plugins = (
+            plugins
+            if plugins is not None
+            else filter_plugins(
+                load_installed_plugins(),
+                enabled=self.config.tools.plugins.enabled,
+                allow=self.config.tools.plugins.allow,
+                deny=self.config.tools.plugins.deny,
+            )
         )
         self._dispatch_task: asyncio.Task | None = None
         self._channel_tasks: dict[str, asyncio.Task[None]] = {}

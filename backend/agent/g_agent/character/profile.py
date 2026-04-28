@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 class VisualIdentityConfig(BaseModel):
     """Configuration for character's visual identity."""
+
     reference_images: List[str] = Field(default_factory=list)
     base_description: str = ""
     lora_trigger: Optional[str] = None
@@ -15,9 +16,10 @@ class VisualIdentityConfig(BaseModel):
 
 class CharacterProfile(BaseModel):
     """
-    A character profile defines the agent's identity, voice, 
+    A character profile defines the agent's identity, voice,
     and behavioral boundaries.
     """
+
     id: str
     name: str
     role: str

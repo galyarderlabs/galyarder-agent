@@ -504,7 +504,9 @@ class MemoryStore:
             content = self._safe_read(path)
             if content and content.strip():
                 try:
-                    await self._run_consolidation(provider, content, RememberTool(workspace=self.workspace))
+                    await self._run_consolidation(
+                        provider, content, RememberTool(workspace=self.workspace)
+                    )
                 except Exception as e:
                     logger.error(f"Memory consolidation failed for {path.name}: {e}")
                     continue
@@ -544,12 +546,13 @@ class MemoryStore:
         # Call provider with tool forcing or normal tool allowance
         try:
             from g_agent.providers.base import LLMResponse
+
             response: LLMResponse = await provider.chat(
                 messages=[{"role": "system", "content": prompt}],
                 tools=tools_schema,
                 temperature=0.1,
             )
-            
+
             # Execute requested tool calls
             if response.tool_calls:
                 for tc in response.tool_calls:

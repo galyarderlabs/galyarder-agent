@@ -91,7 +91,7 @@ class SubagentManager:
         def _cleanup(_: Any) -> None:
             self._running_tasks.pop(task_id, None)
             self._task_origins.pop(task_id, None)
-            
+
         bg_task.add_done_callback(_cleanup)
 
         logger.info(f"Spawned subagent [{task_id}]: {display_label}")
@@ -284,14 +284,14 @@ When you have completed the task, provide a clear summary of your findings or ac
         for task_id, origin in self._task_origins.items():
             if origin.get("channel") == channel and origin.get("chat_id") == chat_id:
                 to_cancel.append(task_id)
-                
+
         for task_id in to_cancel:
             task = self._running_tasks.get(task_id)
             if task and not task.done():
                 task.cancel()
                 cancelled += 1
                 logger.info(f"Cancelled subagent [{task_id}] for {channel}:{chat_id}")
-                
+
         return cancelled
 
     async def shutdown(self) -> None:

@@ -234,7 +234,11 @@ class MessageTool(Tool):
         return await self._tts_edge(text, media_type, target_dir, stem)
 
     async def _tts_edge(
-        self, text: str, media_type: str, target_dir: Path, stem: str,
+        self,
+        text: str,
+        media_type: str,
+        target_dir: Path,
+        stem: str,
     ) -> str | None:
         """Neural TTS via edge-tts. Produces mp3, converts to ogg for voice notes."""
         try:
@@ -267,8 +271,14 @@ class MessageTool(Tool):
         try:
             subprocess.run(
                 [
-                    ffmpeg, "-y", "-i", str(input_path),
-                    "-c:a", "libopus", "-b:a", "48k",
+                    ffmpeg,
+                    "-y",
+                    "-i",
+                    str(input_path),
+                    "-c:a",
+                    "libopus",
+                    "-b:a",
+                    "48k",
                     str(ogg_path),
                 ],
                 check=True,
@@ -279,7 +289,9 @@ class MessageTool(Tool):
                 return str(ogg_path.resolve())
         except (OSError, subprocess.SubprocessError):
             logging.getLogger(__name__).warning(
-                "Failed to convert %s to OGG at %s using ffmpeg", input_path, ogg_path,
+                "Failed to convert %s to OGG at %s using ffmpeg",
+                input_path,
+                ogg_path,
                 exc_info=True,
             )
         return None

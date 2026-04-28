@@ -130,7 +130,7 @@ class ProactiveStateStore:
         reminders = state.get("calendar_reminders")
         if not isinstance(reminders, dict) or not reminders:
             return
-            
+
         current_time = now_utc if now_utc is not None else datetime.now(timezone.utc)
         threshold = current_time - timedelta(days=older_than_days)
         fresh: dict[str, str] = {}

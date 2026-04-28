@@ -62,7 +62,7 @@ class CharacterStore:
             name="G-Agent",
             role="Agentic digital character and personal operator.",
             voice="Direct, helpful, and continuity-focused.",
-            boundaries=["Do not violate user privacy.", "Stay within workspace boundaries."]
+            boundaries=["Do not violate user privacy.", "Stay within workspace boundaries."],
         )
         self.save(default)
         return default

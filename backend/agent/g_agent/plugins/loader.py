@@ -24,10 +24,10 @@ def _is_plugin_instance(value: Any) -> bool:
     """Return True when value looks like a plugin instance."""
     if isinstance(value, PluginBase):
         return True
-    return callable(getattr(value, "register_tools", None)) or callable(
-        getattr(value, "register_channels", None)
-    ) or callable(
-        getattr(value, "register_providers", None)
+    return (
+        callable(getattr(value, "register_tools", None))
+        or callable(getattr(value, "register_channels", None))
+        or callable(getattr(value, "register_providers", None))
     )
 
 
@@ -81,7 +81,9 @@ def load_installed_plugins(
             plugin = _coerce_plugin(entry_name, raw)
             label = plugin_label(plugin)
             if label in seen_labels:
-                logger.warning(f"Skipping duplicate plugin '{label}' from entry point '{entry_name}'")
+                logger.warning(
+                    f"Skipping duplicate plugin '{label}' from entry point '{entry_name}'"
+                )
                 continue
             seen_labels.add(label)
             loaded_plugins.append(plugin)

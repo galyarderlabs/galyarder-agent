@@ -127,15 +127,15 @@ Skills with available="false" need dependencies installed first - you can try in
         parts.append(f"Role: {profile.role}")
         parts.append(f"Voice: {profile.voice}")
         parts.append(f"Tone: {profile.tone}")
-        
+
         if profile.boundaries:
             parts.append("\n## Boundaries")
             for b in profile.boundaries:
                 parts.append(f"- {b}")
-                
+
         if profile.relationship_model:
             parts.append(f"\nRelationship: {profile.relationship_model}")
-            
+
         return "\n".join(parts)
 
     def _get_static_identity(self) -> str:
@@ -193,13 +193,13 @@ Your workspace is at: {workspace_path}
         else:
             grouped = ", ".join(f"`{n}`" for n in tool_names)
             tools_str = f"Your registered tools: {grouped}"
-            
+
         return (
             base + tools_str + "\n"
             "Each of these tools is REAL and FUNCTIONAL. "
             "If a user asks for something these tools can do, call the tool.\n"
-            "NEVER say \"I can't do that\", \"I don't have access\", \"I'm just a chat bot\",\n"
-            "\"saya tidak bisa\", \"aku cuma AI\", or ANY denial of capabilities listed above.\n"
+            'NEVER say "I can\'t do that", "I don\'t have access", "I\'m just a chat bot",\n'
+            '"saya tidak bisa", "aku cuma AI", or ANY denial of capabilities listed above.\n'
             "Do not describe what you would do — actually do it."
         )
 
@@ -259,10 +259,7 @@ Your workspace is at: {workspace_path}
             {"role": "user", "content": "kamu siapa sih?"},
             {
                 "role": "assistant",
-                "content": (
-                    "keiya zeyni. 21 tahun, orang bogor.\n\n"
-                    "kamu siapa."
-                ),
+                "content": ("keiya zeyni. 21 tahun, orang bogor.\n\nkamu siapa."),
             },
             {"role": "user", "content": "kamu beneran orang?"},
             {

@@ -25,9 +25,7 @@ async def extract_physical_description(
 
     image_data = base64.b64encode(path.read_bytes()).decode()
     suffix = path.suffix.lower().lstrip(".")
-    mime = {"jpg": "jpeg", "jpeg": "jpeg", "png": "png", "webp": "webp"}.get(
-        suffix, "jpeg"
-    )
+    mime = {"jpg": "jpeg", "jpeg": "jpeg", "png": "png", "webp": "webp"}.get(suffix, "jpeg")
     data_uri = f"data:image/{mime};base64,{image_data}"
 
     messages = [
@@ -141,6 +139,7 @@ class SelfieTool(Tool):
                 img_path = Path(self._config.reference_image).expanduser().resolve()
                 if img_path.exists():
                     import hashlib
+
                     current_hash = hashlib.md5(img_path.read_bytes()).hexdigest()
             except Exception as e:
                 logger.warning(f"Failed to calculate image hash: {e}")
@@ -150,7 +149,7 @@ class SelfieTool(Tool):
             self._config.physical_description = ""
 
         base_description = self._config.physical_description
-        
+
         trigger = self._config.image_gen.lora_trigger
         if trigger:
             logger.debug(f"Using LoRA trigger alongside physical description: {trigger}")
@@ -289,9 +288,7 @@ class SelfieTool(Tool):
         """Generate image via an OpenAI-compatible image API."""
         api_base = self._config.image_gen.api_base.rstrip("/")
         if not api_base:
-            raise ValueError(
-                "api_base is required for openai-compatible image generation."
-            )
+            raise ValueError("api_base is required for openai-compatible image generation.")
         model = self._config.image_gen.model
         url = f"{api_base}/images/generations"
         headers = {"Authorization": f"Bearer {self._config.image_gen.api_key}"}
@@ -314,12 +311,15 @@ class SelfieTool(Tool):
 
         # Inject LoRA if configured
         if self._config.image_gen.lora_url:
-            payload["loras"] = [{
-                "url": self._config.image_gen.lora_url,
-                "scale": self._config.image_gen.lora_scale,
-            }]
+            payload["loras"] = [
+                {
+                    "url": self._config.image_gen.lora_url,
+                    "scale": self._config.image_gen.lora_scale,
+                }
+            ]
 
         import json
+
         logger.debug(f"Image gen payload: {json.dumps(payload)}")
 
         async with httpx.AsyncClient(timeout=self._config.image_gen.timeout) as client:
@@ -335,7 +335,10 @@ class SelfieTool(Tool):
             raise RuntimeError(f"No image data in response: {list(image_data.keys())}")
 
     async def _download_image_url(
-        self, url: str, retries: int = 5, delay: float = 2.0,
+        self,
+        url: str,
+        retries: int = 5,
+        delay: float = 2.0,
     ) -> bytes:
         """Download image from URL with retry."""
         import asyncio

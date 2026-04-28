@@ -156,6 +156,7 @@ class TelegramChannel(BaseChannel):
                 self._app = builder.build()
 
                 from telegram.ext import CallbackQueryHandler
+
                 # Add message handler for text, photos, voice, documents
                 self._app.add_handler(
                     MessageHandler(
@@ -172,7 +173,6 @@ class TelegramChannel(BaseChannel):
                 )
                 self._app.add_handler(CallbackQueryHandler(self._handle_callback_query))
 
-
                 logger.info("Starting Telegram bot (polling mode)...")
 
                 # Initialize and start polling
@@ -186,23 +186,25 @@ class TelegramChannel(BaseChannel):
                 # Auto-register bot commands in Telegram UI
                 from telegram import BotCommand
 
-                await self._app.bot.set_my_commands([
-                    BotCommand("start", "Start conversation"),
-                    BotCommand("new", "New session"),
-                    BotCommand("reset", "Clear context & start fresh"),
-                    BotCommand("compact", "Summarize current session"),
-                    BotCommand("context", "Current session info"),
-                    BotCommand("status", "System diagnostics"),
-                    BotCommand("whoami", "Your profile"),
-                    BotCommand("memory", "View stored memories"),
-                    BotCommand("model", "Active model"),
-                    BotCommand("tools", "List active tools"),
-                    BotCommand("cron", "Scheduled jobs"),
-                    BotCommand("packs", "Workflow packs"),
-                    BotCommand("search", "Web search"),
-                    BotCommand("help", "Commands & guide"),
-                    BotCommand("commands", "Full command list"),
-                ])
+                await self._app.bot.set_my_commands(
+                    [
+                        BotCommand("start", "Start conversation"),
+                        BotCommand("new", "New session"),
+                        BotCommand("reset", "Clear context & start fresh"),
+                        BotCommand("compact", "Summarize current session"),
+                        BotCommand("context", "Current session info"),
+                        BotCommand("status", "System diagnostics"),
+                        BotCommand("whoami", "Your profile"),
+                        BotCommand("memory", "View stored memories"),
+                        BotCommand("model", "Active model"),
+                        BotCommand("tools", "List active tools"),
+                        BotCommand("cron", "Scheduled jobs"),
+                        BotCommand("packs", "Workflow packs"),
+                        BotCommand("search", "Web search"),
+                        BotCommand("help", "Commands & guide"),
+                        BotCommand("commands", "Full command list"),
+                    ]
+                )
 
                 # Start polling (this runs until stopped)
                 await self._app.updater.start_polling(
@@ -301,7 +303,7 @@ class TelegramChannel(BaseChannel):
                         )
                         if caption:
                             await self._app.bot.send_message(
-                                chat_id=chat_id, 
+                                chat_id=chat_id,
                                 text=caption,
                                 reply_to_message_id=reply_to_message_id,
                             )
@@ -317,10 +319,10 @@ class TelegramChannel(BaseChannel):
             # Convert markdown to Telegram HTML
             html_content = _markdown_to_telegram_html(msg.content)
             await self._app.bot.send_message(
-                chat_id=chat_id, 
-                text=html_content, 
+                chat_id=chat_id,
+                text=html_content,
                 parse_mode="HTML",
-                reply_to_message_id=reply_to_message_id
+                reply_to_message_id=reply_to_message_id,
             )
         except ValueError:
             logger.error(f"Invalid chat_id: {msg.chat_id}")
@@ -370,8 +372,9 @@ class TelegramChannel(BaseChannel):
             caption = caption[:1024]
         return path, media_type, caption
 
-
-    async def _handle_callback_query(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    async def _handle_callback_query(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> None:
         """Handle inline button clicks for slash commands."""
         query = update.callback_query
         if not query or not query.data:
@@ -402,11 +405,16 @@ class TelegramChannel(BaseChannel):
         raw_cmd = query.data.strip().split(maxsplit=1)[0][1:].lower()
         allowed_commands = ["start", "help"]
         if not self.is_allowed(sender_id) and raw_cmd not in allowed_commands:
-            response: str | dict | None = "⛔ <b>Access denied:</b> <i>you are not authorized to use commands.</i>"
+            response: str | dict | None = (
+                "⛔ <b>Access denied:</b> <i>you are not authorized to use commands.</i>"
+            )
         else:
             try:
                 response = self._slash.try_handle(
-                    query.data, session_key, "telegram", str(chat_id),
+                    query.data,
+                    session_key,
+                    "telegram",
+                    str(chat_id),
                     sender_username=user.username or "",
                     sender_id=sender_id,
                 )
@@ -423,11 +431,14 @@ class TelegramChannel(BaseChannel):
             buttons = response.get("buttons")
             if buttons:
                 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
                 kb = []
                 for row in buttons:
                     kb_row = []
                     for btn in row:
-                        kb_row.append(InlineKeyboardButton(text=btn["text"], callback_data=btn["data"]))
+                        kb_row.append(
+                            InlineKeyboardButton(text=btn["text"], callback_data=btn["data"])
+                        )
                     kb.append(kb_row)
                 reply_markup = InlineKeyboardMarkup(kb)
 
@@ -464,7 +475,7 @@ class TelegramChannel(BaseChannel):
         # Intercept slash commands — instant response, bypass LLM
         if self._slash and message.text and message.text.strip().startswith("/"):
             raw_cmd = message.text.strip().split(maxsplit=1)[0][1:].lower()
-            
+
             # Security gate: only allow list can use most commands
             allowed_commands = ["start", "help"]
             if not self.is_allowed(sender_id) and raw_cmd not in allowed_commands:
@@ -472,7 +483,10 @@ class TelegramChannel(BaseChannel):
             else:
                 session_key = f"telegram:{chat_id}"
                 response = self._slash.try_handle(
-                    message.text, session_key, "telegram", str(chat_id),
+                    message.text,
+                    session_key,
+                    "telegram",
+                    str(chat_id),
                     sender_username=user.username or "",
                     sender_id=sender_id,
                 )
@@ -485,14 +499,19 @@ class TelegramChannel(BaseChannel):
                     buttons = response.get("buttons")
                     if buttons:
                         from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
                         kb = []
                         for row in buttons:
                             kb_row = []
                             for btn in row:
-                                kb_row.append(InlineKeyboardButton(text=btn["text"], callback_data=btn["data"]))
+                                kb_row.append(
+                                    InlineKeyboardButton(
+                                        text=btn["text"], callback_data=btn["data"]
+                                    )
+                                )
                             kb.append(kb_row)
                         reply_markup = InlineKeyboardMarkup(kb)
-                        
+
                 try:
                     await self._app.bot.send_message(
                         chat_id=chat_id, text=text, parse_mode="HTML", reply_markup=reply_markup

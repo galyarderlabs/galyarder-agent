@@ -2,10 +2,9 @@
 
 import re
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import List, Tuple
 
 import yaml
-from loguru import logger
 
 
 class SkillValidator:
@@ -41,19 +40,21 @@ class SkillValidator:
     def validate_skill_md(self, file_path: Path) -> Tuple[bool, List[str]]:
         """Validate SKILL.md content (frontmatter, size)."""
         errors = []
-        
+
         # Size check
         try:
             size = file_path.stat().st_size
             if size > self.MAX_SKILL_SIZE_BYTES:
-                errors.append(f"SKILL.md exceeds size limit ({size} > {self.MAX_SKILL_SIZE_BYTES} bytes).")
+                errors.append(
+                    f"SKILL.md exceeds size limit ({size} > {self.MAX_SKILL_SIZE_BYTES} bytes)."
+                )
         except OSError as e:
             return False, [f"Could not access SKILL.md: {e}"]
 
         # Content check
         try:
             content = file_path.read_text(encoding="utf-8")
-            
+
             # Extract frontmatter
             fm_match = re.match(r"^---\s*\n(.*?)\n---\s*\n", content, re.DOTALL)
             if not fm_match:

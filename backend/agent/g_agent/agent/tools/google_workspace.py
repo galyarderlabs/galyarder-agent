@@ -35,8 +35,8 @@ def _find_gws_binary() -> str:
     # 2. Probe common install locations
     home = Path.home()
     candidates = [
-        home / ".local" / "bin" / "gws",        # pipx-style
-        Path("/usr/local/bin/gws"),              # manual install
+        home / ".local" / "bin" / "gws",  # pipx-style
+        Path("/usr/local/bin/gws"),  # manual install
     ]
 
     # 3. NVM / npm global bins
@@ -51,11 +51,11 @@ def _find_gws_binary() -> str:
     npm_prefix = os.environ.get("NVM_BIN", "")
     if npm_prefix:
         candidates.append(Path(npm_prefix) / "gws")
-        
+
     try:
         npm_global = subprocess.check_output(["npm", "prefix", "-g"], text=True).strip()
         if npm_global:
-             candidates.append(Path(npm_global) / "bin" / "gws")
+            candidates.append(Path(npm_global) / "bin" / "gws")
     except Exception:
         pass
 
@@ -79,6 +79,7 @@ class GwsClient:
     def is_configured(self) -> bool:
         """Return True if the gws binary is reachable."""
         import os
+
         # Absolute path: check directly. Bare name: use which.
         if os.path.isabs(self._bin):
             return os.path.isfile(self._bin) and os.access(self._bin, os.X_OK)
@@ -279,8 +280,7 @@ class GmailReadThreadTool(Tool):
             return "Error: threadId is required."
 
         ok, data = await self.client.run(
-            ["gmail", "users", "threads", "get",
-             *_params_flag({"userId": "me", "id": threadId})]
+            ["gmail", "users", "threads", "get", *_params_flag({"userId": "me", "id": threadId})]
         )
         if not ok:
             return f"Error: {data}"
@@ -294,8 +294,11 @@ class GmailReadThreadTool(Tool):
 
         lines = [f"Thread {threadId} ({len(messages)} messages):"]
         for msg in messages:
-            headers = {h["name"]: h["value"] for h in msg.get("payload", {}).get("headers", [])
-                       if h.get("name") in ("From", "Subject", "Date")}
+            headers = {
+                h["name"]: h["value"]
+                for h in msg.get("payload", {}).get("headers", [])
+                if h.get("name") in ("From", "Subject", "Date")
+            }
             lines.append(f"\n--- {headers.get('Date', '?')} ---")
             lines.append(f"From: {headers.get('From', '?')}")
             lines.append(f"Subject: {headers.get('Subject', '?')}")
@@ -581,9 +584,7 @@ class CalendarListEventsTool(Tool):
         if timeMax:
             params["timeMax"] = timeMax
 
-        ok, data = await self.client.run(
-            ["calendar", "events", "list", *_params_flag(params)]
-        )
+        ok, data = await self.client.run(["calendar", "events", "list", *_params_flag(params)])
         if not ok:
             return f"Error: {data}"
 
@@ -596,8 +597,7 @@ class CalendarListEventsTool(Tool):
 
         lines = [f"Upcoming events ({len(items)}):"]
         for event in items[:maxResults]:
-            start = (event.get("start", {}).get("dateTime")
-                     or event.get("start", {}).get("date", ""))
+            start = event.get("start", {}).get("dateTime") or event.get("start", {}).get("date", "")
             lines.append(f"- {start} | {event.get('summary', '(no title)')}")
         return "\n".join(lines)
 
@@ -652,9 +652,13 @@ class CalendarCreateEventTool(Tool):
             body["location"] = location
 
         ok, data = await self.client.run(
-            ["calendar", "events", "insert",
-             *_params_flag({"calendarId": cal_id}),
-             *_json_flag(body)]
+            [
+                "calendar",
+                "events",
+                "insert",
+                *_params_flag({"calendarId": cal_id}),
+                *_json_flag(body),
+            ]
         )
         if not ok:
             return f"Error creating event: {data}"
@@ -721,9 +725,13 @@ class CalendarUpdateEventTool(Tool):
             return "Error: at least one field to update is required."
 
         ok, data = await self.client.run(
-            ["calendar", "events", "patch",
-             *_params_flag({"calendarId": cal_id, "eventId": eventId}),
-             *_json_flag(body)]
+            [
+                "calendar",
+                "events",
+                "patch",
+                *_params_flag({"calendarId": cal_id, "eventId": eventId}),
+                *_json_flag(body),
+            ]
         )
         if not ok:
             return f"Error updating event: {data}"
@@ -760,9 +768,7 @@ class DriveListFilesTool(Tool):
         if query:
             params["q"] = query
 
-        ok, data = await self.client.run(
-            ["drive", "files", "list", *_params_flag(params)]
-        )
+        ok, data = await self.client.run(["drive", "files", "list", *_params_flag(params)])
         if not ok:
             return f"Error: {data}"
 
@@ -821,14 +827,17 @@ class DriveReadTextTool(Tool):
 
         if mime in export_map:
             ok, text = await self.client.run_text(
-                ["drive", "files", "export",
-                 *_params_flag({"fileId": fileId, "mimeType": export_map[mime]})]
+                [
+                    "drive",
+                    "files",
+                    "export",
+                    *_params_flag({"fileId": fileId, "mimeType": export_map[mime]}),
+                ]
             )
         else:
             # Direct download (text files)
             ok, text = await self.client.run_text(
-                ["drive", "files", "get",
-                 *_params_flag({"fileId": fileId, "alt": "media"})]
+                ["drive", "files", "get", *_params_flag({"fileId": fileId, "alt": "media"})]
             )
 
         if not ok:
@@ -973,9 +982,13 @@ class DocsAppendTextTool(Tool):
         }
 
         ok, result = await self.client.run(
-            ["docs", "documents", "batchUpdate",
-             *_params_flag({"documentId": documentId}),
-             *_json_flag(requests_body)]
+            [
+                "docs",
+                "documents",
+                "batchUpdate",
+                *_params_flag({"documentId": documentId}),
+                *_json_flag(requests_body),
+            ]
         )
         if not ok:
             return f"Error appending text: {result}"
@@ -1016,8 +1029,12 @@ class SheetsGetValuesTool(Tool):
             return "Error: spreadsheetId and rangeA1 are required."
 
         ok, data = await self.client.run(
-            ["sheets", "spreadsheets.values", "get",
-             *_params_flag({"spreadsheetId": spreadsheetId, "range": rangeA1})]
+            [
+                "sheets",
+                "spreadsheets.values",
+                "get",
+                *_params_flag({"spreadsheetId": spreadsheetId, "range": rangeA1}),
+            ]
         )
         if not ok:
             return f"Error: {data}"
@@ -1077,13 +1094,19 @@ class SheetsAppendValuesTool(Tool):
             return "Error: spreadsheetId, rangeA1, and rows are required."
 
         ok, data = await self.client.run(
-            ["sheets", "spreadsheets.values", "append",
-             *_params_flag({
-                 "spreadsheetId": spreadsheetId,
-                 "range": rangeA1,
-                 "valueInputOption": valueInputOption,
-             }),
-             *_json_flag({"values": rows})]
+            [
+                "sheets",
+                "spreadsheets.values",
+                "append",
+                *_params_flag(
+                    {
+                        "spreadsheetId": spreadsheetId,
+                        "range": rangeA1,
+                        "valueInputOption": valueInputOption,
+                    }
+                ),
+                *_json_flag({"values": rows}),
+            ]
         )
         if not ok:
             return f"Error: {data}"
@@ -1144,12 +1167,18 @@ class ContactsListTool(Tool):
         if query:
             # Use searchContacts for query
             ok, data = await self.client.run(
-                ["people", "people", "searchContacts",
-                 *_params_flag({
-                     "query": query,
-                     "readMask": "names,emailAddresses,phoneNumbers",
-                     "pageSize": pageSize,
-                 })]
+                [
+                    "people",
+                    "people",
+                    "searchContacts",
+                    *_params_flag(
+                        {
+                            "query": query,
+                            "readMask": "names,emailAddresses,phoneNumbers",
+                            "pageSize": pageSize,
+                        }
+                    ),
+                ]
             )
             if not ok:
                 return f"Error: {data}"
@@ -1157,12 +1186,18 @@ class ContactsListTool(Tool):
             people = [r.get("person", {}) for r in results]
         else:
             ok, data = await self.client.run(
-                ["people", "people.connections", "list",
-                 *_params_flag({
-                     "resourceName": "people/me",
-                     "personFields": "names,emailAddresses,phoneNumbers",
-                     "pageSize": pageSize,
-                 })]
+                [
+                    "people",
+                    "people.connections",
+                    "list",
+                    *_params_flag(
+                        {
+                            "resourceName": "people/me",
+                            "personFields": "names,emailAddresses,phoneNumbers",
+                            "pageSize": pageSize,
+                        }
+                    ),
+                ]
             )
             if not ok:
                 return f"Error: {data}"
@@ -1200,11 +1235,17 @@ class ContactsGetTool(Tool):
             return "Error: resourceName is required."
 
         ok, data = await self.client.run(
-            ["people", "people", "get",
-             *_params_flag({
-                 "resourceName": resourceName,
-                 "personFields": "names,emailAddresses,phoneNumbers,organizations,biographies",
-             })]
+            [
+                "people",
+                "people",
+                "get",
+                *_params_flag(
+                    {
+                        "resourceName": resourceName,
+                        "personFields": "names,emailAddresses,phoneNumbers,organizations,biographies",
+                    }
+                ),
+            ]
         )
         if not ok:
             return f"Error: {data}"

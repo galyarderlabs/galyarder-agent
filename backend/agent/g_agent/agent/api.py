@@ -12,7 +12,11 @@ from g_agent.config.loader import load_config
 from g_agent.config.schema import Config
 from g_agent.plugins.loader import filter_plugins, load_installed_plugins
 from g_agent.providers.base import LLMProvider
-from g_agent.providers.factory import build_provider, collect_provider_factories, has_provider_factory
+from g_agent.providers.factory import (
+    build_provider,
+    collect_provider_factories,
+    has_provider_factory,
+)
 
 
 class Agent:

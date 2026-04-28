@@ -2,6 +2,7 @@
 
 import time
 import re
+import json
 from typing import Any
 
 from g_agent.command.context import CommandContext
@@ -9,7 +10,7 @@ from g_agent.session.manager import SessionManager
 
 
 def _fmt_time(ts: float) -> str:
-    return time.strftime('%Y-%m-%d %H:%M', time.localtime(ts))
+    return time.strftime("%Y-%m-%d %H:%M", time.localtime(ts))
 
 
 def _redact(text: str) -> str:
@@ -42,6 +43,7 @@ async def cmd_status(ctx: CommandContext) -> str:
     # Memory
     try:
         from g_agent.agent.memory import MemoryStore
+
         memory = MemoryStore(ctx.workspace)
         facts = memory._load_fact_index()
         lines.append(f"🧠 Memory: {len(facts)} facts stored")
@@ -57,21 +59,27 @@ async def cmd_logs(ctx: CommandContext) -> str:
 
     store = TaskCheckpointStore(ctx.workspace)
     # Get all task files, sorted by newest first
-    task_files = sorted(store.tasks_dir.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+    task_files = sorted(
+        store.tasks_dir.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True
+    )
 
     if not task_files:
         return "📄 No logs found."
 
     lines = ["📄 <b>Recent Activity</b>\n"]
-    for path in task_files[:5]: # Show last 5 tasks
+    for path in task_files[:5]:  # Show last 5 tasks
         task = store._safe_read(path)
         if not task:
             continue
 
-        status_emoji = "✅" if task["status"] == "ok" else "❌" if task["status"] == "error" else "⏳"
-        created = task["created_at"].split("T")[-1][:5] # Just HH:MM
+        status_emoji = (
+            "✅" if task["status"] == "ok" else "❌" if task["status"] == "error" else "⏳"
+        )
+        created = task["created_at"].split("T")[-1][:5]  # Just HH:MM
 
-        lines.append(f"{status_emoji} <code>{created}</code> {task['kind']} — <i>{task['status']}</i>")
+        lines.append(
+            f"{status_emoji} <code>{created}</code> {task['kind']} — <i>{task['status']}</i>"
+        )
         if task.get("input_preview"):
             preview = _redact(str(task["input_preview"]))[:60]
             lines.append(f"   <pre>In: {preview}...</pre>")
@@ -112,7 +120,7 @@ async def cmd_sessions(ctx: CommandContext) -> str:
 
     lines = ["🧵 <b>Recent Sessions</b>\n"]
     for row in rows:
-        ts = _fmt_time(row['updated_at'])
+        ts = _fmt_time(row["updated_at"])
         lines.append(f"• <code>{row['key']}</code> — <i>{ts} ({row['message_count']} msgs)</i>")
 
     return "\n".join(lines)
@@ -154,75 +162,78 @@ async def cmd_whoami(ctx: CommandContext) -> dict:
 async def cmd_profile(ctx: CommandContext) -> str:
     """Manage character profiles."""
     from g_agent.character.store import CharacterStore
+
     store = CharacterStore(ctx.workspace)
-    
+
     args = ctx.args.strip().split()
     subcmd = args[0] if args else "view"
-    
+
     if subcmd == "list":
         profiles = store.list()
         lines = ["🎭 <b>Available Profiles</b>\n"]
         for p in profiles:
             lines.append(f"• <code>{p.id}</code> — <b>{p.name}</b> (<i>{p.role}</i>)")
         return "\n".join(lines)
-        
+
     if subcmd == "set" and len(args) > 1:
         profile_id = args[1]
         p = store.get(profile_id)
         if not p:
             return f"❌ Profile <code>{profile_id}</code> not found."
-            
+
         # Note: Actual switching needs to be handled by the loop/gateway
-        # For now we just confirm it exists. In a real scenario, we'd 
+        # For now we just confirm it exists. In a real scenario, we'd
         # update a 'current_profile' setting in config.
         return f"✅ Profile set to <b>{p.name}</b> (<code>{p.id}</code>).\n<i>Note: New settings will apply to the next message.</i>"
 
-    # View current (this is tricky without loop reference in ctx, 
+    # View current (this is tricky without loop reference in ctx,
     # but we can show default or first one)
     p = store.get_default()
     lines = [f"👤 <b>Active Profile: {p.name}</b>\n"]
     lines.append(f"<code>Role : {p.role}</code>")
     lines.append(f"<code>Voice: {p.voice}</code>")
     lines.append(f"<code>Tone : {p.tone}</code>")
-    
+
     if p.boundaries:
         lines.append("\n<b>Boundaries</b>")
         for b in p.boundaries:
             lines.append(f"• {b}")
-            
+
     return "\n".join(lines)
 
 
 async def cmd_learn(ctx: CommandContext) -> str:
     """Manage the learning queue."""
     from g_agent.learning.queue import LearningQueue
+
     queue = LearningQueue(ctx.workspace)
-    
+
     args = ctx.args.strip().split()
     subcmd = args[0] if args else "list"
-    
+
     if subcmd == "list":
         pending = queue.list_pending()
         if not pending:
             return "🧠 <b>Learning Queue</b> is empty. No candidates for review."
-            
+
         lines = [f"🧠 <b>Learning Queue ({len(pending)})</b>\n"]
         for c in pending:
             lines.append(f"• <code>{c.id}</code> — <b>{c.title}</b> (<i>{c.kind}</i>)")
         return "\n".join(lines)
-        
+
     if subcmd in ["approve", "reject"] and len(args) > 1:
         candidate_id = args[1]
         c = queue.get(candidate_id)
         if not c:
             return f"❌ Candidate <code>{candidate_id}</code> not found."
-            
+
         status = "approved" if subcmd == "approve" else "rejected"
         queue.update_status(candidate_id, status)
-        
+
         # If it's a skill candidate and approved, activate it
         if status == "approved" and c.kind == "skill":
             from g_agent.skills.manager import SkillManager
+
             skills = SkillManager(ctx.workspace)
             skill_name = c.content.get("name")
             if skill_name:
@@ -230,8 +241,10 @@ async def cmd_learn(ctx: CommandContext) -> str:
                 if ok:
                     return f"✅ Candidate <code>{candidate_id}</code> approved and skill <b>{skill_name}</b> activated."
                 else:
-                    return f"⚠️ Candidate approved but skill activation failed:\n" + "\n".join(f"- {e}" for e in errors)
-            
+                    return "⚠️ Candidate approved but skill activation failed:\n" + "\n".join(
+                        f"- {e}" for e in errors
+                    )
+
         return f"✅ Candidate <code>{candidate_id}</code> marked as <b>{status}</b>."
 
     if subcmd == "info" and len(args) > 1:
@@ -239,7 +252,7 @@ async def cmd_learn(ctx: CommandContext) -> str:
         c = queue.get(candidate_id)
         if not c:
             return f"❌ Candidate <code>{candidate_id}</code> not found."
-            
+
         lines = [f"🧠 <b>Learning Candidate: {c.title}</b>\n"]
         lines.append(f"<code>Kind     : {c.kind}</code>")
         lines.append(f"<code>Rationale: {c.rationale}</code>")
@@ -255,9 +268,22 @@ def register_builtin_commands(router: Any):
     """Register all built-in commands to a router."""
     router.register("status", cmd_status, description="System diagnostics")
     router.register("logs", cmd_logs, description="View recent activity logs")
-    router.register("history", cmd_history, aliases=["hists"], description="Search session history", usage="<query>")
+    router.register(
+        "history",
+        cmd_history,
+        aliases=["hists"],
+        description="Search session history",
+        usage="<query>",
+    )
     router.register("sessions", cmd_sessions, description="List recent sessions")
     router.register("new", cmd_new, aliases=["reset"], description="Start fresh")
     router.register("whoami", cmd_whoami, description="Your profile info")
-    router.register("profile", cmd_profile, description="Manage character profiles", usage="[list|set <id>]")
-    router.register("learn", cmd_learn, description="Review learning candidates", usage="[list|approve|reject <id>]")
+    router.register(
+        "profile", cmd_profile, description="Manage character profiles", usage="[list|set <id>]"
+    )
+    router.register(
+        "learn",
+        cmd_learn,
+        description="Review learning candidates",
+        usage="[list|approve|reject <id>]",
+    )

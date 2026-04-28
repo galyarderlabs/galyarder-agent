@@ -125,7 +125,7 @@ class LiteLLMProvider(LLMProvider):
 
         system_msgs = [m for m in messages if m.get("role") == "system"]
         if system_msgs:
-             system_msgs[-1]["cache_control"] = {"type": "ephemeral"}
+            system_msgs[-1]["cache_control"] = {"type": "ephemeral"}
 
         non_system = [m for m in messages if m.get("role") != "system"]
         if len(non_system) >= 2:
@@ -163,7 +163,7 @@ class LiteLLMProvider(LLMProvider):
 
         # Strip LLMProvider internal tags and None values to prevent 400 errors
         clean_messages = LLMProvider._sanitize_request_messages(messages)
-        
+
         # Apply provider-agnostic prompt caching if model allows
         self._apply_cache_control(clean_messages, model)
 
@@ -177,14 +177,11 @@ class LiteLLMProvider(LLMProvider):
             kwargs["timeout"] = timeout
         if reasoning_effort:
             kwargs["reasoning_effort"] = reasoning_effort
-            
+
         if thinking_blocks and ("anthropic" in model.lower() or "claude" in model.lower()):
             kwargs["max_tokens"] = 32000
             # For Anthropic 3.7
-            kwargs["thinking"] = {
-                "type": "enabled",
-                "budget_tokens": min(max_tokens, 24000) 
-            }
+            kwargs["thinking"] = {"type": "enabled", "budget_tokens": min(max_tokens, 24000)}
             if not self.extra_headers:
                 self.extra_headers = {}
             if "anthropic-beta" not in self.extra_headers:
@@ -231,6 +228,7 @@ class LiteLLMProvider(LLMProvider):
                 if isinstance(args, str):
                     try:
                         import json_repair
+
                         args = json_repair.loads(args)
                     except ImportError:
                         try:
@@ -257,11 +255,11 @@ class LiteLLMProvider(LLMProvider):
             }
 
         reasoning_content = getattr(message, "reasoning_content", None)
-        
+
         # Anthropic exposes thinking blocks inside content list
         extracted_thinking = []
         final_content = ""
-        
+
         if isinstance(message.content, list):
             for block in message.content:
                 if isinstance(block, dict):

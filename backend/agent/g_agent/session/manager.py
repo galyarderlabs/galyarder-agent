@@ -33,11 +33,11 @@ class Session:
         """Add a message to the session."""
         now = datetime.now().astimezone()
         msg = {
-            "role": role, 
-            "content": content, 
-            "timestamp": now.isoformat(), 
+            "role": role,
+            "content": content,
+            "timestamp": now.isoformat(),
             "raw_timestamp": now.timestamp(),
-            **kwargs
+            **kwargs,
         }
         self.messages.append(msg)
         self.updated_at = now
@@ -78,7 +78,9 @@ class SessionManager:
         self.sessions_dir = ensure_dir(get_data_path() / "sessions")
         self.sqlite_store = SessionSQLiteStore(self.sessions_dir / "sessions.db")
         self._cache: weakref.WeakValueDictionary[str, Session] = weakref.WeakValueDictionary()
-        self._session_locks: weakref.WeakValueDictionary[str, threading.Lock] = weakref.WeakValueDictionary()
+        self._session_locks: weakref.WeakValueDictionary[str, threading.Lock] = (
+            weakref.WeakValueDictionary()
+        )
         self._global_lock = threading.Lock()
 
     def _get_lock(self, key: str) -> threading.Lock:

@@ -403,7 +403,11 @@ class AgentLoop:
             # Cancel subagents
             if self.subagents:
                 cancelled += self.subagents.cancel_all_for_origin(msg.channel, msg.chat_id)
-            ack = f"⏹ Cancelled {cancelled} running task(s)." if cancelled else "No running tasks to cancel."
+            ack = (
+                f"⏹ Cancelled {cancelled} running task(s)."
+                if cancelled
+                else "No running tasks to cancel."
+            )
             return OutboundMessage(channel=msg.channel, chat_id=msg.chat_id, content=ack)
 
         previous_running = self.runtime.latest_running_for_session(msg.session_key)
@@ -454,7 +458,10 @@ class AgentLoop:
                 try:
                     await self.bus.publish_outbound(
                         OutboundMessage(
-                            channel=msg.channel, chat_id=msg.chat_id, content="", metadata={"action": "typing"}
+                            channel=msg.channel,
+                            chat_id=msg.chat_id,
+                            content="",
+                            metadata={"action": "typing"},
                         )
                     )
                 except Exception as typ_err:
@@ -563,9 +570,7 @@ class AgentLoop:
                     # text claiming it "can't" do that thing is contradictory.
                     # The tool result on the next iteration is the truth.
                     # The tool result on the next iteration is the truth.
-                    messages = self.context.add_assistant_message(
-                        messages, "", tool_call_dicts
-                    )
+                    messages = self.context.add_assistant_message(messages, "", tool_call_dicts)
 
                     # Execute tools
                     selfie_delivered = False
@@ -593,11 +598,15 @@ class AgentLoop:
                         if tool_call.name == "selfie" and "delivered" in str(result).lower():
                             selfie_delivered = True
                             logger.info("Selfie delivered — suppressing follow-up LLM call")
-                        if tool_call.name == "message" and self._is_message_delivery_success(result):
+                        if tool_call.name == "message" and self._is_message_delivery_success(
+                            result
+                        ):
                             tool_args = (
                                 tool_call.arguments if isinstance(tool_call.arguments, dict) else {}
                             )
-                            target_channel = str(tool_args.get("channel") or msg.channel).strip().lower()
+                            target_channel = (
+                                str(tool_args.get("channel") or msg.channel).strip().lower()
+                            )
                             target_chat_id = str(tool_args.get("chat_id") or msg.chat_id).strip()
                             origin_channel = str(msg.channel).strip().lower()
                             origin_chat_id = str(msg.chat_id).strip()
@@ -615,7 +624,9 @@ class AgentLoop:
                         messages = self.context.add_tool_result(
                             messages, tool_call.id, tool_call.name, result
                         )
-                        logger.debug(f"Tool result added to messages (total messages: {len(messages)})")
+                        logger.debug(
+                            f"Tool result added to messages (total messages: {len(messages)})"
+                        )
                     # After selfie delivery, break the agent loop entirely
                     # to prevent the second-round LLM call from generating
                     # identity-violating denial text
@@ -651,7 +662,9 @@ class AgentLoop:
                 gws_results = [
                     result
                     for name, result in executed_tool_results
-                    if name.startswith(("gmail_", "calendar_", "drive_", "docs_", "sheets_", "contacts_"))
+                    if name.startswith(
+                        ("gmail_", "calendar_", "drive_", "docs_", "sheets_", "contacts_")
+                    )
                 ]
                 if gws_results:
                     recovery_context = "\n\n".join(gws_results)
@@ -731,9 +744,7 @@ class AgentLoop:
 
             # Selfie tool already delivered photo+caption via _send_callback;
             # suppress the empty outbound to prevent a duplicate send.
-            selfie_already_delivered = (
-                "selfie" in executed_tools and not final_content.strip()
-            )
+            selfie_already_delivered = "selfie" in executed_tools and not final_content.strip()
             suppress_outbound = (
                 auto_delivery_sent
                 or message_delivery_to_origin
@@ -752,7 +763,9 @@ class AgentLoop:
 
             # Prevent empty text from poisoning history if no tools were called
             if not log_content.strip() and not executed_tools:
-                logger.warning("Assistant response completely empty; skipping history save to prevent session poisoning.")
+                logger.warning(
+                    "Assistant response completely empty; skipping history save to prevent session poisoning."
+                )
             else:
                 # Strip runtime context from user message before persisting
                 clean_user_content = ContextBuilder.strip_runtime_context(msg.content)
@@ -772,9 +785,7 @@ class AgentLoop:
                     for name, result in executed_tool_results
                 ]
                 assistant_kwargs = (
-                    {"metadata": {"tool_calls": tool_call_metadata}}
-                    if tool_call_metadata
-                    else {}
+                    {"metadata": {"tool_calls": tool_call_metadata}} if tool_call_metadata else {}
                 )
                 session.add_message("assistant", log_content, **assistant_kwargs)
                 self.sessions.save(session)
@@ -800,7 +811,9 @@ class AgentLoop:
                 channel=msg.channel,
                 chat_id=msg.chat_id,
                 content=final_content,
-                reply_to=str(msg.metadata.get("message_id")) if msg.metadata and msg.metadata.get("message_id") else None,
+                reply_to=str(msg.metadata.get("message_id"))
+                if msg.metadata and msg.metadata.get("message_id")
+                else None,
                 metadata=self._build_outbound_metadata(msg, task_id),
             )
         except Exception as e:
@@ -1049,7 +1062,7 @@ class AgentLoop:
         "nggak punya ingatan",
         "gak punya ingatan",
         "tidak punya ingatan",
-        "nggak punya \"ingatan\"",
+        'nggak punya "ingatan"',
         "di luar konteks chat",
         "di luar chat",
         "di luar sesi",
@@ -1132,9 +1145,7 @@ class AgentLoop:
         if len(text) < 200 and any(
             pattern in lowered for pattern in self._IDENTITY_DENIAL_PATTERNS
         ):
-            logger.warning(
-                f"Identity violation filtered (full): {text[:120]}..."
-            )
+            logger.warning(f"Identity violation filtered (full): {text[:120]}...")
             return ""
 
         # For longer responses, strip only violating paragraphs
@@ -1143,9 +1154,7 @@ class AgentLoop:
         for para in paragraphs:
             para_lower = para.lower()
             if any(pattern in para_lower for pattern in self._IDENTITY_DENIAL_PATTERNS):
-                logger.warning(
-                    f"Identity violation stripped (paragraph): {para[:120]}..."
-                )
+                logger.warning(f"Identity violation stripped (paragraph): {para[:120]}...")
                 continue
             clean_paragraphs.append(para)
 
@@ -1153,9 +1162,17 @@ class AgentLoop:
 
     # ---- Persona style patterns to strip ----
     _LLM_OPENERS = [
-        "sure!", "of course!", "absolutely!", "certainly!",
-        "great question!", "i'd be happy to", "i'd love to",
-        "tentu!", "tentu saja!", "baik!", "dengan senang hati",
+        "sure!",
+        "of course!",
+        "absolutely!",
+        "certainly!",
+        "great question!",
+        "i'd be happy to",
+        "i'd love to",
+        "tentu!",
+        "tentu saja!",
+        "baik!",
+        "dengan senang hati",
     ]
     _LLM_CLOSERS = [
         "is there anything else",
@@ -1178,10 +1195,15 @@ class AgentLoop:
         text = (content or "").strip()
         if not text:
             return text
-            
+
         # First pass: Strip accidental base64 generation which bloats history
         import re
-        text = re.sub(r'data:image/[a-zA-Z]+;base64,[A-Za-z0-9+/=]+', '[...base64 image data stripped...]', text)
+
+        text = re.sub(
+            r"data:image/[a-zA-Z]+;base64,[A-Za-z0-9+/=]+",
+            "[...base64 image data stripped...]",
+            text,
+        )
 
         lines = text.split("\n")
         cleaned: list[str] = []
@@ -1209,7 +1231,7 @@ class AgentLoop:
         lowered = text.lower()
         for opener in self._LLM_OPENERS:
             if lowered.startswith(opener):
-                text = text[len(opener):].lstrip(" ,.")
+                text = text[len(opener) :].lstrip(" ,.")
                 break
 
         # Strip LLM-typical closers (last sentence)
@@ -1261,9 +1283,7 @@ class AgentLoop:
         if not any(marker in lowered for marker in denial_markers):
             return text
 
-        logger.warning(
-            f"Memory denial intercepted, replacing: {text[:120]}..."
-        )
+        logger.warning(f"Memory denial intercepted, replacing: {text[:120]}...")
         return "aku inget kok. tanya aja, nanti aku cek."
 
     def _is_explicit_remember_request(self, content: str) -> bool:
@@ -1525,9 +1545,7 @@ class AgentLoop:
         )
 
         def _is_negated_prefix(prefix: str) -> bool:
-            return bool(
-                re.search(rf"{negative_pattern}(?:\s+\w+){{0,3}}\s*$", prefix)
-            )
+            return bool(re.search(rf"{negative_pattern}(?:\s+\w+){{0,3}}\s*$", prefix))
 
         voice_match = re.search(
             r"\b(--voice|voice note|voice-note|pesan suara|pake voice|pakai voice|pake suara|pakai suara|dengan suara|kirim voice|kirim vn|use voice|send vn|send voice|pake vn|pakai vn|bikin vn|kamu vn|lu vn|lo vn)\b|(?:^|\s)(vn)(?:\s|$)",
@@ -2057,10 +2075,12 @@ class AgentLoop:
     ) -> None:
         """Store a denied tool call for later replay when approved."""
         pending: list[dict[str, Any]] = session.metadata.get("pending_approvals", [])
-        pending.append({
-            "tool_name": tool_name,
-            "tool_args": tool_args,
-        })
+        pending.append(
+            {
+                "tool_name": tool_name,
+                "tool_args": tool_args,
+            }
+        )
         # Keep only last 5 to prevent unbounded growth
         session.metadata["pending_approvals"] = pending[-5:]
         self.sessions.save(session)
@@ -2163,7 +2183,7 @@ class AgentLoop:
                 max_tokens=min(1200, max(256, len(draft) // 2 + 200)),
                 temperature=0.2,
                 reasoning_effort="low",  # Fast lightweight reflection
-                thinking_blocks=False,   # No need for deep extended reasoning on this pass
+                thinking_blocks=False,  # No need for deep extended reasoning on this pass
             )
             reviewed = (review.content or "").strip()
             if not reviewed or reviewed.upper() == "KEEP":

@@ -2,7 +2,7 @@
 
 import shutil
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 from loguru import logger
 from g_agent.skills.store import SkillStore
@@ -22,7 +22,7 @@ class SkillManager:
         draft_path = self.store.create_draft(name, content)
         if not draft_path:
             return False, ["File system error during draft creation."]
-        
+
         return self.validator.validate_skill_dir(draft_path)
 
     def activate_skill(self, name: str) -> Tuple[bool, List[str]]:
@@ -38,7 +38,7 @@ class SkillManager:
 
         # Ensure custom dir exists
         target_path = self.store.custom_dir / name
-        
+
         try:
             # Backup existing if any
             if target_path.exists():

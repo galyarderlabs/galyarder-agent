@@ -51,7 +51,9 @@ class WhatsAppChannel(BaseChannel):
                     logger.info("Connected to WhatsApp bridge")
 
                     if self.config.bridge_token:
-                        await ws.send(json.dumps({"type": "auth", "token": self.config.bridge_token}))
+                        await ws.send(
+                            json.dumps({"type": "auth", "token": self.config.bridge_token})
+                        )
                         logger.info("Sent bridge auth token")
 
                     # Listen for messages
@@ -132,7 +134,9 @@ class WhatsAppChannel(BaseChannel):
 
         try:
             await self._ws.send(json.dumps(payload))
-            ack = await self._wait_for_send_ack(request_id=request_id, timeout_s=self._ack_timeout_s)
+            ack = await self._wait_for_send_ack(
+                request_id=request_id, timeout_s=self._ack_timeout_s
+            )
         except TimeoutError as e:
             logger.error(f"WhatsApp send ack timeout: request_id={request_id} error={e}")
             raise RuntimeError(str(e)) from e
@@ -193,9 +197,10 @@ class WhatsAppChannel(BaseChannel):
 
             normalized_media_type = str(media_type or "").strip().lower()
             normalized_mime_type = str(mime_type or "").strip().lower()
-            is_audio_payload = normalized_media_type in {"voice", "audio"} or normalized_mime_type.startswith(
-                "audio/"
-            )
+            is_audio_payload = normalized_media_type in {
+                "voice",
+                "audio",
+            } or normalized_mime_type.startswith("audio/")
 
             # Handle audio transcription when an audio attachment is present.
             if is_audio_payload and media_paths:
@@ -234,7 +239,9 @@ class WhatsAppChannel(BaseChannel):
             if request_id:
                 future = self._pending_send_acks.pop(request_id, None)
                 if future is None:
-                    logger.warning(f"WhatsApp bridge ack for unknown request_id={request_id}: {data}")
+                    logger.warning(
+                        f"WhatsApp bridge ack for unknown request_id={request_id}: {data}"
+                    )
                     return
                 if not future.done():
                     future.set_result(data)

@@ -117,8 +117,10 @@ class SlashCommandDispatcher:
             "sessions": lambda: self._cmd_sessions(),
             "status": lambda: self._cmd_status(session_key),
             "whoami": lambda: self._cmd_whoami(
-                channel=channel, chat_id=chat_id,
-                username=sender_username, user_id=sender_id,
+                channel=channel,
+                chat_id=chat_id,
+                username=sender_username,
+                user_id=sender_id,
             ),
             "logs": lambda: self._cmd_router(
                 text=text,
@@ -221,15 +223,14 @@ class SlashCommandDispatcher:
 
         # Build digest and compress
         digest = sessions._build_digest(session, max_chars=4000)
-        
+
         # Replace history with single summary message
         session.clear()
         session.add_message(
-            role="system",
-            content=f"[Session compacted. Previous context:]\n\n{digest}"
+            role="system", content=f"[Session compacted. Previous context:]\n\n{digest}"
         )
         sessions.save(session)
-        
+
         # Calculate after stats
         total_chars_after = len(session.messages[0].get("content", ""))
         est_tokens_after = total_chars_after // 4
@@ -274,6 +275,7 @@ class SlashCommandDispatcher:
             return "⚠️ Usage: /history <query>\n\nExample: /history 'database schema'"
 
         from g_agent.session.manager import SessionManager
+
         sessions = SessionManager(self.workspace)
         results = sessions.sqlite_store.search_messages(query, limit=5)
 
@@ -295,6 +297,7 @@ class SlashCommandDispatcher:
 
     def _cmd_sessions(self) -> str:
         from g_agent.session.manager import SessionManager
+
         sessions = SessionManager(self.workspace)
         rows = sessions.sqlite_store.list_sessions(limit=10)
 
@@ -303,7 +306,7 @@ class SlashCommandDispatcher:
 
         lines = ["🧵 <b>Recent Sessions</b>\n"]
         for row in rows:
-            ts = time.strftime('%Y-%m-%d %H:%M', time.localtime(row['updated_at']))
+            ts = time.strftime("%Y-%m-%d %H:%M", time.localtime(row["updated_at"]))
             lines.append(f"• <code>{row['key']}</code> — <i>{ts} ({row['message_count']} msgs)</i>")
 
         return "\n".join(lines)
@@ -326,9 +329,7 @@ class SlashCommandDispatcher:
             remaining = []
         else:
             denied = [item for item in pending if item.get("tool_name", "").lower() == target]
-            remaining = [
-                item for item in pending if item.get("tool_name", "").lower() != target
-            ]
+            remaining = [item for item in pending if item.get("tool_name", "").lower() != target]
             if not denied:
                 return f"✅ No pending approval for <code>{target}</code>."
 
@@ -380,6 +381,7 @@ class SlashCommandDispatcher:
         mem_str = "n/a"
         try:
             from g_agent.agent.memory import MemoryStore
+
             memory = MemoryStore(self.workspace)
             facts = memory._load_fact_index()
             mem_str = f"{len(facts)} facts"
@@ -439,14 +441,12 @@ class SlashCommandDispatcher:
         long_term = memory.read_long_term().strip()
         if long_term:
             if query:
-                matches = [
-                    line
-                    for line in long_term.splitlines()
-                    if query.lower() in line.lower()
-                ]
+                matches = [line for line in long_term.splitlines() if query.lower() in line.lower()]
                 if matches:
                     sections.append(
-                        f"🧠 <b>Memory (matching '{query}')</b>\n<pre>" + "\n".join(matches[:10]).replace("<", "&lt;").replace(">", "&gt;") + "</pre>"
+                        f"🧠 <b>Memory (matching '{query}')</b>\n<pre>"
+                        + "\n".join(matches[:10]).replace("<", "&lt;").replace(">", "&gt;")
+                        + "</pre>"
                     )
                 else:
                     sections.append(f"🧠 <i>No memories matching '{query}'</i>")
@@ -497,14 +497,14 @@ class SlashCommandDispatcher:
                             [{"text": "⬅️ Back to Providers", "data": "/model"}],
                         ],
                     }
-                    
+
             # Fallback: if user types `/model some-model-name` directly
             self.model_name = args.strip()
             return {"text": f"✅ Model set to <code>{self.model_name}</code>.", "buttons": []}
 
         # Show only configured providers
         configured_providers = [p for p in PROVIDERS if os.environ.get(p.env_key)]
-        
+
         text = (
             f"🧠 <b>Model Selection</b>\n"
             f"Current: <code>{self.model_name}</code>\n\n"
@@ -563,6 +563,7 @@ class SlashCommandDispatcher:
                     sched_str = f"every {secs}s"
             elif sched.kind == "at" and sched.at_ms:
                 from datetime import datetime as _dt, timezone as _tz
+
                 at_dt = _dt.fromtimestamp(sched.at_ms / 1000, tz=_tz.utc)
                 sched_str = f"at {at_dt.strftime('%H:%M')}"
             else:
@@ -664,11 +665,8 @@ class SlashCommandDispatcher:
             nav_row.append({"text": "⬅️ Prev", "data": f"/commands {page - 1}"})
         if page < total_pages:
             nav_row.append({"text": "Next ➡️", "data": f"/commands {page + 1}"})
-        
+
         if nav_row:
             buttons.append(nav_row)
 
-        return {
-            "text": "\n".join(lines),
-            "buttons": buttons
-        }
+        return {"text": "\n".join(lines), "buttons": buttons}

@@ -15,6 +15,7 @@ CommandHandler = Callable[
     CommandResult | Coroutine[Any, Any, CommandResult],
 ]
 
+
 class CommandRouter:
     """Routes slash commands to their respective handlers."""
 
@@ -30,7 +31,7 @@ class CommandRouter:
         handler: CommandHandler,
         aliases: list[str] | None = None,
         description: str = "",
-        usage: str = ""
+        usage: str = "",
     ) -> None:
         """Register a command handler."""
         name = name.lower()
