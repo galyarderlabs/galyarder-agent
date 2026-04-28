@@ -264,6 +264,54 @@ async def cmd_learn(ctx: CommandContext) -> str:
     return "⚠️ Usage: /learn [list|approve <id>|reject <id>|info <id>]"
 
 
+async def cmd_routines(ctx: CommandContext) -> str:
+    """Manage background routines."""
+    from g_agent.routines.store import RoutineStore
+
+    store = RoutineStore(ctx.workspace)
+
+    args = ctx.args.strip().split()
+    subcmd = args[0] if args else "list"
+
+    if subcmd == "list":
+        routines = store.list()
+        if not routines:
+            return "🕒 <b>Routines</b> list is empty."
+
+        lines = [f"🕒 <b>Background Routines ({len(routines)})</b>\n"]
+        for r in routines:
+            status = "✅" if r.enabled else "❌"
+            lines.append(f"{status} <code>{r.id}</code> — <b>{r.name}</b> (<i>{r.schedule}</i>)")
+        return "\n".join(lines)
+
+    if subcmd in ["enable", "disable"] and len(args) > 1:
+        routine_id = args[1]
+        r = store.get(routine_id)
+        if not r:
+            return f"❌ Routine <code>{routine_id}</code> not found."
+
+        r.enabled = subcmd == "enable"
+        store.save(r)
+        return f"✅ Routine <code>{routine_id}</code> is now <b>{subcmd}d</b>."
+
+    if subcmd == "info" and len(args) > 1:
+        routine_id = args[1]
+        r = store.get(routine_id)
+        if not r:
+            return f"❌ Routine <code>{routine_id}</code> not found."
+
+        lines = [f"🕒 <b>Routine: {r.name}</b>\n"]
+        lines.append(f"<code>ID       : {r.id}</code>")
+        lines.append(f"<code>Schedule : {r.schedule}</code>")
+        lines.append(f"<code>Channel  : {r.destination_channel}</code>")
+        lines.append(f"<code>Character: {r.target_character or 'Default'}</code>")
+        lines.append(f"<code>Enabled  : {r.enabled}</code>")
+        lines.append(f"\n<b>Prompt</b>\n<i>{r.content_prompt}</i>")
+        return "\n".join(lines)
+
+    return "⚠️ Usage: /routines [list|enable <id>|disable <id>|info <id>]"
+
+
 def register_builtin_commands(router: Any):
     """Register all built-in commands to a router."""
     router.register("status", cmd_status, description="System diagnostics")
@@ -286,4 +334,7 @@ def register_builtin_commands(router: Any):
         cmd_learn,
         description="Review learning candidates",
         usage="[list|approve|reject <id>]",
+    )
+    router.register(
+        "routines", cmd_routines, description="Manage background tasks", usage="[list|enable|disable <id>]"
     )
