@@ -277,12 +277,17 @@ class ChannelManager:
 
                 channel = self.channels.get(msg.channel)
                 if channel:
-                    try:
-                        await channel.send(msg)
+                    result = await channel.send_with_result(msg)
+                    if result.ok:
                         self._record_outbound_seen(msg)
-                    except Exception as e:
-                        logger.error(f"Error sending to {msg.channel}: {e}")
-                        self._schedule_outbound_retry(msg, str(e))
+                    else:
+                        logger.error(
+                            "Error sending to {}: code={} message={}",
+                            msg.channel,
+                            result.code.value if result.code else "unknown",
+                            result.message,
+                        )
+                        self._schedule_outbound_retry(msg, result.message)
                 else:
                     logger.warning(f"Unknown channel: {msg.channel}")
 

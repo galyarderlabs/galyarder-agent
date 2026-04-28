@@ -12,6 +12,7 @@ All notable changes to this project are documented in this file.
 - Added `docs/roadmap/TODO.md` as the master roadmap completion task board.
 - Added shared channel capability, media envelope, and delivery result contracts for the v0.4 reliability slice.
 - Added current-channel capability diagnostics to `/status`.
+- Wired channel outbound dispatch through normalized delivery results.
 
 ### Fixed
 - Skill candidate rollback now restores the previous active skill when one existed, or removes the newly activated skill when it did not.

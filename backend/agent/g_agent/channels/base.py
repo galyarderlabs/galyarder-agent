@@ -9,6 +9,7 @@ from loguru import logger
 from g_agent.bus.events import InboundMessage, OutboundMessage
 from g_agent.bus.queue import MessageBus
 from g_agent.channels.capabilities import DEFAULT_CHANNEL_CAPABILITIES, ChannelCapabilities
+from g_agent.channels.errors import DeliveryErrorCode, DeliveryResult
 from g_agent.channels.media import normalize_media_envelopes
 
 
@@ -65,6 +66,47 @@ class BaseChannel(ABC):
             msg: The message to send.
         """
         pass
+
+    async def send_with_result(self, msg: OutboundMessage) -> DeliveryResult:
+        """Send a message and normalize the delivery outcome."""
+        try:
+            await self.send(msg)
+            return DeliveryResult.success(channel=self.name, chat_id=msg.chat_id)
+        except Exception as exc:
+            return self._delivery_failure_from_exception(msg, exc)
+
+    def _delivery_failure_from_exception(
+        self,
+        msg: OutboundMessage,
+        exc: Exception,
+    ) -> DeliveryResult:
+        """Convert a channel send exception into a normalized delivery result."""
+        return DeliveryResult.failure(
+            channel=self.name,
+            chat_id=msg.chat_id,
+            code=self._classify_delivery_error(exc),
+            message=str(exc),
+            metadata={"exception": exc.__class__.__name__},
+        )
+
+    def _classify_delivery_error(self, exc: Exception) -> DeliveryErrorCode:
+        """Classify common send failures into stable error codes."""
+        text = str(exc).lower()
+        if isinstance(exc, FileNotFoundError) or "not found" in text:
+            return DeliveryErrorCode.MEDIA_NOT_FOUND
+        if "not connected" in text or "disconnected" in text or "connection" in text:
+            return DeliveryErrorCode.DISCONNECTED
+        if "auth" in text or "unauthorized" in text or "forbidden" in text:
+            return DeliveryErrorCode.AUTH_FAILED
+        if "rate limit" in text or "too many requests" in text or "429" in text:
+            return DeliveryErrorCode.RATE_LIMITED
+        if "too long" in text or "message length" in text:
+            return DeliveryErrorCode.MESSAGE_TOO_LONG
+        if "unsupported" in text and "media" in text:
+            return DeliveryErrorCode.UNSUPPORTED_MEDIA
+        if "sandbox" in text or "allowed path" in text or "permission denied" in text:
+            return DeliveryErrorCode.SANDBOX_DENIED
+        return DeliveryErrorCode.SEND_FAILED
 
     def is_allowed(self, sender_id: str) -> bool:
         """

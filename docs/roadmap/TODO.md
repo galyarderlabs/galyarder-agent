@@ -754,7 +754,7 @@ Every task is not done until:
 ### After That
 
 - [ ] v0.4 channel-specific hardening:
-  - [ ] wire delivery result/error contracts into send paths
+  - [x] wire delivery result/error contracts into send paths
   - [x] expose channel capabilities through diagnostics/status
   - [ ] WhatsApp diagnostics
   - [ ] Telegram formatting safety

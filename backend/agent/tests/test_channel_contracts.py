@@ -32,6 +32,11 @@ class DummyChannel(BaseChannel):
         return None
 
 
+class FailingChannel(DummyChannel):
+    async def send(self, msg: OutboundMessage) -> None:
+        raise FileNotFoundError("media not found: /tmp/missing.png")
+
+
 def test_base_channel_adds_normalized_media_attachments(tmp_path: Path):
     bus = MessageBus()
     channel = DummyChannel(SimpleNamespace(allow_from=[]), bus)
@@ -149,3 +154,19 @@ def test_delivery_result_success_and_failure_contracts():
     assert failure.ok is False
     assert failure.code == DeliveryErrorCode.DISCONNECTED
     assert failure.metadata["retryable"] is True
+
+
+def test_channel_send_with_result_normalizes_success_and_failure():
+    bus = MessageBus()
+    ok_channel = DummyChannel(SimpleNamespace(allow_from=[]), bus)
+    failing_channel = FailingChannel(SimpleNamespace(allow_from=[]), bus)
+    msg = OutboundMessage(channel="dummy", chat_id="chat", content="hello")
+
+    success = asyncio.run(ok_channel.send_with_result(msg))
+    failure = asyncio.run(failing_channel.send_with_result(msg))
+
+    assert success.ok is True
+    assert success.channel == "dummy"
+    assert failure.ok is False
+    assert failure.code == DeliveryErrorCode.MEDIA_NOT_FOUND
+    assert failure.metadata["exception"] == "FileNotFoundError"
