@@ -69,6 +69,7 @@ nav:
   - CLI Error Style: cli-error-style.md
   - Roadmap:
       - Overview: roadmap/README.md
+      - Completion TODO: roadmap/TODO.md
       - Codebase Deep-Dive Audit: roadmap/00-codebase-deep-dive-audit.md
       - Hermes And Nanobot Reference Audit: reports/hermes-nanobot-reference-audit.md
       - v0.1 Stabilize Current Runtime: roadmap/v0.1-stabilize-current-runtime.md

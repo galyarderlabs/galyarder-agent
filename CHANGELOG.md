@@ -9,6 +9,7 @@ All notable changes to this project are documented in this file.
 - Added rollback metadata persistence for learning candidates and skill activation backups.
 - Added atomic draft skill patching through `SkillManager` and `skill_manage.patch_draft`.
 - Added `/skills` for owner-facing skill list, view, and draft patch operations.
+- Added `docs/roadmap/TODO.md` as the master roadmap completion task board.
 
 ### Fixed
 - Skill candidate rollback now restores the previous active skill when one existed, or removes the newly activated skill when it did not.

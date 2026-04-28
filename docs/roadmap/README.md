@@ -8,6 +8,7 @@ and acceptance criteria.
 
 ## Milestones
 
+- [Roadmap Completion TODO](TODO.md) — master task board until all phases are shipped
 - [Codebase Deep-Dive Audit](00-codebase-deep-dive-audit.md)
 - [v0.1: Stabilize Current Runtime](v0.1-stabilize-current-runtime.md)
 - [v0.2: Session Store And Recall](v0.2-session-store-and-recall.md) — first slice shipped
