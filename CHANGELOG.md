@@ -16,6 +16,10 @@ All notable changes to this project are documented in this file.
 - `CharacterStore` for persistent profile management in the workspace.
 - `/profile` command to list and view character identities.
 - Dynamic system prompt injection based on the active character profile.
+- **Milestone v0.10 first slice**: Pluggable Context Engine architecture.
+- `ContextEngine` interface and `DefaultContextEngine` implementation.
+- Refactored `ContextBuilder` for deterministic prompt section ordering.
+- Initial `ContextCompressor` with middle-history summarization and tool-output pruning.
 
 ## [0.1.13] - 2026-04-25
 

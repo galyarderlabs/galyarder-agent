@@ -37,67 +37,51 @@ class ContextBuilder:
     ) -> str:
         """
         Build the system prompt from bootstrap files, memory, and skills.
-
-        Args:
-            skill_names: Optional list of skills to include.
-            current_message: Optional current user message for memory retrieval.
-            tool_names: Optional list of tool names.
-            profile: Optional character profile.
-
-        Returns:
-            Complete system prompt.
+        Follows a deterministic order for stability and caching.
         """
-        # Static sections (best for prompt caching)
-        static_parts = []
+        sections = []
 
-        # Core identity (static rules)
-        static_parts.append(self._get_static_identity())
+        # 1. Platform/System Policy (Static)
+        sections.append(self._get_static_identity())
 
-        # Character Profile
+        # 2. Character Profile (Static-ish)
         if profile:
-            static_parts.append(self._build_profile_section(profile))
+            sections.append(self._build_profile_section(profile))
 
-        # Bootstrap files (usually static)
+        # 3. Bootstrap files (AGENTS, SOUL, etc)
         bootstrap = self._load_bootstrap_files()
         if bootstrap:
-            static_parts.append(bootstrap)
+            sections.append(bootstrap)
 
-        # Tool Awareness (static)
-        static_parts.append(self._build_tool_awareness(tool_names))
+        # 4. Tool Awareness
+        sections.append(self._build_tool_awareness(tool_names))
 
-        system_prompt = "\n\n---\n\n".join(static_parts)
+        # 5. Dynamic Runtime Info (Time, Workspace)
+        sections.append(self._get_runtime_info())
 
-        # Dynamic runtime context (changes frequently, breaks caching if at top)
-        dynamic_parts = []
-        dynamic_parts.append(self._get_runtime_info())
-
-        # Memory context
+        # 6. Relevant Memory
         memory = self.memory.get_memory_context(
             query=current_message,
             include_full=not bool(current_message),
         )
         if memory:
-            dynamic_parts.append(f"# Memory\n\n{memory}")
+            sections.append(f"# Memory\n\n{memory}")
 
-        # Skills - progressive loading
+        # 7. Active Skills
         always_skills = self.skills.get_always_skills()
         if always_skills:
             always_content = self.skills.load_skills_for_context(always_skills)
             if always_content:
-                dynamic_parts.append(f"# Active Skills\n\n{always_content}")
+                sections.append(f"# Active Skills\n\n{always_content}")
 
+        # 8. Skills Summary
         skills_summary = self.skills.build_skills_summary()
         if skills_summary:
-            dynamic_parts.append(f"""# Skills
+            sections.append(f"# Available Skills\n\n{skills_summary}")
 
-The following skills extend your capabilities. To use a skill, read its SKILL.md file using the read_file tool.
-Skills with available="false" need dependencies installed first - you can try installing them with apt/brew.
+        # Combine with clear fencing
+        return "\n\n---\n\n".join(sections)
 
-{skills_summary}""")
-
-        runtime_context = "\n\n---\n\n".join(dynamic_parts)
-
-        return f"{system_prompt}\n\n{_RUNTIME_CONTEXT_TAG}\n{runtime_context}"
 
     @staticmethod
     def strip_runtime_context(text: str) -> str:

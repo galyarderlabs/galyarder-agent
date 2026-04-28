@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any, Callable
 from loguru import logger
 
 from g_agent.agent.context import ContextBuilder
+from g_agent.context.default import DefaultContextEngine
 from g_agent.agent.runtime import TaskCheckpointStore
 from g_agent.agent.subagent import SubagentManager
 from g_agent.agent.tools.browser import (
@@ -180,7 +181,8 @@ class AgentLoop:
             max_html_chars=max(20000, int(self.browser_config.max_html_chars)),
         )
 
-        self.context = ContextBuilder(workspace)
+        self.engine = DefaultContextEngine(workspace)
+        self.context = self.engine.builder
         self.sessions = SessionManager(workspace)
         self.characters = CharacterStore(workspace)
         self.active_profile = self.characters.get_default()

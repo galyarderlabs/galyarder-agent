@@ -563,7 +563,7 @@ this document.
 - [ ] `docs/roadmap/v0.7-memory-manager-owner-model.md`
 - [x] `docs/roadmap/v0.8-owner-reviewed-learning-loop.md`
 - [x] `docs/roadmap/v0.9-skills-procedural-memory.md`
-- [ ] `docs/roadmap/v0.10-context-engine-compression.md`
+- [ ] `docs/roadmap/v0.10-context-engine-compression.md` — first slice shipped
 - `docs/roadmap/v0.11-routines-cron-triggers.md`
 - `docs/roadmap/v0.12-toolsets-mcp-execution.md`
 - `docs/roadmap/v0.13-insights-packaging-public-trust.md`
