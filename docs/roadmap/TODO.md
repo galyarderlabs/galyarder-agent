@@ -757,7 +757,7 @@ Every task is not done until:
   - [x] wire delivery result/error contracts into send paths
   - [x] expose channel capabilities through diagnostics/status
   - [x] WhatsApp diagnostics
-  - [ ] Telegram formatting safety
+  - [x] Telegram formatting safety
   - [ ] Discord session/thread mapping
 
 ### Then

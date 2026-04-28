@@ -14,6 +14,7 @@ All notable changes to this project are documented in this file.
 - Added current-channel capability diagnostics to `/status`.
 - Wired channel outbound dispatch through normalized delivery results.
 - Added compact WhatsApp bridge diagnostics to `g-agent channels status`.
+- Hardened Telegram Markdown-to-HTML link escaping and added formatting tests.
 
 ### Fixed
 - Skill candidate rollback now restores the previous active skill when one existed, or removes the newly activated skill when it did not.

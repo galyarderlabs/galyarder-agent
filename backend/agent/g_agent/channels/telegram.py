@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import html
 import os
 import re
 from pathlib import Path
@@ -58,7 +59,12 @@ def _markdown_to_telegram_html(text: str) -> str:
     text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
     # 6. Links [text](url) - must be before bold/italic to handle nested cases
-    text = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r'<a href="\2">\1</a>', text)
+    def restore_link(m: re.Match) -> str:
+        label = m.group(1)
+        url = html.escape(m.group(2), quote=True)
+        return f'<a href="{url}">{label}</a>'
+
+    text = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", restore_link, text)
 
     # 7. Bold **text** or __text__
     text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
