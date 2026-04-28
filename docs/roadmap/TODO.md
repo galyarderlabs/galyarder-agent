@@ -753,12 +753,12 @@ Every task is not done until:
 
 ### After That
 
-- [ ] v0.4 channel-specific hardening:
+- [x] v0.4 channel-specific hardening:
   - [x] wire delivery result/error contracts into send paths
   - [x] expose channel capabilities through diagnostics/status
   - [x] WhatsApp diagnostics
   - [x] Telegram formatting safety
-  - [ ] Discord session/thread mapping
+  - [x] Discord session/thread mapping
 
 ### Then
 

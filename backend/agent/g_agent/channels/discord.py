@@ -225,20 +225,40 @@ class DiscordChannel(BaseChannel):
                 content_parts.append(f"[attachment: {filename} - download failed]")
 
         reply_to = (payload.get("referenced_message") or {}).get("id")
+        mapping = self._message_session_mapping(payload)
 
         await self._start_typing(channel_id)
 
         await self._handle_message(
             sender_id=sender_id,
-            chat_id=channel_id,
+            chat_id=mapping["chat_id"],
             content="\n".join(p for p in content_parts if p) or "[empty message]",
             media=media_paths,
             metadata={
                 "message_id": str(payload.get("id", "")),
                 "guild_id": payload.get("guild_id"),
                 "reply_to": reply_to,
+                "discord": mapping,
             },
         )
+
+    def _message_session_mapping(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Build stable Discord chat/session mapping metadata."""
+        channel_id = str(payload.get("channel_id", ""))
+        guild_id = payload.get("guild_id")
+        channel_type = payload.get("channel_type")
+        thread_id = payload.get("thread_id")
+        if channel_type in {10, 11, 12} and not thread_id:
+            thread_id = channel_id
+
+        scope = "dm" if not guild_id else "thread" if thread_id else "guild_channel"
+        return {
+            "chat_id": str(thread_id or channel_id),
+            "channel_id": channel_id,
+            "guild_id": str(guild_id) if guild_id else "",
+            "thread_id": str(thread_id) if thread_id else "",
+            "scope": scope,
+        }
 
     async def _start_typing(self, channel_id: str) -> None:
         """Start periodic typing indicator for a channel."""
