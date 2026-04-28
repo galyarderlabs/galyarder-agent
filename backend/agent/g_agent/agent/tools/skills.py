@@ -14,20 +14,33 @@ class SkillManageTool(Tool):
     name = "skill_manage"
     description = (
         "Manage procedural skills. Use this to list active skills, "
-        "view skill content, create draft skills, or deactivate skills."
+        "view skill content, create or patch draft skills, or deactivate skills."
     )
     parameters = {
         "type": "object",
         "properties": {
             "action": {
                 "type": "string",
-                "enum": ["list", "view", "create_draft", "deactivate"],
+                "enum": ["list", "view", "create_draft", "patch_draft", "deactivate"],
                 "description": "Action to perform",
             },
             "name": {"type": "string", "description": "Skill name (folder name)"},
             "content": {
                 "type": "string",
                 "description": "Full SKILL.md content (required for create_draft)",
+            },
+            "find": {
+                "type": "string",
+                "description": "Exact text to replace when patching a draft skill",
+            },
+            "replace": {
+                "type": "string",
+                "description": "Replacement text when patching a draft skill",
+            },
+            "path": {
+                "type": "string",
+                "default": "SKILL.md",
+                "description": "Draft skill file path to patch, relative to the skill directory",
             },
             "location": {
                 "type": "string",
@@ -48,6 +61,9 @@ class SkillManageTool(Tool):
         action: str,
         name: str | None = None,
         content: str | None = None,
+        find: str | None = None,
+        replace: str | None = None,
+        path: str = "SKILL.md",
         location: str = "custom",
         **kwargs: Any,
     ) -> str:
@@ -79,6 +95,22 @@ class SkillManageTool(Tool):
                 return f"Validation failed for draft '{name}':\n" + "\n".join(
                     f"- {e}" for e in errors
                 )
+
+        if action == "patch_draft":
+            if not name or find is None or replace is None:
+                return "Error: 'name', 'find', and 'replace' are required for 'patch_draft'."
+
+            ok, errors = self.manager.patch_draft(
+                name,
+                find,
+                replace,
+                relative_path=path or "SKILL.md",
+            )
+            if ok:
+                return f"Success: Draft skill '{name}' patched and validated."
+            return f"Validation failed for draft patch '{name}':\n" + "\n".join(
+                f"- {e}" for e in errors
+            )
 
         if action == "deactivate":
             if not name:

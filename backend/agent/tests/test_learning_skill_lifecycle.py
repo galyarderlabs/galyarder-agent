@@ -8,6 +8,7 @@ from g_agent.command.builtin import cmd_learn
 from g_agent.command.context import CommandContext
 from g_agent.learning.candidate import LearningCandidate
 from g_agent.learning.queue import LearningQueue
+from g_agent.skills.manager import SkillManager
 
 
 def _ctx(tmp_path: Path, args: str) -> CommandContext:
@@ -137,3 +138,33 @@ def test_learn_edit_command_replaces_candidate_content(tmp_path: Path):
     reloaded = queue.get("cand-json")
     assert reloaded is not None
     assert reloaded.content == payload
+
+
+def test_skill_manager_patches_draft_atomically(tmp_path: Path):
+    manager = SkillManager(tmp_path)
+    ok, errors = manager.create_draft("release", _skill_md("release", "old body"))
+    assert ok, errors
+
+    ok, errors = manager.patch_draft("release", "old body", "new body")
+
+    assert ok, errors
+    skill_md = tmp_path / "state" / "skills" / "drafts" / "release" / "SKILL.md"
+    assert "new body" in skill_md.read_text(encoding="utf-8")
+
+
+def test_skill_manager_restores_draft_when_patch_breaks_validation(tmp_path: Path):
+    manager = SkillManager(tmp_path)
+    original = _skill_md("release", "old body")
+    ok, errors = manager.create_draft("release", original)
+    assert ok, errors
+
+    ok, errors = manager.patch_draft(
+        "release",
+        "description: Test skill for lifecycle coverage.",
+        "summary: missing required description.",
+    )
+
+    assert not ok
+    assert any("description" in error for error in errors)
+    skill_md = tmp_path / "state" / "skills" / "drafts" / "release" / "SKILL.md"
+    assert skill_md.read_text(encoding="utf-8") == original

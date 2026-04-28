@@ -32,6 +32,50 @@ class SkillManager:
 
         return self.validator.validate_skill_dir(draft_path)
 
+    def patch_draft(
+        self,
+        name: str,
+        find: str,
+        replace: str,
+        *,
+        relative_path: str = "SKILL.md",
+    ) -> tuple[bool, list[str]]:
+        """Patch a draft skill file and rollback if validation fails."""
+        draft_path = self.store.get_skill_path(name, location="draft")
+        if not draft_path:
+            return False, [f"Draft skill '{name}' not found."]
+        if not find:
+            return False, ["Patch find text cannot be empty."]
+        if not self.validator.is_safe_path(draft_path, relative_path):
+            return False, [f"Unsafe skill path: {relative_path}"]
+
+        target = (draft_path / relative_path).resolve()
+        if not target.exists() or not target.is_file():
+            return False, [f"Draft file '{relative_path}' not found."]
+
+        try:
+            original = target.read_text(encoding="utf-8")
+        except OSError as exc:
+            return False, [f"Could not read draft file '{relative_path}': {exc}"]
+
+        if find not in original:
+            return False, ["Patch find text was not found."]
+
+        updated = original.replace(find, replace, 1)
+        try:
+            target.write_text(updated, encoding="utf-8")
+            ok, errors = self.validator.validate_skill_dir(draft_path)
+            if ok:
+                return True, []
+            target.write_text(original, encoding="utf-8")
+            return False, errors
+        except OSError as exc:
+            try:
+                target.write_text(original, encoding="utf-8")
+            except OSError:
+                logger.error("Failed to restore draft skill {} after patch error", name)
+            return False, [f"Patch failed for '{relative_path}': {exc}"]
+
     def activate_skill(self, name: str) -> tuple[bool, list[str]]:
         """Move a draft skill to the active custom skills directory."""
         ok, errors, _metadata = self.activate_skill_with_metadata(name)
