@@ -121,6 +121,23 @@ Skills with available="false" need dependencies installed first - you can try in
                 return text[:idx].strip()
         return text
 
+    def _build_profile_section(self, profile: CharacterProfile) -> str:
+        """Build the character profile section for the prompt."""
+        parts = [f"# Character Profile: {profile.name}"]
+        parts.append(f"Role: {profile.role}")
+        parts.append(f"Voice: {profile.voice}")
+        parts.append(f"Tone: {profile.tone}")
+        
+        if profile.boundaries:
+            parts.append("\n## Boundaries")
+            for b in profile.boundaries:
+                parts.append(f"- {b}")
+                
+        if profile.relationship_model:
+            parts.append(f"\nRelationship: {profile.relationship_model}")
+            
+        return "\n".join(parts)
+
     def _get_static_identity(self) -> str:
         """Get the static core identity rules."""
         return """# Identity
@@ -472,22 +489,6 @@ Your workspace is at: {workspace_path}
             tool_calls: Optional tool calls.
             reasoning_content: Optional reasoning/thinking text (e.g. DeepSeek).
             thinking_blocks: Optional Anthropic-style thinking blocks.
-
-        Returns:
-            Updated message list.
-        """
-        msg: dict[str, Any] = {"role": "assistant", "content": content or ""}
-
-        if tool_calls:
-            msg["tool_calls"] = tool_calls
-        if reasoning_content is not None:
-            msg["reasoning_content"] = reasoning_content
-        if thinking_blocks:
-            msg["thinking_blocks"] = thinking_blocks
-
-        messages.append(msg)
-        return messages
-g_blocks: Optional Anthropic-style thinking blocks.
 
         Returns:
             Updated message list.

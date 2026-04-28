@@ -2226,4 +2226,3 @@ class AgentLoop:
         if assistant_preview:
             summary_parts.append(f"assistant: {assistant_preview}")
         return " || ".join(summary_parts)
-_parts)
