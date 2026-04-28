@@ -778,6 +778,7 @@ def gateway(
         plugins=plugins,
         visual_config=config.visual,
         tts_voice=config.tools.tts_voice,
+        mcp_config=config.mcp_servers,
     )
 
     data_dir = get_data_dir()
@@ -1085,6 +1086,7 @@ def agent(
         fallback_models=route.fallback_models,
         plugins=plugins,
         visual_config=config.visual,
+        mcp_config=config.mcp_servers,
     )
 
     async def _process_cli_input(text: str) -> str:
@@ -2418,6 +2420,7 @@ def digest(
         fallback_models=route.fallback_models,
         plugins=plugins,
         visual_config=config.visual,
+        mcp_config=config.mcp_servers,
     )
 
     async def run_digest() -> str:

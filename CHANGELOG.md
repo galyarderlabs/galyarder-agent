@@ -20,6 +20,10 @@ All notable changes to this project are documented in this file.
 - `ContextEngine` interface and `DefaultContextEngine` implementation.
 - Refactored `ContextBuilder` for deterministic prompt section ordering.
 - Initial `ContextCompressor` with middle-history summarization and tool-output pruning.
+- **Milestone v0.12 first slice**: Toolsets and MCP (Model Context Protocol) integration.
+- `ToolsetManager` for grouping tools and capability-based access control.
+- `MCPManager` for connecting to external tool servers.
+- `MCPToolWrapper` for dynamic registration of remote tools.
 
 ## [0.1.13] - 2026-04-25
 

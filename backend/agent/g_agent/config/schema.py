@@ -408,6 +408,7 @@ class Config(BaseSettings):
     gateway: GatewayConfig = Field(default_factory=GatewayConfig)
     tools: ToolsConfig = Field(default_factory=ToolsConfig)
     visual: VisualIdentityConfig = Field(default_factory=VisualIdentityConfig)
+    mcp_servers: dict[str, dict[str, Any]] = Field(default_factory=dict)
 
     @property
     def workspace_path(self) -> Path:

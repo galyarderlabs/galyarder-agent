@@ -59,6 +59,7 @@ from g_agent.agent.tools.integrations import (
 )
 from g_agent.agent.tools.message import MessageTool
 from g_agent.agent.tools.registry import ToolRegistry
+from g_agent.agent.tools.toolsets import ToolsetManager
 from g_agent.agent.tools.shell import ExecTool
 from g_agent.agent.tools.session_search import SessionSearchTool
 from g_agent.agent.tools.skills import SkillManageTool
@@ -72,6 +73,7 @@ from g_agent.agent.workflow_packs import (
 from g_agent.bus.events import InboundMessage, OutboundMessage
 from g_agent.bus.queue import MessageBus
 from g_agent.character.store import CharacterStore
+from g_agent.mcp.manager import MCPManager
 from g_agent.observability.metrics import MetricsStore
 from g_agent.plugins.base import PluginContext
 from g_agent.plugins.loader import load_installed_plugins, register_tool_plugins
@@ -128,6 +130,7 @@ class AgentLoop:
         visual_config: VisualIdentityConfig | None = None,
         provider_resolver: Callable[[str], LLMProvider] | None = None,
         tts_voice: str = "id-ID-GadisNeural",
+        mcp_config: dict[str, dict[str, Any]] | None = None,
     ):
         from g_agent.config.schema import (
             BrowserToolsConfig,
@@ -153,6 +156,7 @@ class AgentLoop:
         self.browser_config = browser_config or BrowserToolsConfig()
         self.visual_config = visual_config or VisualIdentityConfig()
         self.tts_voice = tts_voice
+        self.mcp_config = mcp_config
         self.allowed_paths = [Path(path).expanduser() for path in allowed_paths or []]
         self.tool_policy = {
             (k or "").strip().lower(): (v or "").strip().lower()
@@ -188,7 +192,9 @@ class AgentLoop:
         self.active_profile = self.characters.get_default()
         self.runtime = TaskCheckpointStore(workspace)
         self.metrics = MetricsStore(workspace / "state" / "metrics" / "events.jsonl")
+        self.toolsets = ToolsetManager()
         self.tools = ToolRegistry()
+        self.mcp = MCPManager(workspace, self.tools)
         self.plugins = plugins if plugins is not None else load_installed_plugins()
         self.subagents = SubagentManager(
             provider=provider,
@@ -205,6 +211,25 @@ class AgentLoop:
         self._register_default_tools()
         self._register_plugin_tools()
         logger.info(f"Registered {len(self.tools)} tools: {self.tools.tool_names}")
+
+    def _get_effective_tools(self, msg: InboundMessage) -> list[str]:
+        """Resolve the set of tools available for this specific message."""
+        # 1. Start with metadata-defined toolsets/tools
+        requested_sets = msg.metadata.get("toolsets", [])
+        requested_tools = msg.metadata.get("allowed_tools", [])
+
+        if not requested_sets and not requested_tools:
+            # Default to everything for now to maintain compatibility
+            return self.tools.tool_names
+
+        # 2. Resolve requested sets
+        combined = set(requested_tools)
+        if requested_sets:
+            combined.update(self.toolsets.resolve(requested_sets))
+
+        # 3. Intersect with actually registered tools
+        final_list = [t for t in self.tools.tool_names if t in combined]
+        return final_list
 
     def _allowed_tool_dirs(self) -> list[Path] | None:
         """Return filesystem roots allowed when workspace restriction is enabled."""
@@ -334,10 +359,21 @@ class AgentLoop:
         )
         register_tool_plugins(self.plugins, context, registry=self.tools)
 
+    async def _register_mcp_servers(self, mcp_config: dict[str, dict[str, Any]] | None) -> None:
+        """Connect to and register tools from external MCP servers."""
+        if not mcp_config:
+            return
+
+        for name, config in mcp_config.items():
+            await self.mcp.connect_server(name, config)
+
     async def run(self) -> None:
         """Run the agent loop, processing messages from the bus."""
         self._running = True
         logger.info("Agent loop started")
+
+        # Connect to MCP servers
+        await self._register_mcp_servers(self.mcp_config)
 
         while self._running:
             try:
@@ -376,6 +412,7 @@ class AgentLoop:
         """Stop loop services and cancel running background subagents."""
         self.stop()
         self.bus.stop()
+        await self.mcp.disconnect_all()
         await self.subagents.shutdown()
 
     async def _process_message(self, msg: InboundMessage) -> OutboundMessage | None:
@@ -486,6 +523,8 @@ class AgentLoop:
             if selfie_tool:
                 selfie_tool.set_context(msg.channel, msg.chat_id)
 
+            effective_tools = self._get_effective_tools(msg)
+
             # Build initial messages (use get_history for LLM-formatted messages)
             messages = self.context.build_messages(
                 history=session.get_history(),
@@ -494,7 +533,7 @@ class AgentLoop:
                 metadata=msg.metadata if msg.metadata else None,
                 channel=msg.channel,
                 chat_id=msg.chat_id,
-                tool_names=self.tools.tool_names,
+                tool_names=effective_tools,
                 profile=self.active_profile,
             )
 
@@ -537,7 +576,7 @@ class AgentLoop:
                 self.runtime.append_event(task_id, "llm_call", f"iteration={iteration}")
 
                 # Call LLM
-                tool_defs = self.tools.get_definitions()
+                tool_defs = self.tools.get_definitions(filter_names=effective_tools)
                 if iteration == 1:
                     logger.debug(
                         f"LLM call with {len(tool_defs)} tools: "
@@ -890,6 +929,8 @@ class AgentLoop:
         if selfie_tool:
             selfie_tool.set_context(origin_channel, origin_chat_id)
 
+        effective_tools = self._get_effective_tools(msg)
+
         # Build messages with the announce content
         messages = self.context.build_messages(
             history=session.get_history(),
@@ -897,7 +938,7 @@ class AgentLoop:
             metadata=msg.metadata if msg.metadata else None,
             channel=origin_channel,
             chat_id=origin_chat_id,
-            tool_names=self.tools.tool_names,
+            tool_names=effective_tools,
             profile=self.active_profile,
         )
 
@@ -913,7 +954,7 @@ class AgentLoop:
 
             response, _ = await self._chat_with_model_failover(
                 messages=messages,
-                tools=self.tools.get_definitions(),
+                tools=self.tools.get_definitions(filter_names=effective_tools),
             )
 
             if response.has_tool_calls:
