@@ -120,7 +120,7 @@ class SlashCommandDispatcher:
             "context": lambda: self._cmd_context(session_key, channel, chat_id),
             "history": lambda: self._cmd_history(args),
             "sessions": lambda: self._cmd_sessions(),
-            "status": lambda: self._cmd_status(session_key),
+            "status": lambda: self._cmd_status(session_key, channel),
             "whoami": lambda: self._cmd_router(
                 text=text,
                 session_key=session_key,
@@ -387,7 +387,7 @@ class SlashCommandDispatcher:
 
     # -- Info Commands -----------------------------------------------------
 
-    def _cmd_status(self, session_key: str) -> str:
+    def _cmd_status(self, session_key: str, channel: str) -> str:
         from g_agent.session.manager import SessionManager
 
         lines: list[str] = []
@@ -397,6 +397,14 @@ class SlashCommandDispatcher:
 
         # Model
         lines.append(f"🧠 Model: <code>{self.model_name}</code>")
+
+        try:
+            from g_agent.channels.capabilities import capabilities_for_channel
+
+            caps = capabilities_for_channel(channel)
+            lines.append(f"📡 Channel: <code>{channel}</code> · {caps.summary()}")
+        except Exception:
+            lines.append(f"📡 Channel: <code>{channel}</code>")
 
         # Uptime + Cron on one line
         uptime_s = time.monotonic() - self._boot_time

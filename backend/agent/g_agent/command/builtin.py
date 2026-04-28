@@ -36,6 +36,15 @@ async def cmd_status(ctx: CommandContext) -> str:
     model = ctx.metadata.get("model_name", "unknown")
     lines.append(f"🧠 Model: <code>{model}</code>")
 
+    # Channel capability contract
+    try:
+        from g_agent.channels.capabilities import capabilities_for_channel
+
+        caps = capabilities_for_channel(ctx.channel)
+        lines.append(f"📡 Channel: <code>{ctx.channel}</code> · {html.escape(caps.summary())}")
+    except Exception:
+        lines.append(f"📡 Channel: <code>{ctx.channel}</code>")
+
     # Session
     sessions = SessionManager(ctx.workspace)
     session = sessions.get_or_create(ctx.session_key)

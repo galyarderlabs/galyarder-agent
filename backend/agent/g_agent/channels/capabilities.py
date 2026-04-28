@@ -21,6 +21,27 @@ class ChannelCapabilities:
         """Split text according to this channel's text limit."""
         return split_text(text, self.max_text_chars)
 
+    def summary(self) -> str:
+        """Return a compact owner-facing capability summary."""
+        flags: list[str] = []
+        if self.supports_media_send:
+            flags.append("media-send")
+        if self.supports_media_receive:
+            flags.append("media-receive")
+        if self.supports_buttons:
+            flags.append("buttons")
+        if self.supports_typing:
+            flags.append("typing")
+        if self.supports_threads:
+            flags.append("threads")
+        if self.supports_reactions:
+            flags.append("reactions")
+        if self.max_text_chars:
+            flags.append(f"max-text={self.max_text_chars}")
+        if self.parse_mode:
+            flags.append(f"parse={self.parse_mode}")
+        return ", ".join(flags) if flags else "basic text"
+
 
 DEFAULT_CHANNEL_CAPABILITIES = ChannelCapabilities()
 
@@ -68,6 +89,19 @@ SLACK_CAPABILITIES = ChannelCapabilities(
     max_text_chars=40000,
     media_types=(),
 )
+
+_CAPABILITIES_BY_CHANNEL = {
+    "discord": DISCORD_CAPABILITIES,
+    "email": EMAIL_CAPABILITIES,
+    "slack": SLACK_CAPABILITIES,
+    "telegram": TELEGRAM_CAPABILITIES,
+    "whatsapp": WHATSAPP_CAPABILITIES,
+}
+
+
+def capabilities_for_channel(channel: str) -> ChannelCapabilities:
+    """Return known capabilities for a channel name."""
+    return _CAPABILITIES_BY_CHANNEL.get(channel.lower(), DEFAULT_CHANNEL_CAPABILITIES)
 
 
 def split_text(text: str, max_chars: int | None) -> list[str]:

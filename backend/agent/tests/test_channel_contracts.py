@@ -11,8 +11,10 @@ from g_agent.channels.capabilities import (
     DISCORD_CAPABILITIES,
     TELEGRAM_CAPABILITIES,
     WHATSAPP_CAPABILITIES,
+    capabilities_for_channel,
     split_text,
 )
+from g_agent.channels.slash_commands import SlashCommandDispatcher
 from g_agent.channels.errors import DeliveryErrorCode, DeliveryResult
 from g_agent.channels.media import MediaEnvelope, normalize_media_envelopes
 
@@ -98,6 +100,25 @@ def test_channel_capability_defaults_match_core_channels():
     assert WHATSAPP_CAPABILITIES.supports_media_receive is True
     assert DISCORD_CAPABILITIES.supports_threads is True
     assert DISCORD_CAPABILITIES.max_text_chars == 2000
+    assert "media-send" in capabilities_for_channel("telegram").summary()
+    assert capabilities_for_channel("unknown").summary() == "basic text"
+
+
+def test_status_command_surfaces_current_channel_capabilities(tmp_path: Path, monkeypatch):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    monkeypatch.setattr("g_agent.config.loader.get_data_path", lambda: data_dir)
+    monkeypatch.setattr("g_agent.utils.helpers.get_data_path", lambda: data_dir)
+    monkeypatch.setattr("g_agent.session.manager.get_data_path", lambda: data_dir)
+
+    dispatcher = SlashCommandDispatcher(tmp_path)
+    result = asyncio.run(
+        dispatcher.try_handle("/status", "telegram:123", "telegram", "123")
+    )
+
+    assert "Channel" in result
+    assert "telegram" in result
+    assert "media-send" in result
 
 
 def test_split_text_respects_channel_limit():
