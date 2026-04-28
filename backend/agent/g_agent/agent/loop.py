@@ -60,6 +60,7 @@ from g_agent.agent.tools.message import MessageTool
 from g_agent.agent.tools.registry import ToolRegistry
 from g_agent.agent.tools.shell import ExecTool
 from g_agent.agent.tools.session_search import SessionSearchTool
+from g_agent.agent.tools.skills import SkillManageTool
 from g_agent.agent.tools.spawn import SpawnTool
 from g_agent.agent.tools.web import WebFetchTool, WebSearchTool
 from g_agent.agent.workflow_packs import (
@@ -69,6 +70,7 @@ from g_agent.agent.workflow_packs import (
 )
 from g_agent.bus.events import InboundMessage, OutboundMessage
 from g_agent.bus.queue import MessageBus
+from g_agent.character.store import CharacterStore
 from g_agent.observability.metrics import MetricsStore
 from g_agent.plugins.base import PluginContext
 from g_agent.plugins.loader import load_installed_plugins, register_tool_plugins
@@ -180,6 +182,8 @@ class AgentLoop:
 
         self.context = ContextBuilder(workspace)
         self.sessions = SessionManager(workspace)
+        self.characters = CharacterStore(workspace)
+        self.active_profile = self.characters.get_default()
         self.runtime = TaskCheckpointStore(workspace)
         self.metrics = MetricsStore(workspace / "state" / "metrics" / "events.jsonl")
         self.tools = ToolRegistry()
@@ -248,6 +252,7 @@ class AgentLoop:
         self.tools.register(UpdateProfileTool(workspace=self.workspace))
         self.tools.register(LogFeedbackTool(workspace=self.workspace))
         self.tools.register(SessionSearchTool(session_manager=self.sessions))
+        self.tools.register(SkillManageTool(workspace=self.workspace))
         self.tools.register(SlackWebhookTool(webhook_url=self.slack_webhook_url))
         self.tools.register(
             SendEmailTool(
@@ -481,6 +486,7 @@ class AgentLoop:
                 channel=msg.channel,
                 chat_id=msg.chat_id,
                 tool_names=self.tools.tool_names,
+                profile=self.active_profile,
             )
 
             # Agent loop
@@ -877,6 +883,7 @@ class AgentLoop:
             channel=origin_channel,
             chat_id=origin_chat_id,
             tool_names=self.tools.tool_names,
+            profile=self.active_profile,
         )
 
         # Agent loop (limited for announce handling)
@@ -2219,3 +2226,4 @@ class AgentLoop:
         if assistant_preview:
             summary_parts.append(f"assistant: {assistant_preview}")
         return " || ".join(summary_parts)
+_parts)

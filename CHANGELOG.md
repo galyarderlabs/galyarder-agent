@@ -11,6 +11,11 @@ All notable changes to this project are documented in this file.
 - `SessionSearchTool` for cross-session history recall.
 - `/history`, `/sessions`, `/logs`, `/approve`, and `/deny` slash commands for owner control and diagnostics.
 - `CommandContext` and `CommandRouter` for modular, platform-agnostic command handling.
+- **Milestone v0.6**: First-class Character Profiles and identity management.
+- `CharacterProfile` model with voice, tone, and visual identity configuration.
+- `CharacterStore` for persistent profile management in the workspace.
+- `/profile` command to list and view character identities.
+- Dynamic system prompt injection based on the active character profile.
 
 ## [0.1.13] - 2026-04-25
 

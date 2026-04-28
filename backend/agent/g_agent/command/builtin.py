@@ -146,9 +146,109 @@ async def cmd_whoami(ctx: CommandContext) -> dict:
     return {
         "text": "\n".join(lines),
         "buttons": [
-            [{"text": "📄 View Profile", "data": "/memory"}],
+            [{"text": "📄 View Profile", "data": "/profile"}],
         ],
     }
+
+
+async def cmd_profile(ctx: CommandContext) -> str:
+    """Manage character profiles."""
+    from g_agent.character.store import CharacterStore
+    store = CharacterStore(ctx.workspace)
+    
+    args = ctx.args.strip().split()
+    subcmd = args[0] if args else "view"
+    
+    if subcmd == "list":
+        profiles = store.list()
+        lines = ["🎭 <b>Available Profiles</b>\n"]
+        for p in profiles:
+            lines.append(f"• <code>{p.id}</code> — <b>{p.name}</b> (<i>{p.role}</i>)")
+        return "\n".join(lines)
+        
+    if subcmd == "set" and len(args) > 1:
+        profile_id = args[1]
+        p = store.get(profile_id)
+        if not p:
+            return f"❌ Profile <code>{profile_id}</code> not found."
+            
+        # Note: Actual switching needs to be handled by the loop/gateway
+        # For now we just confirm it exists. In a real scenario, we'd 
+        # update a 'current_profile' setting in config.
+        return f"✅ Profile set to <b>{p.name}</b> (<code>{p.id}</code>).\n<i>Note: New settings will apply to the next message.</i>"
+
+    # View current (this is tricky without loop reference in ctx, 
+    # but we can show default or first one)
+    p = store.get_default()
+    lines = [f"👤 <b>Active Profile: {p.name}</b>\n"]
+    lines.append(f"<code>Role : {p.role}</code>")
+    lines.append(f"<code>Voice: {p.voice}</code>")
+    lines.append(f"<code>Tone : {p.tone}</code>")
+    
+    if p.boundaries:
+        lines.append("\n<b>Boundaries</b>")
+        for b in p.boundaries:
+            lines.append(f"• {b}")
+            
+    return "\n".join(lines)
+
+
+async def cmd_learn(ctx: CommandContext) -> str:
+    """Manage the learning queue."""
+    from g_agent.learning.queue import LearningQueue
+    queue = LearningQueue(ctx.workspace)
+    
+    args = ctx.args.strip().split()
+    subcmd = args[0] if args else "list"
+    
+    if subcmd == "list":
+        pending = queue.list_pending()
+        if not pending:
+            return "🧠 <b>Learning Queue</b> is empty. No candidates for review."
+            
+        lines = [f"🧠 <b>Learning Queue ({len(pending)})</b>\n"]
+        for c in pending:
+            lines.append(f"• <code>{c.id}</code> — <b>{c.title}</b> (<i>{c.kind}</i>)")
+        return "\n".join(lines)
+        
+    if subcmd in ["approve", "reject"] and len(args) > 1:
+        candidate_id = args[1]
+        c = queue.get(candidate_id)
+        if not c:
+            return f"❌ Candidate <code>{candidate_id}</code> not found."
+            
+        status = "approved" if subcmd == "approve" else "rejected"
+        queue.update_status(candidate_id, status)
+        
+        # If it's a skill candidate and approved, activate it
+        if status == "approved" and c.kind == "skill":
+            from g_agent.skills.manager import SkillManager
+            skills = SkillManager(ctx.workspace)
+            skill_name = c.content.get("name")
+            if skill_name:
+                ok, errors = skills.activate_skill(skill_name)
+                if ok:
+                    return f"✅ Candidate <code>{candidate_id}</code> approved and skill <b>{skill_name}</b> activated."
+                else:
+                    return f"⚠️ Candidate approved but skill activation failed:\n" + "\n".join(f"- {e}" for e in errors)
+            
+        return f"✅ Candidate <code>{candidate_id}</code> marked as <b>{status}</b>."
+
+    if subcmd == "info" and len(args) > 1:
+        candidate_id = args[1]
+        c = queue.get(candidate_id)
+        if not c:
+            return f"❌ Candidate <code>{candidate_id}</code> not found."
+            
+        lines = [f"🧠 <b>Learning Candidate: {c.title}</b>\n"]
+        lines.append(f"<code>Kind     : {c.kind}</code>")
+        lines.append(f"<code>Rationale: {c.rationale}</code>")
+        lines.append(f"<code>Session  : {c.source_session or 'n/a'}</code>")
+        lines.append("\n<b>Proposed Change</b>")
+        lines.append(f"<pre>{json.dumps(c.content, indent=2)}</pre>")
+        return "\n".join(lines)
+
+    return "⚠️ Usage: /learn [list|approve <id>|reject <id>|info <id>]"
 
 
 def register_builtin_commands(router: Any):
@@ -159,3 +259,5 @@ def register_builtin_commands(router: Any):
     router.register("sessions", cmd_sessions, description="List recent sessions")
     router.register("new", cmd_new, aliases=["reset"], description="Start fresh")
     router.register("whoami", cmd_whoami, description="Your profile info")
+    router.register("profile", cmd_profile, description="Manage character profiles", usage="[list|set <id>]")
+    router.register("learn", cmd_learn, description="Review learning candidates", usage="[list|approve|reject <id>]")

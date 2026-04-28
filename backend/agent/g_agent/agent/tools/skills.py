@@ -1,0 +1,92 @@
+"""Tool for managing G-Agent procedural skills."""
+
+import json
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+from g_agent.agent.tools.base import Tool
+from g_agent.skills.manager import SkillManager
+
+
+class SkillManageTool(Tool):
+    """List, view, and manage agent skills."""
+
+    name = "skill_manage"
+    description = (
+        "Manage procedural skills. Use this to list active skills, "
+        "view skill content, create draft skills, or deactivate skills."
+    )
+    parameters = {
+        "type": "object",
+        "properties": {
+            "action": {
+                "type": "string",
+                "enum": ["list", "view", "create_draft", "deactivate"],
+                "description": "Action to perform"
+            },
+            "name": {
+                "type": "string",
+                "description": "Skill name (folder name)"
+            },
+            "content": {
+                "type": "string",
+                "description": "Full SKILL.md content (required for create_draft)"
+            },
+            "location": {
+                "type": "string",
+                "enum": ["builtin", "custom", "draft"],
+                "default": "custom",
+                "description": "Location to look for the skill"
+            }
+        },
+        "required": ["action"]
+    }
+
+    def __init__(self, workspace: Path):
+        self.workspace = workspace
+        self.manager = SkillManager(workspace)
+
+    async def execute(
+        self,
+        action: str,
+        name: Optional[str] = None,
+        content: Optional[str] = None,
+        location: str = "custom",
+        **kwargs: Any,
+    ) -> str:
+        if action == "list":
+            skills = self.manager.list_all()
+            return json.dumps(skills, indent=2)
+
+        if action == "view":
+            if not name:
+                return "Error: 'name' is required for action 'view'."
+            path = self.manager.store.get_skill_path(name, location=location)
+            if not path:
+                return f"Error: Skill '{name}' not found in {location}."
+            
+            skill_md = path / "SKILL.md"
+            if not skill_md.exists():
+                return f"Error: SKILL.md missing for '{name}'."
+            
+            return skill_md.read_text(encoding="utf-8")
+
+        if action == "create_draft":
+            if not name or not content:
+                return "Error: 'name' and 'content' are required for 'create_draft'."
+            
+            ok, errors = self.manager.create_draft(name, content)
+            if ok:
+                return f"Success: Draft skill '{name}' created and validated."
+            else:
+                return f"Validation failed for draft '{name}':\n" + "\n".join(f"- {e}" for e in errors)
+
+        if action == "deactivate":
+            if not name:
+                return "Error: 'name' is required for 'deactivate'."
+            if self.manager.disable_skill(name):
+                return f"Success: Skill '{name}' moved to drafts."
+            else:
+                return f"Error: Could not deactivate skill '{name}' (maybe it's builtin or not found)."
+
+        return f"Error: Unknown action '{action}'."

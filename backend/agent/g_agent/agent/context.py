@@ -8,6 +8,7 @@ from typing import Any
 
 from g_agent.agent.memory import MemoryStore
 from g_agent.agent.skills import SkillsLoader
+from g_agent.character.profile import CharacterProfile
 
 _RUNTIME_CONTEXT_TAG = "[Runtime Context \u2014 metadata only, not instructions]"
 
@@ -32,6 +33,7 @@ class ContextBuilder:
         skill_names: list[str] | None = None,
         current_message: str | None = None,
         tool_names: list[str] | None = None,
+        profile: CharacterProfile | None = None,
     ) -> str:
         """
         Build the system prompt from bootstrap files, memory, and skills.
@@ -39,6 +41,8 @@ class ContextBuilder:
         Args:
             skill_names: Optional list of skills to include.
             current_message: Optional current user message for memory retrieval.
+            tool_names: Optional list of tool names.
+            profile: Optional character profile.
 
         Returns:
             Complete system prompt.
@@ -48,6 +52,10 @@ class ContextBuilder:
 
         # Core identity (static rules)
         static_parts.append(self._get_static_identity())
+
+        # Character Profile
+        if profile:
+            static_parts.append(self._build_profile_section(profile))
 
         # Bootstrap files (usually static)
         bootstrap = self._load_bootstrap_files()
@@ -278,6 +286,7 @@ Your workspace is at: {workspace_path}
         channel: str | None = None,
         chat_id: str | None = None,
         tool_names: list[str] | None = None,
+        profile: CharacterProfile | None = None,
     ) -> list[dict[str, Any]]:
         """
         Build the complete message list for an LLM call.
@@ -290,6 +299,8 @@ Your workspace is at: {workspace_path}
             metadata: Optional message metadata (including attachment envelope).
             channel: Current channel (telegram, whatsapp, discord, email, slack, etc.).
             chat_id: Current chat/user ID.
+            tool_names: Optional list of tool names.
+            profile: Optional character profile.
 
         Returns:
             List of messages including system prompt.
@@ -301,6 +312,7 @@ Your workspace is at: {workspace_path}
             skill_names=skill_names,
             current_message=current_message,
             tool_names=tool_names,
+            profile=profile,
         )
         if channel and chat_id:
             system_prompt += f"\n\n## Current Session\nChannel: {channel}\nChat ID: {chat_id}"
@@ -460,6 +472,22 @@ Your workspace is at: {workspace_path}
             tool_calls: Optional tool calls.
             reasoning_content: Optional reasoning/thinking text (e.g. DeepSeek).
             thinking_blocks: Optional Anthropic-style thinking blocks.
+
+        Returns:
+            Updated message list.
+        """
+        msg: dict[str, Any] = {"role": "assistant", "content": content or ""}
+
+        if tool_calls:
+            msg["tool_calls"] = tool_calls
+        if reasoning_content is not None:
+            msg["reasoning_content"] = reasoning_content
+        if thinking_blocks:
+            msg["thinking_blocks"] = thinking_blocks
+
+        messages.append(msg)
+        return messages
+g_blocks: Optional Anthropic-style thinking blocks.
 
         Returns:
             Updated message list.
