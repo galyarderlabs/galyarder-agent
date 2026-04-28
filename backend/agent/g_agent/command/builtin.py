@@ -147,7 +147,7 @@ async def cmd_insights(ctx: CommandContext) -> str:
     from g_agent.observability.insights import InsightsEngine
 
     sessions = SessionManager(ctx.workspace)
-    engine = InsightsEngine(sessions.sqlite_store)
+    engine = InsightsEngine(sessions.sqlite_store, workspace=ctx.workspace)
 
     days = 30
     if ctx.args:

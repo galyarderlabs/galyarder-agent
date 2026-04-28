@@ -37,4 +37,4 @@ hide:
 
 ![g-agent architecture](assets/architecture.webp)
 
-<p class="gagent-note"><i>Execution path: channel input -> identity and memory context -> agent loop -> tools/scheduler -> response and learning loop.</i></p>
+<p class="gagent-note"><i>Execution path: channel input -> identity and memory context -> agent loop -> tools/scheduler -> response and reviewable state.</i></p>

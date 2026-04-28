@@ -457,7 +457,7 @@ Goal: make tools safer and more modular without bloating the core.
   - code execution
   - subagents
 - Upgrade MCP:
-  - stdio and HTTP/SSE configs
+  - stdio, SSE, and streamable HTTP configs
   - schema normalization
   - per-tool timeouts
   - transient retry
@@ -555,15 +555,15 @@ the roadmap into versioned build plans without replacing the product thesis in
 this document.
 
 - `docs/roadmap/v0.1-stabilize-current-runtime.md`
-- `docs/roadmap/v0.2-session-store-and-recall.md` — first slice shipped
-- [x] `docs/roadmap/v0.3-commands-logs-approvals.md` (Core)
-- [ ] `docs/roadmap/v0.4-core-channel-reliability.md`
-- [ ] `docs/roadmap/v0.5-web-ui-openai-api.md`
-- [x] `docs/roadmap/v0.6-character-profiles-visual-identity.md`
-- [ ] `docs/roadmap/v0.7-memory-manager-owner-model.md`
-- [x] `docs/roadmap/v0.8-owner-reviewed-learning-loop.md`
-- [x] `docs/roadmap/v0.9-skills-procedural-memory.md`
-- [x] `docs/roadmap/v0.10-context-engine-compression.md` — first slice shipped
-- [x] `docs/roadmap/v0.11-routines-cron-triggers.md` — first slice shipped
-- [x] `docs/roadmap/v0.12-toolsets-mcp-execution.md` — local backend/toolset/MCP slice shipped; Docker remains optional follow-up
-- [x] `docs/roadmap/v0.13-insights-packaging-public-trust.md` — shipped
+- [x] `docs/roadmap/v0.2-session-store-and-recall.md` — SQLite/FTS/session-search first slice shipped; historical JSONL backfill and richer search context remain follow-up work.
+- [x] `docs/roadmap/v0.3-commands-logs-approvals.md` — core command router, logs/history/sessions, approve/deny replay shipped; persisted approval state remains follow-up work.
+- [ ] `docs/roadmap/v0.4-core-channel-reliability.md` — channel supervisor/retry/media basics exist; capability flags, media envelopes, splitting, and delivery diagnostics remain.
+- [ ] `docs/roadmap/v0.5-web-ui-openai-api.md` — not shipped; no first-party product API server, WebSocket channel, or Web UI exists.
+- [x] `docs/roadmap/v0.6-character-profiles-visual-identity.md` — core profile model/store/context shipped; full switching isolation, per-profile visual merge, and reviewable profile diffs remain.
+- [ ] `docs/roadmap/v0.7-memory-manager-owner-model.md` — not shipped; current code still uses markdown-backed `MemoryStore`, not a `MemoryManager`/provider layer.
+- [x] `docs/roadmap/v0.8-owner-reviewed-learning-loop.md` — queue/model/chat command first slice shipped; background reviewer, edit/accept apply flows, and rollback remain.
+- [x] `docs/roadmap/v0.9-skills-procedural-memory.md` — skill store/validator/manager/tool first slice shipped; full owner-reviewed lifecycle and rollback remain.
+- [x] `docs/roadmap/v0.10-context-engine-compression.md` — first slice shipped; automated compression triggering in `AgentLoop` and `/compact` replacement remain.
+- [x] `docs/roadmap/v0.11-routines-cron-triggers.md` — first slice shipped; multi-skill workflows and webhook/API triggers remain.
+- [x] `docs/roadmap/v0.12-toolsets-mcp-execution.md` — local backend/toolset/MCP slice shipped; streamable HTTP MCP and Docker execution backend remain.
+- [x] `docs/roadmap/v0.13-insights-packaging-public-trust.md` — completed slice; insights, guest enforcement, profile setup, release checklist, install matrix, and security docs are covered.

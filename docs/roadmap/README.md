@@ -11,17 +11,17 @@ and acceptance criteria.
 - [Codebase Deep-Dive Audit](00-codebase-deep-dive-audit.md)
 - [v0.1: Stabilize Current Runtime](v0.1-stabilize-current-runtime.md)
 - [v0.2: Session Store And Recall](v0.2-session-store-and-recall.md) — first slice shipped
-- [v0.3: Commands, Logs, And Approvals](v0.3-commands-logs-approvals.md) — first slice shipped
-- [v0.4: Core Channel Reliability](v0.4-core-channel-reliability.md)
-- [v0.5: Web UI And OpenAI-Compatible API](v0.5-web-ui-openai-api.md)
-- [v0.6: Character Profiles And Visual Identity](v0.6-character-profiles-visual-identity.md)
-- [v0.7: Memory Manager And Owner Model](v0.7-memory-manager-owner-model.md)
-- [v0.8: Owner-Reviewed Learning Loop](v0.8-owner-reviewed-learning-loop.md)
-- [v0.9: Skills As Procedural Memory](v0.9-skills-procedural-memory.md)
-- [v0.10: Context Engine And Compression](v0.10-context-engine-compression.md)
-- [v0.11: Routines, Cron, And Triggers](v0.11-routines-cron-triggers.md)
-- [v0.12: Toolsets, MCP, And Execution Backends](v0.12-toolsets-mcp-execution.md)
-- [v0.13: Insights, Packaging, And Public Trust](v0.13-insights-packaging-public-trust.md)
+- [v0.3: Commands, Logs, And Approvals](v0.3-commands-logs-approvals.md) — core shipped
+- [v0.4: Core Channel Reliability](v0.4-core-channel-reliability.md) — partial, not shipped
+- [v0.5: Web UI And OpenAI-Compatible API](v0.5-web-ui-openai-api.md) — not shipped
+- [v0.6: Character Profiles And Visual Identity](v0.6-character-profiles-visual-identity.md) — core shipped
+- [v0.7: Memory Manager And Owner Model](v0.7-memory-manager-owner-model.md) — not shipped
+- [v0.8: Owner-Reviewed Learning Loop](v0.8-owner-reviewed-learning-loop.md) — first slice shipped
+- [v0.9: Skills As Procedural Memory](v0.9-skills-procedural-memory.md) — first slice shipped
+- [v0.10: Context Engine And Compression](v0.10-context-engine-compression.md) — partial
+- [v0.11: Routines, Cron, And Triggers](v0.11-routines-cron-triggers.md) — partial
+- [v0.12: Toolsets, MCP, And Execution Backends](v0.12-toolsets-mcp-execution.md) — partial
+- [v0.13: Insights, Packaging, And Public Trust](v0.13-insights-packaging-public-trust.md) — completed slice
 
 ## Execution Rule
 

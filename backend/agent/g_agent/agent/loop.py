@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING, Any, Callable
 from loguru import logger
 
 from g_agent.agent.context import ContextBuilder
-from g_agent.context.default import DefaultContextEngine
 from g_agent.agent.runtime import TaskCheckpointStore
 from g_agent.agent.subagent import SubagentManager
 from g_agent.agent.tools.browser import (
@@ -59,11 +58,11 @@ from g_agent.agent.tools.integrations import (
 )
 from g_agent.agent.tools.message import MessageTool
 from g_agent.agent.tools.registry import ToolRegistry
-from g_agent.agent.tools.toolsets import ToolsetResolver
-from g_agent.agent.tools.shell import ExecTool
 from g_agent.agent.tools.session_search import SessionSearchTool
+from g_agent.agent.tools.shell import ExecTool
 from g_agent.agent.tools.skills import SkillManageTool
 from g_agent.agent.tools.spawn import SpawnTool
+from g_agent.agent.tools.toolsets import ToolsetResolver
 from g_agent.agent.tools.web import WebFetchTool, WebSearchTool
 from g_agent.agent.workflow_packs import (
     build_workflow_pack_prompt,
@@ -73,12 +72,14 @@ from g_agent.agent.workflow_packs import (
 from g_agent.bus.events import InboundMessage, OutboundMessage
 from g_agent.bus.queue import MessageBus
 from g_agent.character.store import CharacterStore
+from g_agent.config.presets import GUEST_LIMITED_EXTRA_TOOLS, GUEST_SAFE_TOOLS
+from g_agent.context.default import DefaultContextEngine
 from g_agent.mcp.manager import MCPManager
 from g_agent.observability.metrics import MetricsStore
-from g_agent.routines.scheduler import RoutineScheduler
 from g_agent.plugins.base import PluginContext
 from g_agent.plugins.loader import load_installed_plugins, register_tool_plugins
 from g_agent.providers.base import LLMProvider
+from g_agent.routines.scheduler import RoutineScheduler
 from g_agent.session.manager import SessionManager
 
 if TYPE_CHECKING:
@@ -1988,6 +1989,14 @@ class AgentLoop:
     ) -> str:
         """Resolve tool policy in order: specific -> wildcard -> default."""
         tool_key = (tool_name or "").strip().lower()
+
+        # Strict guest profile enforcement
+        active_profile = getattr(self, "active_profile", None)
+        if active_profile and active_profile.is_guest:
+            allowed = GUEST_SAFE_TOOLS | GUEST_LIMITED_EXTRA_TOOLS
+            if tool_key not in allowed:
+                return "deny"
+
         channel_key = (channel or "").strip().lower()
         sender_keys = self._policy_sender_variants(sender_id)
         default = "allow"

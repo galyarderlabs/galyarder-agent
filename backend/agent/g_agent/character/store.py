@@ -1,10 +1,12 @@
 """Character profile store for G-Agent."""
 
+from __future__ import annotations
+
 import json
 from pathlib import Path
-from typing import List, Optional
 
 from loguru import logger
+
 from g_agent.character.profile import CharacterProfile
 from g_agent.utils.helpers import ensure_dir
 
@@ -16,7 +18,7 @@ class CharacterStore:
         self.workspace = workspace
         self.profiles_dir = ensure_dir(workspace / "characters")
 
-    def get(self, profile_id: str) -> Optional[CharacterProfile]:
+    def get(self, profile_id: str) -> CharacterProfile | None:
         """Load a character profile by ID."""
         path = self.profiles_dir / f"{profile_id}.json"
         if not path.exists():
@@ -39,9 +41,9 @@ class CharacterStore:
             logger.error(f"Failed to save character profile {profile.id}: {e}")
             return False
 
-    def list(self) -> List[CharacterProfile]:
+    def list(self) -> list[CharacterProfile]:
         """List all available character profiles."""
-        profiles = []
+        profiles: list[CharacterProfile] = []
         for path in self.profiles_dir.glob("*.json"):
             try:
                 data = json.loads(path.read_text(encoding="utf-8"))
@@ -51,18 +53,38 @@ class CharacterStore:
         return sorted(profiles, key=lambda p: p.name)
 
     def get_default(self) -> CharacterProfile:
-        """Get the default profile or create one if none exist."""
+        """Get the default profile (owner) or create defaults if none exist."""
         profiles = self.list()
         if profiles:
-            return profiles[0]
+            non_guests = [p for p in profiles if not p.is_guest]
+            return non_guests[0] if non_guests else profiles[0]
 
-        # Create generic default
-        default = CharacterProfile(
-            id="default",
-            name="G-Agent",
-            role="Agentic digital character and personal operator.",
-            voice="Direct, helpful, and continuity-focused.",
-            boundaries=["Do not violate user privacy.", "Stay within workspace boundaries."],
-        )
-        self.save(default)
-        return default
+        return self.setup_default_profiles()[0]
+
+    def setup_default_profiles(self) -> list[CharacterProfile]:
+        """Ensure owner and guest profiles exist without overwriting local edits."""
+        owner = self.get("owner")
+        if owner is None:
+            owner = CharacterProfile(
+                id="owner",
+                name="G-Agent (Owner)",
+                role="Personal operator for the founder.",
+                is_guest=False,
+                voice="Direct and helpful.",
+                boundaries=["Protect owner secrets.", "Maintain workspace integrity."],
+            )
+            self.save(owner)
+
+        guest = self.get("guest")
+        if guest is None:
+            guest = CharacterProfile(
+                id="guest",
+                name="G-Agent (Guest)",
+                role="Helpful digital assistant for guests.",
+                is_guest=True,
+                voice="Polite and helpful.",
+                boundaries=["No access to private files.", "No shell or write access."],
+            )
+            self.save(guest)
+
+        return [owner, guest]

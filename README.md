@@ -159,13 +159,11 @@ Read [Security](docs/security.md) and [Configuration](docs/configuration.md) bef
 
 The next product direction is agentic character depth:
 
-- SQLite session store and searchable recall (first slice shipped)
-- shared command controls for history, sessions, logs, approve, and deny
-- owner-reviewed learning queue
-- procedural skills that improve from repeated workflows
-- stronger memory manager and character profile layers
-- Web UI and OpenAI-compatible API
-- routine engine for scheduled and triggered workflows
+- SQLite session store and searchable recall: first slice shipped.
+- Shared command controls for history, sessions, logs, approve, and deny: core shipped.
+- Character profiles, skill management, routines, toolsets, MCP stdio/SSE, subagents, and insights: first slices exist.
+- Owner-reviewed learning queue: model/list-inspect first slice exists; apply/reject/edit/rollback remains.
+- Memory Manager, Web UI, WebSocket channel, OpenAI-compatible product API, streamable HTTP MCP, Docker backend, and background reviewer: not shipped yet.
 
 See [ROADMAP.md](ROADMAP.md).
 

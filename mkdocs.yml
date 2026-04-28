@@ -69,6 +69,8 @@ nav:
   - CLI Error Style: cli-error-style.md
   - Roadmap:
       - Overview: roadmap/README.md
+      - Codebase Deep-Dive Audit: roadmap/00-codebase-deep-dive-audit.md
+      - Hermes And Nanobot Reference Audit: reports/hermes-nanobot-reference-audit.md
       - v0.1 Stabilize Current Runtime: roadmap/v0.1-stabilize-current-runtime.md
       - v0.2 Session Store And Recall: roadmap/v0.2-session-store-and-recall.md
       - v0.3 Commands Logs And Approvals: roadmap/v0.3-commands-logs-approvals.md

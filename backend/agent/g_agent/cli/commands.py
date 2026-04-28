@@ -187,6 +187,12 @@ def onboard(
     workspace = get_workspace_path()
     console.print(f"[green]✓[/green] Created workspace at {workspace}")
 
+    # Initialize character profiles
+    from g_agent.character.store import CharacterStore
+    chars = CharacterStore(workspace)
+    chars.setup_default_profiles()
+    console.print("[green]✓[/green] Initialized character profiles (Owner & Guest)")
+
     # Create default bootstrap files
     _create_workspace_templates(workspace)
 

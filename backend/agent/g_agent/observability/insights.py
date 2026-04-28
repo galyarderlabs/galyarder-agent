@@ -9,10 +9,39 @@ patterns, activity trends, model/platform breakdowns, and session metrics.
 import json
 import time
 from collections import Counter, defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from g_agent.session.sqlite_store import SessionSQLiteStore
+
+
+def _parse_iso_timestamp(value: str | None) -> float | None:
+    """Parse an ISO timestamp into epoch seconds."""
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.timestamp()
+
+
+def _provider_from_model(model: str | None) -> str:
+    """Infer a provider bucket from a recorded model name."""
+    text = str(model or "").strip()
+    if not text:
+        return "unknown"
+    if "/" in text:
+        provider = text.split("/", 1)[0].strip()
+        return provider or "unknown"
+    if ":" in text:
+        provider = text.split(":", 1)[0].strip()
+        return provider or "unknown"
+    return text
 
 
 def _format_duration(seconds: float) -> str:
@@ -37,18 +66,21 @@ class InsightsEngine:
     """
     Analyzes session history and produces usage insights.
 
-    Works directly with a SessionSQLiteStore instance to query session and message data.
+    Works directly with a SessionSQLiteStore instance to query session and message data,
+    and parses metrics/events.jsonl for advanced provider/failed call insights.
     """
 
-    def __init__(self, db: SessionSQLiteStore):
+    def __init__(self, db: SessionSQLiteStore, workspace: Path | None = None):
         """
         Initialize with a SessionSQLiteStore instance.
 
         Args:
             db: A SessionSQLiteStore instance
+            workspace: The path to the G-Agent workspace directory
         """
         self.db = db
         self._conn = db._conn
+        self.workspace = workspace
 
     def generate(self, days: int = 30, source: str | None = None) -> dict[str, Any]:
         """
@@ -65,8 +97,9 @@ class InsightsEngine:
 
         # Gather raw data
         sessions = self._get_sessions(cutoff, source)
-        tool_usage = self._get_tool_usage(cutoff, source)
+        tool_usage, skill_usage = self._get_tool_and_skill_usage(cutoff, source)
         message_stats = self._get_message_stats(cutoff, source)
+        provider_stats, failed_calls = self._get_metrics_events(days, source)
 
         if not sessions:
             return {
@@ -77,6 +110,9 @@ class InsightsEngine:
                 "models": [],
                 "platforms": [],
                 "tools": [],
+                "skills": {},
+                "providers": [],
+                "failed_calls": [],
                 "activity": {},
                 "top_sessions": [],
             }
@@ -86,6 +122,7 @@ class InsightsEngine:
         models = self._compute_model_breakdown(sessions)
         platforms = self._compute_platform_breakdown(sessions)
         tools = self._compute_tool_breakdown(tool_usage)
+        skills = self._compute_skill_breakdown(skill_usage)
         activity = self._compute_activity_patterns(sessions)
         top_sessions = self._compute_top_sessions(sessions)
 
@@ -98,6 +135,9 @@ class InsightsEngine:
             "models": models,
             "platforms": platforms,
             "tools": tools,
+            "skills": skills,
+            "providers": provider_stats,
+            "failed_calls": failed_calls,
             "activity": activity,
             "top_sessions": top_sessions,
         }
@@ -133,45 +173,173 @@ class InsightsEngine:
         except Exception:
             return []
 
-    def _get_tool_usage(self, cutoff: float, source: str | None = None) -> list[dict[str, Any]]:
-        """Get tool call counts from messages."""
+    def _get_metrics_events(
+        self, days: int, source: str | None = None
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        """Parse events.jsonl to extract provider stats and failed calls."""
+        if not self.workspace:
+            return [], []
+
+        events_path = self.workspace / "state" / "metrics" / "events.jsonl"
+        if not events_path.exists():
+            return [], []
+
+        provider_data: dict[str, dict[str, float | int]] = defaultdict(
+            lambda: {"calls": 0, "errors": 0, "latency_sum": 0.0}
+        )
+        failed_calls: list[dict[str, Any]] = []
+        cutoff_ts = datetime.now(timezone.utc).timestamp() - (days * 86400)
+
         try:
-            tool_calls_counts = Counter()
+            with events_path.open("r", encoding="utf-8") as handle:
+                for line in handle:
+                    if not line.strip():
+                        continue
+                    try:
+                        record = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if not isinstance(record, dict):
+                        continue
+
+                    ts_str = str(record.get("ts") or "")
+                    ts = _parse_iso_timestamp(ts_str)
+                    if ts is None or ts < cutoff_ts:
+                        continue
+
+                    event_type = record.get("type")
+                    if event_type == "llm_call":
+                        model = str(record.get("model") or "unknown")
+                        provider = _provider_from_model(model)
+                        stats = provider_data[provider]
+                        stats["calls"] = int(stats["calls"]) + 1
+                        stats["latency_sum"] = float(stats["latency_sum"]) + float(
+                            record.get("latency_ms") or 0.0
+                        )
+
+                        if not record.get("success", True):
+                            stats["errors"] = int(stats["errors"]) + 1
+                            failed_calls.append(
+                                {
+                                    "time": ts_str,
+                                    "type": "llm",
+                                    "target": model,
+                                    "error": str(record.get("error") or "Unknown error"),
+                                }
+                            )
+                    elif event_type == "tool_call" and not record.get("success", True):
+                        failed_calls.append(
+                            {
+                                "time": ts_str,
+                                "type": "tool",
+                                "target": str(record.get("tool") or "unknown"),
+                                "error": str(record.get("error") or "Unknown error"),
+                            }
+                        )
+
+            provider_list: list[dict[str, Any]] = []
+            for name, stats in provider_data.items():
+                calls = int(stats["calls"])
+                avg_latency = (float(stats["latency_sum"]) / calls) if calls else 0.0
+                provider_list.append(
+                    {
+                        "provider": name,
+                        "calls": calls,
+                        "errors": int(stats["errors"]),
+                        "avg_latency_ms": avg_latency,
+                    }
+                )
+
+            provider_list.sort(key=lambda x: x["calls"], reverse=True)
+            failed_calls = list(reversed(failed_calls))[:10]
+
+            return provider_list, failed_calls
+        except Exception:
+            return [], []
+
+    def _get_tool_and_skill_usage(
+        self, cutoff: float, source: str | None = None
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        """Get tool call counts and skill usage from messages."""
+        tool_calls_counts = Counter()
+        skill_counts: dict[str, dict[str, Any]] = {}
+        found_structured_tool_rows = False
+
+        def _track_skill(name: str, args: Any, ts: float | None) -> None:
+            if name not in {"skill_view", "skill_manage"}:
+                return
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except json.JSONDecodeError:
+                    return
+            if not isinstance(args, dict):
+                return
+
+            skill_name = args.get("name")
+            if not isinstance(skill_name, str) or not skill_name.strip():
+                return
+
+            skill_key = skill_name.strip()
+            entry = skill_counts.setdefault(
+                skill_key,
+                {
+                    "skill": skill_key,
+                    "view_count": 0,
+                    "manage_count": 0,
+                    "last_used_at": None,
+                },
+            )
+            if name == "skill_view":
+                entry["view_count"] += 1
+            else:
+                entry["manage_count"] += 1
+
+            if ts is not None and (entry["last_used_at"] is None or ts > entry["last_used_at"]):
+                entry["last_used_at"] = ts
+
+        try:
             if source:
                 cursor = self._conn.execute(
-                    """SELECT t.tool_name, COUNT(*) AS count
+                    """SELECT t.tool_name, t.arguments_json, t.created_at
                        FROM tool_calls t
                        JOIN sessions s ON s.id = t.session_id
-                       WHERE s.created_at >= ? AND s.channel = ?
-                       GROUP BY t.tool_name
-                       ORDER BY count DESC, t.tool_name ASC""",
+                       WHERE s.created_at >= ? AND s.channel = ?""",
                     (cutoff, source),
                 )
             else:
                 cursor = self._conn.execute(
-                    """SELECT t.tool_name, COUNT(*) AS count
+                    """SELECT t.tool_name, t.arguments_json, t.created_at
                        FROM tool_calls t
                        JOIN sessions s ON s.id = t.session_id
-                       WHERE s.created_at >= ?
-                       GROUP BY t.tool_name
-                       ORDER BY count DESC, t.tool_name ASC""",
+                       WHERE s.created_at >= ?""",
                     (cutoff,),
                 )
-            for row in cursor.fetchall():
-                tool_calls_counts[str(row["tool_name"])] += int(row["count"] or 0)
-        except Exception:
-            tool_calls_counts = Counter()
 
-        if tool_calls_counts:
-            return [
+            rows = cursor.fetchall()
+            if rows:
+                for row in rows:
+                    name = str(row["tool_name"] or "").strip()
+                    if not name or name == "unknown":
+                        continue
+                    found_structured_tool_rows = True
+                    tool_calls_counts[name] += 1
+                    _track_skill(name, row["arguments_json"], row["created_at"])
+        except Exception:
+            pass
+
+        if found_structured_tool_rows:
+            tool_res = [
                 {"tool_name": name, "count": count}
                 for name, count in tool_calls_counts.most_common()
             ]
+            return tool_res, list(skill_counts.values())
 
+        # Fallback to messages metadata
         try:
             if source:
                 cursor = self._conn.execute(
-                    """SELECT m.metadata_json
+                    """SELECT m.metadata_json, m.created_at
                        FROM messages m
                        JOIN sessions s ON s.id = m.session_id
                        WHERE s.created_at >= ? AND s.channel = ?
@@ -180,7 +348,7 @@ class InsightsEngine:
                 )
             else:
                 cursor = self._conn.execute(
-                    """SELECT m.metadata_json
+                    """SELECT m.metadata_json, m.created_at
                        FROM messages m
                        JOIN sessions s ON s.id = m.session_id
                        WHERE s.created_at >= ?
@@ -199,20 +367,28 @@ class InsightsEngine:
                             if not isinstance(call, dict):
                                 continue
                             name = call.get("tool_name")
+                            args = call.get("arguments_json") or call.get("arguments")
                             if not name:
                                 func = call.get("function")
-                                name = func.get("name") if isinstance(func, dict) else None
+                                if isinstance(func, dict):
+                                    name = func.get("name")
+                                    if not args:
+                                        args = func.get("arguments")
                             if name:
-                                tool_calls_counts[str(name)] += 1
+                                tool_name = str(name).strip()
+                                if tool_name and tool_name != "unknown":
+                                    tool_calls_counts[tool_name] += 1
+                                    _track_skill(tool_name, args, row["created_at"])
                 except (json.JSONDecodeError, TypeError, AttributeError):
                     continue
         except Exception:
-            return []
+            pass
 
-        return [
+        tool_res = [
             {"tool_name": name, "count": count}
             for name, count in tool_calls_counts.most_common()
         ]
+        return tool_res, list(skill_counts.values())
 
     def _get_message_stats(self, cutoff: float, source: str | None = None) -> dict[str, Any]:
         """Get aggregate message statistics."""
@@ -366,6 +542,46 @@ class InsightsEngine:
             })
         return result
 
+    def _compute_skill_breakdown(self, skill_usage: list[dict[str, Any]]) -> dict[str, Any]:
+        """Process per-skill usage into summary + ranked list."""
+        total_skill_loads = sum(s["view_count"] for s in skill_usage) if skill_usage else 0
+        total_skill_edits = sum(s["manage_count"] for s in skill_usage) if skill_usage else 0
+        total_skill_actions = total_skill_loads + total_skill_edits
+
+        top_skills = []
+        for skill in skill_usage:
+            total_count = skill["view_count"] + skill["manage_count"]
+            percentage = (total_count / total_skill_actions * 100) if total_skill_actions else 0
+            top_skills.append({
+                "skill": skill["skill"],
+                "view_count": skill["view_count"],
+                "manage_count": skill["manage_count"],
+                "total_count": total_count,
+                "percentage": percentage,
+                "last_used_at": skill.get("last_used_at"),
+            })
+
+        top_skills.sort(
+            key=lambda s: (
+                s["total_count"],
+                s["view_count"],
+                s["manage_count"],
+                s["last_used_at"] or 0,
+                s["skill"],
+            ),
+            reverse=True,
+        )
+
+        return {
+            "summary": {
+                "total_skill_loads": total_skill_loads,
+                "total_skill_edits": total_skill_edits,
+                "total_skill_actions": total_skill_actions,
+                "distinct_skills_used": len(skill_usage),
+            },
+            "top_skills": top_skills,
+        }
+
     def _compute_activity_patterns(self, sessions: list[dict[str, Any]]) -> dict[str, Any]:
         """Analyze activity patterns by day of week and hour."""
         day_counts = Counter()
@@ -490,6 +706,13 @@ class InsightsEngine:
                 lines.append(f"  {m['model'][:25]} — {m['sessions']} sessions, {m['total_tokens']:,} tokens")
             lines.append("")
 
+        if report.get("providers"):
+            lines.append("<b>🏢 Providers:</b>")
+            for p in report["providers"][:5]:
+                err_str = f", {p['errors']} errs" if p['errors'] > 0 else ""
+                lines.append(f"  {p['provider']} — {p['calls']:,} calls ({p['avg_latency_ms']:.0f}ms avg{err_str})")
+            lines.append("")
+
         if len(report["platforms"]) > 1:
             lines.append("<b>📱 Channels:</b>")
             for p in report["platforms"]:
@@ -500,6 +723,24 @@ class InsightsEngine:
             lines.append("<b>🔧 Top Tools:</b>")
             for t in report["tools"][:8]:
                 lines.append(f"  {t['tool']} — {t['count']:,} calls ({t['percentage']:.1f}%)")
+            lines.append("")
+
+        skills = report.get("skills", {})
+        if skills.get("top_skills"):
+            lines.append("<b>🧠 Top Skills:</b>")
+            for skill in skills["top_skills"][:5]:
+                suffix = ""
+                if skill.get("last_used_at"):
+                    suffix = f" (used {datetime.fromtimestamp(skill['last_used_at']).strftime('%b %d')})"
+                lines.append(f"  {skill['skill']} — {skill['view_count']:,} reads, {skill['manage_count']:,} edits{suffix}")
+            lines.append("")
+
+        if report.get("failed_calls"):
+            lines.append("<b>⚠️ Recent Failed Calls:</b>")
+            for f in report["failed_calls"][:3]:
+                err = str(f["error"])[:60]
+                dt = datetime.fromisoformat(f["time"].replace("Z", "+00:00")).strftime('%b %d %H:%M')
+                lines.append(f"  [{dt}] {f['type'].upper()} {f['target']} - {err}")
             lines.append("")
 
         act = report.get("activity", {})

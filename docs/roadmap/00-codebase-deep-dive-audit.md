@@ -258,10 +258,10 @@ Nanobot/Hermes. It should start from a thin local API, then layer Web UI on top.
 
 ### v0.6 Character Profiles
 
-Current repo has `visual` config and markdown `PROFILE.md`, plus hardcoded
-identity priming in `ContextBuilder`. It needs a first-class character profile
-schema and store to avoid scattering identity across prompt files, config, and
-memory.
+Current repo now has `CharacterProfile`, `CharacterStore`, and a stable profile
+prompt section. Remaining gaps are live profile switching isolation,
+profile-level visual config wiring into `SelfieTool`, dedicated validation
+coverage, and reviewable profile diffs.
 
 ### v0.7 Memory Manager
 
@@ -271,36 +271,41 @@ and does not have explicit lifecycle hooks. Add a manager around the existing
 
 ### v0.8 Reviewed Learning
 
-Current runtime can write memory directly through tools. It lacks a candidate
-queue and owner review workflow. This must be added before any autonomous
-learning.
+Current runtime can write memory directly through tools and now has
+`LearningCandidate` plus `LearningQueue` storage. Remaining gaps are
+accept/reject/edit/apply flows, rollback wiring, and a background reviewer hook.
 
 ### v0.9 Skills
 
-Current `agent/skills.py` loads skills, but there is no safe lifecycle for draft,
-patch, validation, activation, and rollback. Use Hermes skill manager patterns,
-adapted to G-Agent paths and policies.
+Current `agent/skills.py` loads skills, and the first management slice now
+includes skill store, validator, manager, drafts, and the `skill_manage` tool.
+Remaining gaps are full owner-reviewed activation, rollback, and command
+lifecycle coverage.
 
 ### v0.10 Context Engine
 
-Current `ContextBuilder` is monolithic. Add interface and compression around it
-gradually; do not replace prompt assembly in one jump.
+Current code has a pluggable context engine interface, `DefaultContextEngine`,
+and an initial `ContextCompressor`. Remaining gaps are automatic compression
+triggering inside `AgentLoop` and replacing legacy `/compact` internals.
 
 ### v0.11 Routines
 
-Current cron and proactive calendar reminders already exist. Routines should
-extend these, not create a separate scheduler with duplicate concepts.
+Current code has routine model, store, runner, scheduler, and `/routines`.
+Remaining gaps are multi-skill workflows and webhook/API triggers.
 
 ### v0.12 Toolsets/MCP/Execution
 
-Current tool registry is flat. MCP is not first-class. Subagents exist but need
-toolset boundaries and better status/cancellation. Execution backends should
-start local + Docker only.
+Current code has static capability toolsets, per-message tool filtering, stdio
+and SSE MCP registration, a shared agent runner, subagent cancellation, and a
+local execution backend. Remaining gaps are streamable HTTP MCP, Docker
+execution backend, and per-profile toolset policy.
 
 ### v0.13 Public Trust
 
-Current metrics are already present. Packaging and public trust should build on
-metrics, deploy scripts, docs, release notes, and security docs.
+Current metrics, install docs, security docs, release checklist, and a first
+insights engine are present. The latest provider/skill/failed-call insights and
+guest-enforcement changes are still uncommitted and need cleanup plus targeted
+test coverage before v0.13 is complete.
 
 ## Planning Standard For Roadmap Files
 
