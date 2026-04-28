@@ -1236,7 +1236,7 @@ def channels_main(ctx: typer.Context):
 @channels_app.command("status")
 def channels_status():
     """Show channel status."""
-    from g_agent.config.loader import load_config
+    from g_agent.config.loader import get_data_dir, load_config
 
     config = load_config()
 
@@ -1244,20 +1244,50 @@ def channels_status():
     table.add_column("Channel", style="cyan")
     table.add_column("Enabled", style="green")
     table.add_column("Configuration", style="yellow")
+    table.add_column("Diagnostics", style="magenta")
 
     # WhatsApp
     wa = config.channels.whatsapp
-    table.add_row("WhatsApp", "✓" if wa.enabled else "✗", wa.bridge_url)
+    table.add_row(
+        "WhatsApp",
+        "✓" if wa.enabled else "✗",
+        wa.bridge_url,
+        _whatsapp_bridge_diagnostics(wa.bridge_url, get_data_dir(), bool(wa.bridge_token)),
+    )
 
     dc = config.channels.discord
-    table.add_row("Discord", "✓" if dc.enabled else "✗", dc.gateway_url)
+    table.add_row("Discord", "✓" if dc.enabled else "✗", dc.gateway_url, "gateway")
 
     # Telegram
     tg = config.channels.telegram
     tg_config = f"token: {tg.token[:10]}..." if tg.token else "[dim]not configured[/dim]"
-    table.add_row("Telegram", "✓" if tg.enabled else "✗", tg_config)
+    table.add_row("Telegram", "✓" if tg.enabled else "✗", tg_config, "bot API")
 
     console.print(table)
+
+
+def _whatsapp_bridge_diagnostics(bridge_url: str, data_dir: Path, has_token: bool) -> str:
+    """Build local WhatsApp bridge diagnostics for channel status."""
+    from urllib.parse import urlparse
+
+    parts: list[str] = []
+    try:
+        parsed = urlparse(bridge_url)
+        if parsed.scheme not in {"ws", "wss"} or not parsed.hostname:
+            return "invalid bridgeUrl"
+        default_port = 443 if parsed.scheme == "wss" else 80
+        port = parsed.port or default_port
+        pids = _bridge_port_pids(port)
+        parts.append(f"port={port} {'listening' if pids else 'no-listener'}")
+        if pids:
+            parts.append(f"pid={','.join(pids[:3])}")
+    except Exception as exc:
+        parts.append(f"bridgeUrl error: {type(exc).__name__}")
+
+    auth_dir = data_dir / "whatsapp-auth"
+    parts.append(f"auth={'present' if auth_dir.exists() else 'missing'}")
+    parts.append(f"token={'set' if has_token else 'missing'}")
+    return "; ".join(parts)
 
 
 def _bridge_source_signature(source: Path) -> str:

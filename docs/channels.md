@@ -24,6 +24,15 @@ Additional adapters should live as plugins or future-hardening work, not as core
 3. Ensure your WA sender ID is in `channels.whatsapp.allowFrom`
 4. Keep bridge + gateway active (systemd user services recommended)
 
+Check local bridge diagnostics with:
+
+```bash
+g-agent channels status
+```
+
+The WhatsApp row reports the bridge port listener, local listener pid when
+available, whether `whatsapp-auth` exists, and whether `bridgeToken` is set.
+
 ### Configuration
 
 ```json

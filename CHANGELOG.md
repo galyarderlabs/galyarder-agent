@@ -13,6 +13,7 @@ All notable changes to this project are documented in this file.
 - Added shared channel capability, media envelope, and delivery result contracts for the v0.4 reliability slice.
 - Added current-channel capability diagnostics to `/status`.
 - Wired channel outbound dispatch through normalized delivery results.
+- Added compact WhatsApp bridge diagnostics to `g-agent channels status`.
 
 ### Fixed
 - Skill candidate rollback now restores the previous active skill when one existed, or removes the newly activated skill when it did not.

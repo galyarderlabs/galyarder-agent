@@ -60,6 +60,30 @@ def test_channels_login_passes_bridge_env_from_config(tmp_path: Path, monkeypatc
     assert env["AUTH_DIR"] == str(data_dir / "whatsapp-auth")
 
 
+def test_channels_status_shows_whatsapp_bridge_diagnostics(tmp_path: Path, monkeypatch):
+    data_dir = tmp_path / "data"
+    auth_dir = data_dir / "whatsapp-auth"
+    auth_dir.mkdir(parents=True)
+    monkeypatch.setenv("G_AGENT_DATA_DIR", str(data_dir))
+
+    config = Config()
+    config.channels.whatsapp.enabled = True
+    config.channels.whatsapp.bridge_url = "ws://127.0.0.1:4567"
+    config.channels.whatsapp.bridge_token = "secret"
+    save_config(config)
+
+    monkeypatch.setattr("g_agent.cli.commands._bridge_port_pids", lambda _port: ["1234"])
+
+    result = runner.invoke(app, ["channels", "status"])
+
+    assert result.exit_code == 0
+    assert "WhatsApp" in result.stdout
+    assert "port=4567" in result.stdout
+    assert "listening" in result.stdout
+    assert "token=set" in result.stdout
+    assert "auth=present" in result.stdout
+
+
 def test_channels_login_restart_existing_stops_listener_then_starts(tmp_path: Path, monkeypatch):
     data_dir = tmp_path / "data"
     monkeypatch.setenv("G_AGENT_DATA_DIR", str(data_dir))
