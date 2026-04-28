@@ -1,5 +1,6 @@
 """Built-in command handlers for G-Agent."""
 
+import html
 import json
 import re
 import time
@@ -356,6 +357,85 @@ async def cmd_learn(ctx: CommandContext) -> str:
     )
 
 
+async def cmd_skills(ctx: CommandContext) -> str:
+    """Inspect and patch procedural skills."""
+    from g_agent.skills.manager import SkillManager
+
+    manager = SkillManager(ctx.workspace)
+    args = ctx.args.strip().split()
+    subcmd = args[0] if args else "list"
+
+    if subcmd == "list":
+        location = args[1] if len(args) > 1 else "all"
+        groups = manager.list_all(include_drafts=True)
+        if location != "all":
+            key = "drafts" if location in {"draft", "drafts"} else location
+            if key not in groups:
+                return "⚠️ Usage: /skills list [all|builtin|custom|drafts]"
+            groups = {key: groups.get(key, [])}
+
+        lines = ["🧰 <b>Skills</b>\n"]
+        for key in ("custom", "drafts", "builtin"):
+            if key not in groups:
+                continue
+            names = groups.get(key) or []
+            if names:
+                lines.append(
+                    f"<b>{key}</b>: "
+                    + ", ".join(f"<code>{html.escape(name)}</code>" for name in names)
+                )
+            else:
+                lines.append(f"<b>{key}</b>: <i>none</i>")
+        return "\n".join(lines)
+
+    if subcmd == "view" and len(args) > 1:
+        name = args[1]
+        location = args[2] if len(args) > 2 else "custom"
+        if location == "drafts":
+            location = "draft"
+        path = manager.store.get_skill_path(name, location=location)
+        display_name = html.escape(name)
+        display_location = html.escape(location)
+        if not path:
+            return (
+                f"❌ Skill <code>{display_name}</code> not found in "
+                f"<code>{display_location}</code>."
+            )
+        skill_md = path / "SKILL.md"
+        if not skill_md.exists():
+            return f"❌ Skill <code>{display_name}</code> has no SKILL.md."
+        content = skill_md.read_text(encoding="utf-8")
+        return (
+            f"🧰 <b>Skill: {display_name}</b> (<code>{display_location}</code>)\n"
+            f"<pre>{html.escape(content)}</pre>"
+        )
+
+    if subcmd == "patch-draft" and len(args) > 2:
+        name = args[1]
+        raw_payload = ctx.args.split(maxsplit=2)[2]
+        try:
+            payload = json.loads(raw_payload)
+        except json.JSONDecodeError as exc:
+            return f"❌ Invalid JSON payload: <code>{exc}</code>"
+        if not isinstance(payload, dict):
+            return "❌ Patch payload must be a JSON object."
+
+        find = payload.get("find")
+        replace = payload.get("replace")
+        relative_path = str(payload.get("path") or "SKILL.md")
+        if not isinstance(find, str) or not isinstance(replace, str):
+            return "❌ Patch payload requires string fields: find, replace."
+
+        ok, errors = manager.patch_draft(name, find, replace, relative_path=relative_path)
+        if ok:
+            return f"✅ Draft skill <code>{html.escape(name)}</code> patched and validated."
+        return "⚠️ Draft patch failed and was rolled back:\n" + "\n".join(
+            f"- {error}" for error in errors
+        )
+
+    return "⚠️ Usage: /skills [list [all|builtin|custom|drafts]|view <name> [location]|patch-draft <name> <json>]"
+
+
 async def cmd_routines(ctx: CommandContext) -> str:
     """Manage background routines."""
     from g_agent.routines.store import RoutineStore
@@ -432,6 +512,12 @@ def register_builtin_commands(router: Any):
         cmd_learn,
         description="Review learning candidates",
         usage="[list|info|approve|reject|edit|apply|rollback]",
+    )
+    router.register(
+        "skills",
+        cmd_skills,
+        description="Inspect and patch procedural skills",
+        usage="[list|view|patch-draft]",
     )
     router.register(
         "routines",

@@ -8,6 +8,7 @@ All notable changes to this project are documented in this file.
 - Extended the owner-reviewed learning queue with approve/reject/edit plus skill-candidate apply and rollback commands.
 - Added rollback metadata persistence for learning candidates and skill activation backups.
 - Added atomic draft skill patching through `SkillManager` and `skill_manage.patch_draft`.
+- Added `/skills` for owner-facing skill list, view, and draft patch operations.
 
 ### Fixed
 - Skill candidate rollback now restores the previous active skill when one existed, or removes the newly activated skill when it did not.

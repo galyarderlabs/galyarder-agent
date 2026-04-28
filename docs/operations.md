@@ -40,6 +40,8 @@ mode. `/search` remains web search; use `/history` for local session recall.
 | `/logs` | Show recent bounded checkpoint logs with obvious secret redaction. |
 | `/approve [tool\|all]` | Replay pending tool approval through the live agent loop. |
 | `/deny [tool\|all]` | Clear matching pending approvals for the current session. |
+| `/learn [list\|info\|approve\|reject\|edit\|apply\|rollback]` | Review learning candidates and apply or roll back owner-approved skill changes. |
+| `/skills [list\|view\|patch-draft]` | Inspect active/draft skills and patch draft skills with validation rollback. |
 
 ## Service mode
 

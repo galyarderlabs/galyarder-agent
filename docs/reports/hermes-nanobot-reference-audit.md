@@ -48,7 +48,7 @@ Current G-Agent already has useful foundations:
 | Area | Current source | Current state | Gap |
 | --- | --- | --- | --- |
 | Memory | `backend/agent/g_agent/agent/memory.py` | Markdown memory files, profile, relationships, projects, FACTS index, recall and consolidation helpers. | Needs formal `MemoryManager`, context fencing, provider boundary, and owner-reviewed write lifecycle. |
-| Skills | `backend/agent/g_agent/agent/skills.py`, `backend/agent/g_agent/skills/`, `backend/agent/g_agent/agent/tools/skills.py`, `backend/agent/g_agent/command/builtin.py` | Built-in/workspace `SKILL.md` loader plus skill store/validator/manager/draft tooling, atomic draft patching, `skill_manage`, and owner-reviewed `/learn apply`/`rollback` for skill candidates. | Needs full lifecycle command polish and background skill proposal review. |
+| Skills | `backend/agent/g_agent/agent/skills.py`, `backend/agent/g_agent/skills/`, `backend/agent/g_agent/agent/tools/skills.py`, `backend/agent/g_agent/command/builtin.py` | Built-in/workspace `SKILL.md` loader plus skill store/validator/manager/draft tooling, atomic draft patching, `skill_manage`, `/skills`, and owner-reviewed `/learn apply`/`rollback` for skill candidates. | Needs background skill proposal review and broader file-level lifecycle commands. |
 | Sessions | `backend/agent/g_agent/session/manager.py`, `backend/agent/g_agent/session/sqlite_store.py` | JSONL sessions remain readable, with a SQLite dual-write store, WAL, FTS5 search, media refs, and tool-call metadata. | Needs explicit JSONL backfill/import and richer context windows around search hits. |
 | Commands | `backend/agent/g_agent/channels/slash_commands.py`, `backend/agent/g_agent/command/` | Native slash commands now include shared parsing for direct CLI/chat, `/history`, `/sessions`, `/logs`, `/approve`, and `/deny`. | Needs first-class persisted approval state, narrow allowlists, skills commands, learning review, and broader handler extraction. |
 | Channels | `backend/agent/g_agent/channels/` | WhatsApp, Telegram, Discord, Slack, email, manager; supervisor/retry and multimodal tests exist. | Needs shared capability flags, normalized media envelope, long-message splitting contract, normalized delivery errors, and broader diagnostics. |
@@ -92,7 +92,7 @@ Current G-Agent already has useful foundations:
 | Capability | Source | Evidence files | Decision | Fit for G-Agent | Implementation notes |
 | --- | --- | --- | --- | --- | --- |
 | Progressive skill loading | Current G-Agent + Hermes + Nanobot | `backend/agent/g_agent/agent/skills.py`, `hermes-agent-ref/tools/skills_tool.py`, `nanobot-ref/nanobot/agent/skills.py` | Adopt | Keeps prompts small while letting the character use specialized procedures. | Keep summary-first loading; add `skill_view`/`skills_list` tools if missing. |
-| Skill create/patch/delete lifecycle | Hermes | `hermes-agent-ref/tools/skill_manager_tool.py` | Adapted partial | Required for procedural memory and self-improvement. | `skills/store.py`, `skills/validator.py`, `skills/manager.py`, drafts, atomic draft patching, `skill_manage`, and owner-reviewed skill candidate activation/rollback exist. Background skill proposal review remains. |
+| Skill create/patch/delete lifecycle | Hermes | `hermes-agent-ref/tools/skill_manager_tool.py` | Adapted partial | Required for procedural memory and self-improvement. | `skills/store.py`, `skills/validator.py`, `skills/manager.py`, drafts, atomic draft patching, `skill_manage`, `/skills`, and owner-reviewed skill candidate activation/rollback exist. Background skill proposal review remains. |
 | Supporting files in skills | Hermes | `hermes-agent-ref/tools/skill_manager_tool.py` | Adopted first slice | Useful for templates, scripts, assets, and references. | Current skill package handling supports local skill directories and validation. More explicit policy for `references/`, `templates/`, `scripts/`, `assets/` and traversal tests should remain in the lifecycle work. |
 | Skill command invocation | Hermes | `hermes-agent-ref/agent/skill_commands.py`, `hermes-agent-ref/agent/skill_preprocessing.py` | Later | Good UX, but lifecycle should land first. | Add `/skills`, `/skill <name>`, and optional template substitution after review system exists. |
 | Skill hub/public marketplace | Hermes/Nanobot | `hermes-agent-ref/hermes_cli/skills_hub.py`, `nanobot-ref/nanobot/skills/` | Later | Useful eventually, risky before local skills mature. | Keep local/private skill development first. |
@@ -214,7 +214,7 @@ Why second: this turns memory from static files into a safe learning substrate.
 2. Still open: background review that proposes memory/profile/skill/routine candidates.
 3. Partially done: skill store/validator/manager/drafts and `skill_manage` exist.
 4. Partially done: `/learn` supports approve/reject/edit plus skill apply/rollback.
-5. Still open: `/skills` polish and background skill proposal review.
+5. Still open: background skill proposal review and broader supporting-file lifecycle commands.
 
 Why third: this is the Hermes-style growth loop, but constrained for G-Agent safety.
 

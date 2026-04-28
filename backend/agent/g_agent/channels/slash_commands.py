@@ -58,6 +58,7 @@ class SlashCommandDispatcher:
             ("whoami", [], "Your profile info", ""),
             ("profile", [], "Manage character profiles", "[list|set <id>]"),
             ("learn", [], "Review learning candidates", "[list|approve|reject <id>]"),
+            ("skills", [], "Inspect and patch skills", "[list|view|patch-draft]"),
             ("routines", [], "Manage background tasks", "[list|enable|disable <id>]"),
             ("insights", [], "Session usage and cost insights", "[days]"),
             ("logs", [], "View recent activity logs", ""),
@@ -137,6 +138,14 @@ class SlashCommandDispatcher:
                 sender_id=sender_id,
             ),
             "learn": lambda: self._cmd_router(
+                text=text,
+                session_key=session_key,
+                channel=channel,
+                chat_id=chat_id,
+                sender_username=sender_username,
+                sender_id=sender_id,
+            ),
+            "skills": lambda: self._cmd_router(
                 text=text,
                 session_key=session_key,
                 channel=channel,
