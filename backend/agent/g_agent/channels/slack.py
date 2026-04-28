@@ -12,6 +12,7 @@ from slack_sdk.web.async_client import AsyncWebClient
 from g_agent.bus.events import OutboundMessage
 from g_agent.bus.queue import MessageBus
 from g_agent.channels.base import BaseChannel
+from g_agent.channels.capabilities import SLACK_CAPABILITIES
 from g_agent.config.schema import SlackChannelConfig
 
 
@@ -19,6 +20,7 @@ class SlackChannel(BaseChannel):
     """Slack channel using Socket Mode."""
 
     name = "slack"
+    capabilities = SLACK_CAPABILITIES
 
     def __init__(self, config: SlackChannelConfig, bus: MessageBus):
         super().__init__(config, bus)

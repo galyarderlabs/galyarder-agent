@@ -9,6 +9,7 @@ from loguru import logger
 from g_agent.bus.events import OutboundMessage
 from g_agent.bus.queue import MessageBus
 from g_agent.channels.base import BaseChannel
+from g_agent.channels.capabilities import WHATSAPP_CAPABILITIES
 from g_agent.config.schema import WhatsAppConfig
 from g_agent.providers.transcription import GroqTranscriptionProvider
 
@@ -22,6 +23,7 @@ class WhatsAppChannel(BaseChannel):
     """
 
     name = "whatsapp"
+    capabilities = WHATSAPP_CAPABILITIES
 
     def __init__(self, config: WhatsAppConfig, bus: MessageBus, groq_api_key: str = ""):
         super().__init__(config, bus)

@@ -35,6 +35,8 @@ runner structure, and operational hardening.
   `mcp/manager.py`.
 - [x] Insights and public-trust first slice exists in `observability/insights.py`
   plus docs.
+- [x] Shared channel contracts exist for capability flags, media envelopes, and
+  delivery result/error types.
 - [ ] No first-party product API server exists under `g_agent/api/`.
 - [ ] No WebSocket channel exists at `channels/websocket.py`.
 - [ ] No first-party `webui/` exists.
@@ -742,16 +744,18 @@ Every task is not done until:
 
 ### Next Commit
 
-- [ ] v0.4 channel contracts:
-  - [ ] add channel capability types
-  - [ ] add media envelope types
-  - [ ] add delivery result/error types
-  - [ ] add tests for shared contracts
-  - [ ] update channel roadmap docs
+- [x] v0.4 channel contracts:
+  - [x] add channel capability types
+  - [x] add media envelope types
+  - [x] add delivery result/error types
+  - [x] add tests for shared contracts
+  - [x] update channel roadmap docs
 
 ### After That
 
 - [ ] v0.4 channel-specific hardening:
+  - [ ] wire delivery result/error contracts into send paths
+  - [ ] expose channel capabilities through diagnostics/status
   - [ ] WhatsApp diagnostics
   - [ ] Telegram formatting safety
   - [ ] Discord session/thread mapping

@@ -10,6 +10,7 @@ All notable changes to this project are documented in this file.
 - Added atomic draft skill patching through `SkillManager` and `skill_manage.patch_draft`.
 - Added `/skills` for owner-facing skill list, view, and draft patch operations.
 - Added `docs/roadmap/TODO.md` as the master roadmap completion task board.
+- Added shared channel capability, media envelope, and delivery result contracts for the v0.4 reliability slice.
 
 ### Fixed
 - Skill candidate rollback now restores the previous active skill when one existed, or removes the newly activated skill when it did not.

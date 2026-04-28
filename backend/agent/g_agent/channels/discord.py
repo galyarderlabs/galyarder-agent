@@ -11,6 +11,7 @@ from loguru import logger
 from g_agent.bus.events import OutboundMessage
 from g_agent.bus.queue import MessageBus
 from g_agent.channels.base import BaseChannel
+from g_agent.channels.capabilities import DISCORD_CAPABILITIES
 from g_agent.config.loader import get_data_dir
 from g_agent.config.schema import DiscordConfig
 
@@ -22,6 +23,7 @@ class DiscordChannel(BaseChannel):
     """Discord channel using Gateway websocket."""
 
     name = "discord"
+    capabilities = DISCORD_CAPABILITIES
 
     def __init__(self, config: DiscordConfig, bus: MessageBus):
         super().__init__(config, bus)

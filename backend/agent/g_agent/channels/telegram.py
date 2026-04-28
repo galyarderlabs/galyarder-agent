@@ -15,6 +15,7 @@ from telegram.ext import Application, ContextTypes, MessageHandler, filters
 from g_agent.bus.events import OutboundMessage
 from g_agent.bus.queue import MessageBus
 from g_agent.channels.base import BaseChannel
+from g_agent.channels.capabilities import TELEGRAM_CAPABILITIES
 from g_agent.channels.slash_commands import SlashCommandDispatcher
 from g_agent.config.schema import TelegramConfig
 
@@ -95,6 +96,7 @@ class TelegramChannel(BaseChannel):
     """
 
     name = "telegram"
+    capabilities = TELEGRAM_CAPABILITIES
 
     def __init__(
         self,

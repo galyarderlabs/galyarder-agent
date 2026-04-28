@@ -8,6 +8,8 @@ from loguru import logger
 
 from g_agent.bus.events import InboundMessage, OutboundMessage
 from g_agent.bus.queue import MessageBus
+from g_agent.channels.capabilities import DEFAULT_CHANNEL_CAPABILITIES, ChannelCapabilities
+from g_agent.channels.media import normalize_media_envelopes
 
 
 class BaseChannel(ABC):
@@ -19,6 +21,7 @@ class BaseChannel(ABC):
     """
 
     name: str = "base"
+    capabilities: ChannelCapabilities = DEFAULT_CHANNEL_CAPABILITIES
 
     def __init__(self, config: Any, bus: MessageBus):
         """
@@ -31,6 +34,10 @@ class BaseChannel(ABC):
         self.config = config
         self.bus = bus
         self._running = False
+
+    def get_capabilities(self) -> ChannelCapabilities:
+        """Return this channel's runtime capabilities."""
+        return self.capabilities
 
     @abstractmethod
     async def start(self) -> None:
@@ -124,13 +131,24 @@ class BaseChannel(ABC):
             media: Optional list of media URLs.
             metadata: Optional channel-specific metadata.
         """
-        metadata_obj = metadata or {}
+        metadata_obj = dict(metadata or {})
         if not metadata_obj.get("from_me") and not self.is_allowed(sender_id):
             logger.warning(
                 f"Access denied for sender {sender_id} on channel {self.name}. "
                 f"Add them to allowFrom list in config to grant access."
             )
             return
+
+        existing_attachments = metadata_obj.get("attachments")
+        if existing_attachments is not None and not isinstance(existing_attachments, list):
+            existing_attachments = []
+        envelopes = normalize_media_envelopes(
+            media or [],
+            source_channel=self.name,
+            attachments=existing_attachments,
+        )
+        if envelopes:
+            metadata_obj["attachments"] = [envelope.to_metadata() for envelope in envelopes]
 
         msg = InboundMessage(
             channel=self.name,
