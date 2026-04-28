@@ -16,6 +16,7 @@ All notable changes to this project are documented in this file.
 - Added compact WhatsApp bridge diagnostics to `g-agent channels status`.
 - Hardened Telegram Markdown-to-HTML link escaping and added formatting tests.
 - Added Discord DM/thread session mapping metadata.
+- Wired channel long-message splitting through channel capability limits.
 
 ### Fixed
 - Skill candidate rollback now restores the previous active skill when one existed, or removes the newly activated skill when it did not.

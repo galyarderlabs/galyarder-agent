@@ -202,32 +202,32 @@ Status: next best move; partial, not shipped.
   command.
 - [ ] Add `channels/media.py`.
 - [ ] Define normalized inbound media envelope.
-- [ ] Define normalized outbound media envelope.
-- [ ] Include path/url fields.
-- [ ] Include mime type.
-- [ ] Include filename.
-- [ ] Include size.
-- [ ] Include content hash when local file exists.
-- [ ] Include channel metadata.
-- [ ] Keep `InboundMessage.media: list[str]` compatibility while adding richer
+- [x] Define normalized outbound media envelope.
+- [x] Include path/url fields.
+- [x] Include mime type.
+- [x] Include filename.
+- [x] Include size.
+- [x] Include content hash when local file exists.
+- [x] Include channel metadata.
+- [x] Keep `InboundMessage.media: list[str]` compatibility while adding richer
   metadata.
-- [ ] Add `channels/errors.py`.
-- [ ] Define delivery result model.
-- [ ] Define delivery error codes.
-- [ ] Normalize auth failure errors.
-- [ ] Normalize disconnected bridge errors.
-- [ ] Normalize unsupported-media errors.
-- [ ] Normalize sandbox/allowed-path errors.
-- [ ] Normalize rate/flood errors.
-- [ ] Normalize message-too-long errors.
-- [ ] Add shared long-message splitter.
-- [ ] Add per-channel split limits.
+- [x] Add `channels/errors.py`.
+- [x] Define delivery result model.
+- [x] Define delivery error codes.
+- [x] Normalize auth failure errors.
+- [x] Normalize disconnected bridge errors.
+- [x] Normalize unsupported-media errors.
+- [x] Normalize sandbox/allowed-path errors.
+- [x] Normalize rate/flood errors.
+- [x] Normalize message-too-long errors.
+- [x] Add shared long-message splitter.
+- [x] Add per-channel split limits.
 - [ ] Preserve code blocks when splitting where possible.
 - [ ] Preserve links when splitting where possible.
-- [ ] Add tests for splitter edge cases.
-- [ ] Harden WhatsApp bridge diagnostics.
-- [ ] Add WhatsApp QR/login status command or diagnostics surface.
-- [ ] Distinguish bridge disconnected vs auth failed vs media failed.
+- [x] Add tests for splitter edge cases.
+- [x] Harden WhatsApp bridge diagnostics.
+- [x] Add WhatsApp QR/login status command or diagnostics surface.
+- [x] Distinguish bridge disconnected vs auth failed vs media failed.
 - [ ] Improve WhatsApp local-file media send errors.
 - [ ] Improve WhatsApp sandbox/allowed-path error text.
 - [ ] Add WhatsApp media delivery tests.

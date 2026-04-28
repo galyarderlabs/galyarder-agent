@@ -9,6 +9,7 @@ from g_agent.bus.queue import MessageBus
 from g_agent.channels.base import BaseChannel
 from g_agent.channels.capabilities import (
     DISCORD_CAPABILITIES,
+    ChannelCapabilities,
     TELEGRAM_CAPABILITIES,
     WHATSAPP_CAPABILITIES,
     capabilities_for_channel,
@@ -35,6 +36,17 @@ class DummyChannel(BaseChannel):
 class FailingChannel(DummyChannel):
     async def send(self, msg: OutboundMessage) -> None:
         raise FileNotFoundError("media not found: /tmp/missing.png")
+
+
+class SplittingChannel(DummyChannel):
+    capabilities = ChannelCapabilities(max_text_chars=5)
+
+    def __init__(self, config, bus: MessageBus):
+        super().__init__(config, bus)
+        self.sent: list[OutboundMessage] = []
+
+    async def send(self, msg: OutboundMessage) -> None:
+        self.sent.append(msg)
 
 
 def test_base_channel_adds_normalized_media_attachments(tmp_path: Path):
@@ -170,3 +182,35 @@ def test_channel_send_with_result_normalizes_success_and_failure():
     assert failure.ok is False
     assert failure.code == DeliveryErrorCode.MEDIA_NOT_FOUND
     assert failure.metadata["exception"] == "FileNotFoundError"
+
+
+def test_channel_send_with_result_splits_long_text_messages():
+    bus = MessageBus()
+    channel = SplittingChannel(SimpleNamespace(allow_from=[]), bus)
+    msg = OutboundMessage(channel="dummy", chat_id="chat", content="abcdefghij")
+
+    result = asyncio.run(channel.send_with_result(msg))
+
+    assert result.ok is True
+    assert [item.content for item in channel.sent] == ["abcde", "fghij"]
+    assert channel.sent[0].metadata["_split_part"] == 1
+    assert channel.sent[1].metadata["_split_total"] == 2
+
+
+def test_channel_send_with_result_does_not_split_media_messages(tmp_path: Path):
+    bus = MessageBus()
+    channel = SplittingChannel(SimpleNamespace(allow_from=[]), bus)
+    media_path = tmp_path / "image.png"
+    media_path.write_bytes(b"image")
+    msg = OutboundMessage(
+        channel="dummy",
+        chat_id="chat",
+        content="abcdefghij",
+        media=[str(media_path)],
+    )
+
+    result = asyncio.run(channel.send_with_result(msg))
+
+    assert result.ok is True
+    assert len(channel.sent) == 1
+    assert channel.sent[0].content == "abcdefghij"

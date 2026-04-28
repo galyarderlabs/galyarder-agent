@@ -2,6 +2,7 @@
 
 import re
 from abc import ABC, abstractmethod
+from dataclasses import replace
 from typing import Any
 
 from loguru import logger
@@ -70,10 +71,27 @@ class BaseChannel(ABC):
     async def send_with_result(self, msg: OutboundMessage) -> DeliveryResult:
         """Send a message and normalize the delivery outcome."""
         try:
-            await self.send(msg)
+            for chunk in self._split_outbound_message(msg):
+                await self.send(chunk)
             return DeliveryResult.success(channel=self.name, chat_id=msg.chat_id)
         except Exception as exc:
             return self._delivery_failure_from_exception(msg, exc)
+
+    def _split_outbound_message(self, msg: OutboundMessage) -> list[OutboundMessage]:
+        """Split outbound text messages according to channel capability limits."""
+        if msg.media:
+            return [msg]
+        chunks = self.capabilities.split_text(msg.content or "")
+        if len(chunks) <= 1:
+            return [msg]
+        total = len(chunks)
+        split_messages: list[OutboundMessage] = []
+        for index, chunk in enumerate(chunks, start=1):
+            metadata = dict(msg.metadata or {})
+            metadata["_split_part"] = index
+            metadata["_split_total"] = total
+            split_messages.append(replace(msg, content=chunk, metadata=metadata))
+        return split_messages
 
     def _delivery_failure_from_exception(
         self,
