@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -108,6 +107,8 @@ class SubagentManager:
         logger.info(f"Subagent [{task_id}] starting task: {label}")
 
         try:
+            from g_agent.agent.runner import AgentRunSpec, AgentRunner
+
             # Build subagent tools (no message tool, no spawn tool)
             tools = ToolRegistry()
             allowed_dirs = self._allowed_tool_dirs()
@@ -133,59 +134,16 @@ class SubagentManager:
                 {"role": "user", "content": task},
             ]
 
-            # Run agent loop (limited iterations)
-            max_iterations = 15
-            iteration = 0
-            final_result: str | None = None
+            runner = AgentRunner(self.provider)
+            spec = AgentRunSpec(
+                initial_messages=messages, tools=tools, model=self.model, max_iterations=15
+            )
 
-            while iteration < max_iterations:
-                iteration += 1
+            result = await runner.run(spec)
 
-                response = await self.provider.chat(
-                    messages=messages,
-                    tools=tools.get_definitions(),
-                    model=self.model,
-                )
-
-                if response.has_tool_calls:
-                    # Add assistant message with tool calls
-                    tool_call_dicts = [
-                        {
-                            "id": tc.id,
-                            "type": "function",
-                            "function": {
-                                "name": tc.name,
-                                "arguments": json.dumps(tc.arguments),
-                            },
-                        }
-                        for tc in response.tool_calls
-                    ]
-                    messages.append(
-                        {
-                            "role": "assistant",
-                            "content": response.content or "",
-                            "tool_calls": tool_call_dicts,
-                        }
-                    )
-
-                    # Execute tools
-                    for tool_call in response.tool_calls:
-                        args_str = json.dumps(tool_call.arguments)
-                        logger.debug(
-                            f"Subagent [{task_id}] executing: {tool_call.name} with arguments: {args_str}"
-                        )
-                        result = await tools.execute(tool_call.name, tool_call.arguments)
-                        messages.append(
-                            {
-                                "role": "tool",
-                                "tool_call_id": tool_call.id,
-                                "name": tool_call.name,
-                                "content": result,
-                            }
-                        )
-                else:
-                    final_result = response.content
-                    break
+            final_result = result.final_content
+            if result.error:
+                raise Exception(result.error)
 
             if final_result is None:
                 final_result = "Task completed but no final response was generated."

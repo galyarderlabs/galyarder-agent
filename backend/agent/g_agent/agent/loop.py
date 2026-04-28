@@ -59,7 +59,7 @@ from g_agent.agent.tools.integrations import (
 )
 from g_agent.agent.tools.message import MessageTool
 from g_agent.agent.tools.registry import ToolRegistry
-from g_agent.agent.tools.toolsets import ToolsetManager
+from g_agent.agent.tools.toolsets import ToolsetResolver
 from g_agent.agent.tools.shell import ExecTool
 from g_agent.agent.tools.session_search import SessionSearchTool
 from g_agent.agent.tools.skills import SkillManageTool
@@ -193,8 +193,8 @@ class AgentLoop:
         self.active_profile = self.characters.get_default()
         self.runtime = TaskCheckpointStore(workspace)
         self.metrics = MetricsStore(workspace / "state" / "metrics" / "events.jsonl")
-        self.toolsets = ToolsetManager()
         self.tools = ToolRegistry()
+        self.toolsets = ToolsetResolver(self.tools)
         self.mcp = MCPManager(workspace, self.tools)
         self.plugins = plugins if plugins is not None else load_installed_plugins()
         self.subagents = SubagentManager(
@@ -226,7 +226,7 @@ class AgentLoop:
         # 2. Resolve requested sets
         combined = set(requested_tools)
         if requested_sets:
-            combined.update(self.toolsets.resolve(requested_sets))
+            combined.update(self.toolsets.resolve_multiple_toolsets(requested_sets))
 
         # 3. Intersect with actually registered tools
         final_list = [t for t in self.tools.tool_names if t in combined]

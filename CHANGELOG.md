@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [0.1.14] - 2026-04-28
+
 ### Added
 - **Milestone v0.2 first slice**: SQLite-backed session storage with FTS5 search support.
 - **Milestone v0.3 first slice**: shared command router architecture and standardized built-in command context.
@@ -21,9 +23,13 @@ All notable changes to this project are documented in this file.
 - Refactored `ContextBuilder` for deterministic prompt section ordering.
 - Initial `ContextCompressor` with middle-history summarization and tool-output pruning.
 - **Milestone v0.12 first slice**: Toolsets and MCP (Model Context Protocol) integration.
-- `ToolsetManager` for grouping tools and capability-based access control.
+- `ToolsetResolver` for grouping tools and dynamically resolving MCP tool prefixes.
 - `MCPManager` for connecting to external tool servers.
 - `MCPToolWrapper` for dynamic registration of remote tools.
+- `AgentRunner` core orchestration loop, shared across main and subagents.
+- `BaseEnvironment` and `LocalEnvironment` for execution backends.
+- `ExecTool` updated to use `LocalEnvironment` for stateful `spawn-per-call` execution with snapshot management.
+- `SubagentManager` refactored to use the central `AgentRunner`.
 
 ## [0.1.13] - 2026-04-25
 

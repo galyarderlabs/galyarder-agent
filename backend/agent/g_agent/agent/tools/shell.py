@@ -1,4 +1,4 @@
-"""Shell execution tool."""
+"""Shell execution tool using LocalEnvironment."""
 
 import asyncio
 import os
@@ -7,10 +7,11 @@ from pathlib import Path
 from typing import Any
 
 from g_agent.agent.tools.base import Tool
+from g_agent.execution.local import LocalEnvironment
 
 
 class ExecTool(Tool):
-    """Tool to execute shell commands."""
+    """Tool to execute shell commands using stateful local environment."""
 
     def __init__(
         self,
@@ -23,7 +24,7 @@ class ExecTool(Tool):
         allowed_dirs: list[str | Path] | None = None,
     ):
         self.timeout = timeout
-        self.working_dir = working_dir
+        self.working_dir = working_dir or os.getcwd()
         self.deny_patterns = deny_patterns or [
             r"\brm\s+-[rf]{1,2}\b",  # rm -r, rm -rf, rm -fr
             r"\bdel\s+/[fq]\b",  # del /f, del /q
@@ -40,13 +41,22 @@ class ExecTool(Tool):
         self.path_append = path_append or []
         self.allowed_dirs = [Path(path).expanduser().resolve() for path in allowed_dirs or []]
 
+        # Initialize the stateful environment
+        env = os.environ.copy()
+        if self.path_append:
+            custom_paths = os.pathsep.join(self.path_append)
+            old_path = env.get("PATH", "")
+            env["PATH"] = f"{old_path}{os.pathsep}{custom_paths}" if old_path else custom_paths
+
+        self.env = LocalEnvironment(cwd=self.working_dir, timeout=self.timeout, env=env)
+
     @property
     def name(self) -> str:
         return "exec"
 
     @property
     def description(self) -> str:
-        return "Execute a shell command and return its output. Use with caution."
+        return "Execute a shell command and return its output. Session state (env vars, cwd) is preserved across calls."
 
     @property
     def parameters(self) -> dict[str, Any]:
@@ -68,57 +78,44 @@ class ExecTool(Tool):
         command_text = (command or "").strip()
         if not command_text:
             return "Error: command is required"
-        cwd = working_dir or self.working_dir or os.getcwd()
+
+        # Use provided working_dir or let the environment track it natively
+        cwd = working_dir or self.env.cwd
+
         guard_error = self._guard_command(command_text, cwd)
         if guard_error:
             return guard_error
 
-        env = os.environ.copy()
-        if self.path_append:
-            custom_paths = os.pathsep.join(self.path_append)
-            old_path = env.get("PATH", "")
-            env["PATH"] = f"{old_path}{os.pathsep}{custom_paths}" if old_path else custom_paths
-
         try:
-            process = await asyncio.create_subprocess_shell(
-                command_text,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=cwd,
-                env=env,
+            # We run the blocking execute in a thread to keep the async loop responsive
+            loop = asyncio.get_running_loop()
+            result = await loop.run_in_executor(
+                None, lambda: self.env.execute(command_text, cwd=cwd, timeout=self.timeout)
             )
 
-            try:
-                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=self.timeout)
-            except asyncio.TimeoutError:
-                try:
-                    process.kill()
-                    await process.communicate()
-                except ProcessLookupError:
-                    pass
-                return f"Error: Command timed out after {self.timeout} seconds"
+            output = result.get("output", "")
+            returncode = result.get("returncode")
 
             output_parts = []
+            if output:
+                output_parts.append(output)
 
-            if stdout:
-                output_parts.append(stdout.decode("utf-8", errors="replace"))
+            if returncode != 0:
+                output_parts.append(f"\nExit code: {returncode}")
 
-            if stderr:
-                stderr_text = stderr.decode("utf-8", errors="replace")
-                if stderr_text.strip():
-                    output_parts.append(f"STDERR:\n{stderr_text}")
-
-            if process.returncode != 0:
-                output_parts.append(f"\nExit code: {process.returncode}")
-
-            result = "\n".join(output_parts) if output_parts else "(no output)"
+            final_result = "\n".join(output_parts).strip()
+            if not final_result:
+                return "(no output)"
 
             # Truncate very long output
             max_len = 10000
-            if len(result) > max_len:
-                result = result[:max_len] + f"\n... (truncated, {len(result) - max_len} more chars)"
+            if len(final_result) > max_len:
+                final_result = (
+                    final_result[:max_len]
+                    + f"\n... (truncated, {len(final_result) - max_len} more chars)"
+                )
 
-            return result
+            return final_result
 
         except Exception as e:
             return f"Error executing command: {str(e)}"
@@ -147,9 +144,6 @@ class ExecTool(Tool):
                     allowed_roots.append(root)
 
             win_paths = re.findall(r"[A-Za-z]:\\[^\\\"']+", cmd)
-            # Only match absolute paths — avoid false positives on relative
-            # paths like ".venv/bin/python" where "/bin/python" would be
-            # incorrectly extracted by the old pattern.
             posix_paths = re.findall(r"(?:^|[\s|>])(/[^\s\"'>]+)", cmd)
 
             for raw in win_paths + posix_paths:
