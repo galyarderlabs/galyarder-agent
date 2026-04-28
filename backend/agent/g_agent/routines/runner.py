@@ -32,10 +32,9 @@ class RoutineRunner:
                 "toolsets": routine.metadata.get("toolsets", []),
                 "allowed_tools": routine.allowed_tools,
                 "approval_policy": routine.approval_policy,
-                "is_proactive": True
-            }
+                "is_proactive": True,
+            },
         )
-
 
         # Inject into the bus
         await self.bus.publish_inbound(msg)

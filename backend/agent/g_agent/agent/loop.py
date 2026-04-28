@@ -75,6 +75,7 @@ from g_agent.bus.queue import MessageBus
 from g_agent.character.store import CharacterStore
 from g_agent.mcp.manager import MCPManager
 from g_agent.observability.metrics import MetricsStore
+from g_agent.routines.scheduler import RoutineScheduler
 from g_agent.plugins.base import PluginContext
 from g_agent.plugins.loader import load_installed_plugins, register_tool_plugins
 from g_agent.providers.base import LLMProvider
@@ -374,6 +375,11 @@ class AgentLoop:
 
         # Connect to MCP servers
         await self._register_mcp_servers(self.mcp_config)
+
+        # Sync background routines
+        if self.cron_service:
+            scheduler = RoutineScheduler(self.workspace, self.bus, self.cron_service)
+            scheduler.sync()
 
         while self._running:
             try:

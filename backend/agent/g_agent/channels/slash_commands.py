@@ -55,7 +55,10 @@ class SlashCommandDispatcher:
             ("sessions", [], "List recent sessions", ""),
             # Info
             ("status", [], "System diagnostics", ""),
-            ("whoami", [], "Your profile from memory", ""),
+            ("whoami", [], "Your profile info", ""),
+            ("profile", [], "Manage character profiles", "[list|set <id>]"),
+            ("learn", [], "Review learning candidates", "[list|approve|reject <id>]"),
+            ("routines", [], "Manage background tasks", "[list|enable|disable <id>]"),
             ("logs", [], "View recent activity logs", ""),
             ("deny", [], "Deny pending approval", "[tool|all]"),
             ("approve", [], "Approve pending tool call", "[tool|all]"),
@@ -116,11 +119,37 @@ class SlashCommandDispatcher:
             "history": lambda: self._cmd_history(args),
             "sessions": lambda: self._cmd_sessions(),
             "status": lambda: self._cmd_status(session_key),
-            "whoami": lambda: self._cmd_whoami(
+            "whoami": lambda: self._cmd_router(
+                text=text,
+                session_key=session_key,
                 channel=channel,
                 chat_id=chat_id,
-                username=sender_username,
-                user_id=sender_id,
+                sender_username=sender_username,
+                sender_id=sender_id,
+            ),
+            "profile": lambda: self._cmd_router(
+                text=text,
+                session_key=session_key,
+                channel=channel,
+                chat_id=chat_id,
+                sender_username=sender_username,
+                sender_id=sender_id,
+            ),
+            "learn": lambda: self._cmd_router(
+                text=text,
+                session_key=session_key,
+                channel=channel,
+                chat_id=chat_id,
+                sender_username=sender_username,
+                sender_id=sender_id,
+            ),
+            "routines": lambda: self._cmd_router(
+                text=text,
+                session_key=session_key,
+                channel=channel,
+                chat_id=chat_id,
+                sender_username=sender_username,
+                sender_id=sender_id,
             ),
             "logs": lambda: self._cmd_router(
                 text=text,
@@ -390,30 +419,6 @@ class SlashCommandDispatcher:
         lines.append(f"🧠 Memory: {mem_str} · 🔧 Tools: {len(self.tool_names)} registered")
 
         return "\n".join(lines)
-
-    def _cmd_whoami(
-        self,
-        *,
-        channel: str = "",
-        chat_id: str = "",
-        username: str = "",
-        user_id: str = "",
-    ) -> dict:
-        lines = ["🧭 <b>Identity</b>\n"]
-        lines.append(f"<code>Channel : {channel or 'unknown'}</code>")
-        # user_id may contain "id|username" format from telegram
-        clean_id = user_id.split("|")[0] if user_id else chat_id
-        lines.append(f"<code>User ID : {clean_id}</code>")
-        if username:
-            lines.append(f"<code>Username: @{username}</code>")
-        lines.append(f"<code>Session : {channel}:{chat_id}</code>")
-
-        return {
-            "text": "\n".join(lines),
-            "buttons": [
-                [{"text": "📄 View Profile", "data": "/memory"}],
-            ],
-        }
 
     def _cmd_memory(self, query: str) -> str:
         from g_agent.agent.memory import MemoryStore

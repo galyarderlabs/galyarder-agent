@@ -53,7 +53,16 @@ class SkillStore:
 
     def create_draft(self, name: str, content: str) -> Optional[Path]:
         """Create a new draft skill directory and SKILL.md."""
-        draft_path = self.draft_dir / name
+        # Validate name to prevent path traversal
+        if not name or "/" in name or "\\" in name or name.startswith("."):
+            logger.error(f"Invalid skill name for draft: {name}")
+            return None
+
+        draft_path = (self.draft_dir / name).resolve()
+        if self.draft_dir.resolve() not in draft_path.parents:
+            logger.error(f"Path traversal attempt detected: {name}")
+            return None
+
         try:
             draft_path.mkdir(parents=True, exist_ok=True)
             (draft_path / "SKILL.md").write_text(content, encoding="utf-8")

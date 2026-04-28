@@ -39,49 +39,55 @@ class ContextBuilder:
         Build the system prompt from bootstrap files, memory, and skills.
         Follows a deterministic order for stability and caching.
         """
-        sections = []
+        instruction_sections = []
 
         # 1. Platform/System Policy (Static)
-        sections.append(self._get_static_identity())
+        instruction_sections.append(self._get_static_identity())
 
         # 2. Character Profile (Static-ish)
         if profile:
-            sections.append(self._build_profile_section(profile))
+            instruction_sections.append(self._build_profile_section(profile))
 
         # 3. Bootstrap files (AGENTS, SOUL, etc)
         bootstrap = self._load_bootstrap_files()
         if bootstrap:
-            sections.append(bootstrap)
+            instruction_sections.append(bootstrap)
 
         # 4. Tool Awareness
-        sections.append(self._build_tool_awareness(tool_names))
+        instruction_sections.append(self._build_tool_awareness(tool_names))
 
-        # 5. Dynamic Runtime Info (Time, Workspace)
-        sections.append(self._get_runtime_info())
+        system_instructions = "\n\n---\n\n".join(instruction_sections)
 
-        # 6. Relevant Memory
+        # 5. Dynamic Metadata (Fenced)
+        metadata_sections = []
+
+        # Runtime Info (Time, Workspace)
+        metadata_sections.append(self._get_runtime_info())
+
+        # Relevant Memory
         memory = self.memory.get_memory_context(
             query=current_message,
             include_full=not bool(current_message),
         )
         if memory:
-            sections.append(f"# Memory\n\n{memory}")
+            metadata_sections.append(f"# Memory\n\n{memory}")
 
-        # 7. Active Skills
+        # Active Skills
         always_skills = self.skills.get_always_skills()
         if always_skills:
             always_content = self.skills.load_skills_for_context(always_skills)
             if always_content:
-                sections.append(f"# Active Skills\n\n{always_content}")
+                metadata_sections.append(f"# Active Skills\n\n{always_content}")
 
-        # 8. Skills Summary
+        # Skills Summary
         skills_summary = self.skills.build_skills_summary()
         if skills_summary:
-            sections.append(f"# Available Skills\n\n{skills_summary}")
+            metadata_sections.append(f"# Available Skills\n\n{skills_summary}")
 
-        # Combine with clear fencing
-        return "\n\n---\n\n".join(sections)
+        runtime_metadata = "\n\n---\n\n".join(metadata_sections)
 
+        # Final assembly: Instructions followed by Metadata-only section
+        return f"{system_instructions}\n\n{_RUNTIME_CONTEXT_TAG}\n{runtime_metadata}"
 
     @staticmethod
     def strip_runtime_context(text: str) -> str:

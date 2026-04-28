@@ -33,12 +33,30 @@ class RoutineScheduler:
 
     def _schedule_routine(self, routine: Any):
         """Schedule a single routine in the cron service."""
+        from g_agent.cron.types import CronSchedule
 
-        async def _job_wrapper():
-            await self.runner.run(routine)
-            self.store.save(routine)  # Save updated last_run_at
-
-        # We need to map Routine to CronJob in CronService
-        # This depends on how CronService is implemented
         logger.debug(f"Scheduling routine '{routine.name}' with schedule '{routine.schedule}'")
-        # self.cron.add_job(...)
+
+        # Map Routine schedule to CronSchedule
+        # For now we assume routine.schedule is a cron expression
+        schedule = CronSchedule(kind="cron", expr=routine.schedule)
+
+        # We use a unique prefix to identify routine-based jobs in CronService
+        job_name = f"routine:{routine.id}"
+
+        # Check if job already exists to avoid duplicates
+        existing = [j for j in self.cron.list_jobs(include_disabled=True) if j.name == job_name]
+        if existing:
+            # Update existing or skip? For now skip if enabled status matches
+            # In a full implementation, we'd sync all fields.
+            return
+
+        self.cron.add_job(
+            name=job_name,
+            schedule=schedule,
+            message=routine.content_prompt,
+            kind="agent_turn",
+            deliver=True,  # Routines usually want to deliver output
+            channel=routine.destination_channel,
+            to=routine.destination_chat_id,
+        )

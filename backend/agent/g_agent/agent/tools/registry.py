@@ -39,14 +39,14 @@ class ToolRegistry:
     def get_definitions(self, filter_names: list[str] | None = None) -> list[dict[str, Any]]:
         """
         Get tool definitions in OpenAI format.
-        
+
         Args:
-            filter_names: Optional list of tool names to include. 
+            filter_names: Optional list of tool names to include.
                          If None, returns all registered tools.
         """
         if filter_names is None:
             return [tool.to_schema() for tool in self._tools.values()]
-            
+
         definitions = []
         for name in filter_names:
             tool = self._tools.get(name)

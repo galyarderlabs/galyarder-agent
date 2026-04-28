@@ -336,5 +336,8 @@ def register_builtin_commands(router: Any):
         usage="[list|approve|reject <id>]",
     )
     router.register(
-        "routines", cmd_routines, description="Manage background tasks", usage="[list|enable|disable <id>]"
+        "routines",
+        cmd_routines,
+        description="Manage background tasks",
+        usage="[list|enable|disable <id>]",
     )
