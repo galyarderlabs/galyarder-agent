@@ -4,6 +4,14 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Milestone v0.2 first slice**: SQLite-backed session storage with FTS5 search support.
+- **Milestone v0.3 first slice**: shared command router architecture and standardized built-in command context.
+- Dual-write logic in `SessionManager` to sync JSONL transcripts with SQLite database.
+- `SessionSearchTool` for cross-session history recall.
+- `/history`, `/sessions`, `/logs`, `/approve`, and `/deny` slash commands for owner control and diagnostics.
+- `CommandContext` and `CommandRouter` for modular, platform-agnostic command handling.
+
 ## [0.1.13] - 2026-04-25
 
 ### Added

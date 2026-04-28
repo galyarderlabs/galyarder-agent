@@ -555,8 +555,8 @@ the roadmap into versioned build plans without replacing the product thesis in
 this document.
 
 - `docs/roadmap/v0.1-stabilize-current-runtime.md`
-- `docs/roadmap/v0.2-session-store-and-recall.md`
-- `docs/roadmap/v0.3-commands-logs-approvals.md`
+- `docs/roadmap/v0.2-session-store-and-recall.md` — first slice shipped
+- `docs/roadmap/v0.3-commands-logs-approvals.md` — first slice shipped
 - `docs/roadmap/v0.4-core-channel-reliability.md`
 - `docs/roadmap/v0.5-web-ui-openai-api.md`
 - `docs/roadmap/v0.6-character-profiles-visual-identity.md`

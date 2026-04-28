@@ -18,6 +18,21 @@ Galyarder Agent is secured by layered controls:
 5. Monitor runtime logs and rotate secrets on suspicion
 6. Set `channels.whatsapp.bridgeToken` when running WhatsApp bridge in production; if left empty, any localhost client can connect to the bridge.
 
+## Dependency floor
+
+The backend pins a security floor for `python-dotenv` at `>=1.2.2`. `litellm`
+currently declares a narrower transitive pin, so `backend/agent/pyproject.toml`
+uses `tool.uv.override-dependencies` to keep `uv lock` and `uv run` on the
+patched dependency line instead of resolving back to `1.0.1`.
+
+After dependency changes, verify the resolved environment:
+
+```bash
+cd backend/agent
+uv lock
+uv run python -c 'from importlib.metadata import version; print(version("python-dotenv"))'
+```
+
 ## Vulnerability reporting
 
 Use private GitHub advisories:

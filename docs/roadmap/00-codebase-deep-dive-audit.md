@@ -20,15 +20,17 @@ Current important modules:
   `PROFILE.md`, `RELATIONSHIPS.md`, `PROJECTS.md`, `FACTS.md`, `LESSONS.md`,
   `SUMMARIES.md`, and daily notes. Has lightweight retrieval, fact indexing,
   semantic matching, and profile alias compatibility.
-- `session/manager.py`: current session store. Uses one JSONL file per
-  `channel:chat_id` session under the active data directory. Supports archive,
-  digest extraction, listing, and `/new` behavior. It does not have SQLite,
-  FTS5, tool-call tables, media-ref tables, parent session chains, or rich
-  session metadata yet.
-- `channels/slash_commands.py`: existing deterministic command dispatcher.
-  Already has `/start`, `/new`, `/reset`, `/compact`, `/context`, `/status`,
-  `/whoami`, `/memory`, `/model`, `/tools`, `/cron`, `/packs`, `/search`,
-  `/help`, and `/commands`. `/search` currently means web search, not
+- `session/manager.py` and `session/sqlite_store.py`: current session store.
+  JSONL files remain readable under the active data directory while
+  `SessionManager.save()` dual-writes to SQLite. The SQLite store has WAL,
+  FTS5, tool-call rows, media refs, and channel/session filtering. Explicit
+  historical JSONL backfill and richer search context windows are still
+  follow-up work.
+- `channels/slash_commands.py` and `command/`: deterministic command
+  dispatcher. Already has `/start`, `/new`, `/reset`, `/compact`, `/context`,
+  `/status`, `/whoami`, `/memory`, `/model`, `/tools`, `/cron`, `/packs`,
+  `/search`, `/history`, `/sessions`, `/logs`, `/approve`, `/deny`, `/help`,
+  and `/commands`. `/search` currently means web search; `/history` is
   cross-session search.
 - `channels/base.py`: base channel abstraction with allowlist checks and
   `InboundMessage` publishing.
@@ -229,16 +231,18 @@ focused image proxy tests.
 
 ### v0.2 Session Store
 
-Current repo has JSONL sessions through `SessionManager`. This is readable but
-not enough for cross-session recall. It needs a SQLite store either as a new
-backend or as a migration layer behind the existing `SessionManager` API.
+Current repo keeps JSONL sessions readable through `SessionManager` and now
+dual-writes into `SessionSQLiteStore` with WAL, FTS5, channel/session filters,
+tool-call metadata, and media refs. The remaining gap is explicit historical
+JSONL backfill plus richer context windows around search hits.
 
 ### v0.3 Commands And Approvals
 
-Current repo already has `SlashCommandDispatcher` and a basic approval mode in
-`AgentLoop`. It does not yet have a proper command package, `/approve` and
-`/deny` command handlers, a persisted pending approval queue, or chat-friendly
-approval lifecycle.
+Current repo now has `SlashCommandDispatcher`, `g_agent.command`, shared quoted
+argument parsing, `/logs`, `/history`, `/sessions`, `/approve`, and `/deny`.
+`AgentLoop` still owns live approval replay. Remaining gaps are a persisted
+approval state model, narrow allowlists, broader command handler extraction, and
+a dedicated risky-action classifier test matrix.
 
 ### v0.4 Channel Reliability
 

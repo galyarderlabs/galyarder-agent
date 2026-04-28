@@ -10,8 +10,8 @@ and acceptance criteria.
 
 - [Codebase Deep-Dive Audit](00-codebase-deep-dive-audit.md)
 - [v0.1: Stabilize Current Runtime](v0.1-stabilize-current-runtime.md)
-- [v0.2: Session Store And Recall](v0.2-session-store-and-recall.md)
-- [v0.3: Commands, Logs, And Approvals](v0.3-commands-logs-approvals.md)
+- [v0.2: Session Store And Recall](v0.2-session-store-and-recall.md) — first slice shipped
+- [v0.3: Commands, Logs, And Approvals](v0.3-commands-logs-approvals.md) — first slice shipped
 - [v0.4: Core Channel Reliability](v0.4-core-channel-reliability.md)
 - [v0.5: Web UI And OpenAI-Compatible API](v0.5-web-ui-openai-api.md)
 - [v0.6: Character Profiles And Visual Identity](v0.6-character-profiles-visual-identity.md)

@@ -38,8 +38,8 @@ Current G-Agent already has useful foundations:
 | --- | --- | --- | --- |
 | Memory | `backend/agent/g_agent/agent/memory.py` | Markdown memory files, profile, relationships, projects, facts scaffold. | Needs structured recall, review queue, context fencing, and write lifecycle. |
 | Skills | `backend/agent/g_agent/agent/skills.py` | Built-in and workspace `SKILL.md` loader with metadata and requirements. | Needs create/patch/validate/activate lifecycle and procedural learning loop. |
-| Sessions | `backend/agent/g_agent/session/manager.py` | JSONL sessions with metadata, cache, archive/delete/list. | Needs SQLite, FTS5 search, concurrent gateway safety, source filtering, and cost/tool metadata. |
-| Commands | `backend/agent/g_agent/channels/slash_commands.py` | Native slash commands for status, context, memory, model, cron, tools, search. | Needs approvals, logs, session search, skills, learning review, and cross-channel consistency. |
+| Sessions | `backend/agent/g_agent/session/manager.py`, `backend/agent/g_agent/session/sqlite_store.py` | JSONL sessions remain readable, with a SQLite dual-write store, WAL, FTS5 search, media refs, and tool-call metadata. | Needs explicit JSONL backfill/import and richer context windows around search hits. |
+| Commands | `backend/agent/g_agent/channels/slash_commands.py`, `backend/agent/g_agent/command/` | Native slash commands now include shared parsing for direct CLI/chat, `/history`, `/sessions`, `/logs`, `/approve`, and `/deny`. | Needs first-class persisted approval state, narrow allowlists, skills commands, learning review, and broader handler extraction. |
 | Channels | `backend/agent/g_agent/channels/` | WhatsApp, Telegram, Discord, Slack, email, manager. | Needs media reliability, session mapping, errors, reconnect behavior, and tests. |
 | Cron/proactive | `backend/agent/g_agent/cron/`, `backend/agent/g_agent/proactive/` | Existing scheduling/proactive surface. | Needs routine model tied to character, approvals, destination channels, and script preprocessing. |
 
@@ -49,8 +49,8 @@ Current G-Agent already has useful foundations:
 
 | Capability | Source | Evidence files | Decision | Fit for G-Agent | Implementation notes |
 | --- | --- | --- | --- | --- | --- |
-| SQLite session database | Hermes | `hermes-agent-ref/hermes_state.py` | Adopt | This is the substrate for long-term character continuity. JSONL is readable but weak for search, concurrency, and analytics. | Add `g_agent/session/store.py` with sessions/messages tables, WAL, FTS5, source/channel metadata, parent session ids, token/tool counters, and migration from existing JSONL. |
-| Full-text session search | Hermes | `hermes-agent-ref/hermes_state.py`, `hermes-agent-ref/tools/session_search_tool.py` | Adopt | The character must recall old conversations, decisions, commands, and owner preferences. | Build `session_search` tool and `/search` command. Summarize top sessions with auxiliary model. Preserve paths, commands, URLs, decisions, and unresolved items. |
+| SQLite session database | Hermes | `hermes-agent-ref/hermes_state.py` | Adopted first slice | This is the substrate for long-term character continuity. JSONL is readable but weak for search, concurrency, and analytics. | `SessionSQLiteStore` now provides sessions/messages tables, WAL, FTS5, source/channel metadata, token/tool counters, and media refs. Keep JSONL compatibility; add explicit historical backfill later. |
+| Full-text session search | Hermes | `hermes-agent-ref/hermes_state.py`, `hermes-agent-ref/tools/session_search_tool.py` | Adopted first slice | The character must recall old conversations, decisions, commands, and owner preferences. | `session_search` and `/history` now search SQLite-backed sessions while `/search` remains web search. Rich summaries/context windows remain follow-up work. |
 | Session title/lineage | Hermes | `hermes-agent-ref/hermes_state.py`, `hermes-agent-ref/agent/title_generator.py` | Adapt | Useful for Web UI and owner review. Parent chains matter after compression. | Add automatic titles later, but start with channel/source/date and optional title. |
 | Cost/token/session insights | Hermes | `hermes-agent-ref/hermes_state.py`, `hermes-agent-ref/agent/insights.py` | Later | Useful for owner trust and debugging, but after session store lands. | Add token/cost fields now, dashboards later. |
 | JSONL-only session persistence | Current G-Agent | `backend/agent/g_agent/session/manager.py` | Replace gradually | Good for simplicity, insufficient for G-Agent's memory ambitions. | Keep export/import compatibility while moving primary store to SQLite. |
@@ -91,9 +91,9 @@ Current G-Agent already has useful foundations:
 
 | Capability | Source | Evidence files | Decision | Fit for G-Agent | Implementation notes |
 | --- | --- | --- | --- | --- | --- |
-| Native slash command router | Current G-Agent + Nanobot + Hermes | `backend/agent/g_agent/channels/slash_commands.py`, `nanobot-ref/nanobot/command/router.py`, `hermes-agent-ref/hermes_cli/commands.py` | Adopt | Owner needs deterministic controls without LLM ambiguity. | Extend existing dispatcher instead of replacing it. |
-| Dangerous command approval | Hermes | `hermes-agent-ref/tools/approval.py` | Adopt | Directly addresses user concern about exec approvals and unsafe local actions. | Add pattern detection, per-session pending state, `/approve`, `/deny`, narrow allowlist. |
-| Logs/status commands | Current G-Agent + Hermes | `backend/agent/g_agent/channels/slash_commands.py`, `hermes-agent-ref/hermes_cli/logs.py`, `hermes-agent-ref/gateway/status.py` | Adopt | Debugging via chat is essential for owner runtime. | Add `/logs` and richer `/status` across all primary channels. |
+| Native slash command router | Current G-Agent + Nanobot + Hermes | `backend/agent/g_agent/channels/slash_commands.py`, `nanobot-ref/nanobot/command/router.py`, `hermes-agent-ref/hermes_cli/commands.py` | Adopted first slice | Owner needs deterministic controls without LLM ambiguity. | `g_agent/command` now provides shared command context/router and quoted-argument parsing. Continue moving legacy handlers out of `channels/slash_commands.py`. |
+| Dangerous command approval | Hermes | `hermes-agent-ref/tools/approval.py` | Adopted first slice | Directly addresses user concern about exec approvals and unsafe local actions. | `/approve` now passes through to live replay and `/deny` clears pending session approvals. Add persisted approval state and narrow allowlists next. |
+| Logs/status commands | Current G-Agent + Hermes | `backend/agent/g_agent/channels/slash_commands.py`, `hermes-agent-ref/hermes_cli/logs.py`, `hermes-agent-ref/gateway/status.py` | Adopted first slice | Debugging via chat is essential for owner runtime. | `/logs` now reads bounded task checkpoints with obvious secret redaction. Richer status remains follow-up. |
 | Permission policy UI | Hermes | `hermes-agent-ref/tools/approval.py` | Adapt | Useful but must be simpler than Hermes initially. | Chat first, Web UI later. |
 | Natural-language operational commands only | Existing behavior risk | N/A | Drop | Too ambiguous for safety-critical actions. | Keep deterministic slash commands. |
 
@@ -177,10 +177,12 @@ Current G-Agent already has useful foundations:
 
 ### Milestone 1: Inspectable Runtime
 
-1. Add SQLite session store behind current session manager.
-2. Add FTS search and `/search`.
-3. Add `/logs`, richer `/status`, and `/sessions`.
-4. Add dangerous action approval state and `/approve`/`/deny`.
+1. Completed first slice: SQLite session store behind current session manager.
+2. Completed first slice: FTS search via `session_search` and `/history` while
+   keeping `/search` as web search.
+3. Completed first slice: `/logs` and `/sessions`; richer `/status` remains.
+4. Completed first slice: `/approve` pass-through and `/deny`; persisted
+   approval state and narrow allowlists remain.
 5. Fix image proxy docs/config and remove dead Nebius assumptions.
 
 Why first: the owner needs to see what happened, approve risky work, and retrieve old context before any self-improvement loop can be trusted.
