@@ -283,9 +283,10 @@ Status: partial; minimal API shipped, WebSocket/Web UI/media/approvals remain.
 - [x] Add `GET /approvals`.
 - [x] Add `POST /approvals/{id}/approve`.
 - [x] Add `POST /approvals/{id}/deny`.
-- [ ] Add `GET /learning`.
-- [ ] Add learning candidate detail endpoint.
-- [ ] Add learning approve/reject/edit/apply endpoints.
+- [x] Add `GET /learning`.
+- [x] Add learning candidate detail endpoint.
+- [x] Add learning approve/reject/edit endpoints.
+- [ ] Add learning apply endpoint.
 - [ ] Add `GET /profiles`.
 - [ ] Add profile detail endpoint.
 - [ ] Add profile switch endpoint after profile isolation is implemented.

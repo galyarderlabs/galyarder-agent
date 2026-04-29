@@ -5,8 +5,10 @@ from typing import Any
 
 from aiohttp.test_utils import TestClient, TestServer
 
-from g_agent.api.server import APPROVALS_KEY, SESSIONS_KEY, create_app
+from g_agent.api.server import APPROVALS_KEY, LEARNING_KEY, SESSIONS_KEY, create_app
 from g_agent.config.schema import Config
+from g_agent.learning.candidate import LearningCandidate
+from g_agent.learning.queue import LearningQueue
 from g_agent.security.approval_state import ApprovalStateStore
 from g_agent.session.manager import SessionManager
 
@@ -189,5 +191,63 @@ async def test_api_approves_approval_as_session_allowlist(tmp_path: Path, monkey
         assert payload["data"]["scope"] == "session"
         assert approvals.get(record.id).status == "approved"
         assert approvals.is_tool_allowed(session_key="api:room-1", tool_name="exec")
+    finally:
+        await client.close()
+
+
+async def test_api_learning_list_detail_and_status_update(tmp_path: Path, monkeypatch) -> None:
+    client = await _client(tmp_path, monkeypatch)
+    try:
+        queue: LearningQueue = client.app[LEARNING_KEY]
+        candidate = LearningCandidate(
+            id="cand-1",
+            kind="memory",
+            title="Remember preference",
+            rationale="Owner stated a durable preference.",
+            content={"text": "Owner prefers concise updates."},
+        )
+        assert queue.add(candidate)
+
+        listed = await client.get("/learning")
+        assert listed.status == 200
+        listed_payload = await listed.json()
+        assert listed_payload["data"][0]["id"] == "cand-1"
+
+        detail = await client.get("/learning/cand-1")
+        assert detail.status == 200
+        detail_payload = await detail.json()
+        assert detail_payload["data"]["content"]["text"] == "Owner prefers concise updates."
+
+        approved = await client.post("/learning/cand-1/approve")
+        assert approved.status == 200
+        approved_payload = await approved.json()
+        assert approved_payload["data"]["status"] == "approved"
+    finally:
+        await client.close()
+
+
+async def test_api_learning_edit_candidate(tmp_path: Path, monkeypatch) -> None:
+    client = await _client(tmp_path, monkeypatch)
+    try:
+        queue: LearningQueue = client.app[LEARNING_KEY]
+        assert queue.add(
+            LearningCandidate(
+                id="cand-edit",
+                kind="tool_quirk",
+                title="Tool quirk",
+                rationale="Repeated failure",
+                content={"tool": "exec", "note": "old"},
+            )
+        )
+
+        edited = await client.post(
+            "/learning/cand-edit/edit",
+            json={"content": {"tool": "exec", "note": "new"}, "diff_preview": "old -> new"},
+        )
+
+        assert edited.status == 200
+        payload = await edited.json()
+        assert payload["data"]["content"]["note"] == "new"
+        assert payload["data"]["diff_preview"] == "old -> new"
     finally:
         await client.close()

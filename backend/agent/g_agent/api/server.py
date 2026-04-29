@@ -10,6 +10,8 @@ from g_agent import __version__
 from g_agent.agent.api import Agent
 from g_agent.config.loader import load_config
 from g_agent.config.schema import Config
+from g_agent.learning.candidate import LearningCandidate
+from g_agent.learning.queue import LearningQueue, VALID_STATUSES
 from g_agent.security.approval_state import ApprovalRecord, ApprovalStateStore
 from g_agent.session.manager import SessionManager
 
@@ -18,6 +20,7 @@ CONFIG_KEY = web.AppKey("config", Config)
 AGENT_KEY = web.AppKey("agent", object)
 SESSIONS_KEY = web.AppKey("sessions", SessionManager)
 APPROVALS_KEY = web.AppKey("approvals", ApprovalStateStore)
+LEARNING_KEY = web.AppKey("learning", LearningQueue)
 
 
 class ApiError(Exception):
@@ -39,6 +42,7 @@ def create_app(
     resolved_config = config or load_config()
     resolved_sessions = session_manager or SessionManager(resolved_config.workspace_path)
     resolved_approvals = ApprovalStateStore(resolved_config.workspace_path)
+    resolved_learning = LearningQueue(resolved_config.workspace_path)
     app = web.Application(
         middlewares=[
             _error_middleware,
@@ -50,6 +54,7 @@ def create_app(
     app[AGENT_KEY] = agent
     app[SESSIONS_KEY] = resolved_sessions
     app[APPROVALS_KEY] = resolved_approvals
+    app[LEARNING_KEY] = resolved_learning
 
     app.router.add_get("/health", _health)
     app.router.add_get("/status", _status)
@@ -58,6 +63,11 @@ def create_app(
     app.router.add_get("/approvals", _approvals)
     app.router.add_post("/approvals/{approval_id}/approve", _approval_approve)
     app.router.add_post("/approvals/{approval_id}/deny", _approval_deny)
+    app.router.add_get("/learning", _learning)
+    app.router.add_get("/learning/{candidate_id}", _learning_detail)
+    app.router.add_post("/learning/{candidate_id}/approve", _learning_approve)
+    app.router.add_post("/learning/{candidate_id}/reject", _learning_reject)
+    app.router.add_post("/learning/{candidate_id}/edit", _learning_edit)
     app.router.add_get("/v1/models", _models)
     app.router.add_post("/v1/chat/completions", _chat_completions)
     return app
@@ -200,6 +210,56 @@ async def _approval_deny(request: web.Request) -> web.Response:
     return web.json_response({"data": _approval_json(updated)})
 
 
+async def _learning(request: web.Request) -> web.Response:
+    queue = request.app[LEARNING_KEY]
+    status = request.query.get("status") or "pending"
+    if status == "all":
+        status = None
+    if status is not None and status not in VALID_STATUSES:
+        raise ApiError(400, "invalid_status", "invalid learning candidate status")
+    return web.json_response({"data": [_candidate_json(item) for item in queue.list(status=status)]})
+
+
+async def _learning_detail(request: web.Request) -> web.Response:
+    queue = request.app[LEARNING_KEY]
+    candidate = queue.get(request.match_info["candidate_id"])
+    if candidate is None:
+        raise ApiError(404, "not_found", "learning candidate not found")
+    return web.json_response({"data": _candidate_json(candidate)})
+
+
+async def _learning_approve(request: web.Request) -> web.Response:
+    return await _learning_set_status(request, "approved")
+
+
+async def _learning_reject(request: web.Request) -> web.Response:
+    return await _learning_set_status(request, "rejected")
+
+
+async def _learning_set_status(request: web.Request, status: str) -> web.Response:
+    queue = request.app[LEARNING_KEY]
+    candidate_id = request.match_info["candidate_id"]
+    if not queue.update_status(candidate_id, status):
+        raise ApiError(404, "not_found", "learning candidate not found")
+    candidate = queue.get(candidate_id)
+    return web.json_response({"data": _candidate_json(candidate)})
+
+
+async def _learning_edit(request: web.Request) -> web.Response:
+    queue = request.app[LEARNING_KEY]
+    candidate_id = request.match_info["candidate_id"]
+    payload = await request.json()
+    if not isinstance(payload, dict) or not isinstance(payload.get("content"), dict):
+        raise ApiError(400, "invalid_request", "content object is required")
+    diff_preview = payload.get("diff_preview")
+    if diff_preview is not None and not isinstance(diff_preview, str):
+        raise ApiError(400, "invalid_request", "diff_preview must be a string")
+    if not queue.update_content(candidate_id, payload["content"], diff_preview=diff_preview):
+        raise ApiError(404, "not_found", "learning candidate not found or cannot be edited")
+    candidate = queue.get(candidate_id)
+    return web.json_response({"data": _candidate_json(candidate)})
+
+
 async def _models(request: web.Request) -> web.Response:
     config = request.app[CONFIG_KEY]
     model_ids = [config.agents.defaults.model, *config.agents.defaults.routing.fallback_models]
@@ -318,6 +378,12 @@ def _approval_json(record: ApprovalRecord | None) -> dict[str, Any]:
     if record is None:
         return {}
     return record.model_dump()
+
+
+def _candidate_json(candidate: LearningCandidate | None) -> dict[str, Any]:
+    if candidate is None:
+        return {}
+    return candidate.model_dump(mode="json")
 
 
 def _json_error(status: int, code: str, message: str) -> web.Response:

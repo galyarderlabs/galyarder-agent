@@ -28,6 +28,7 @@ All notable changes to this project are documented in this file.
 - Added scoped approval allowlists through `/approve session <tool>` and `/approve always <tool>`.
 - Added `/approvals clear <id|all>` for removing pending or allowlisted approval records.
 - Added product API approval endpoints for listing, approving, and denying approval records.
+- Added product API learning endpoints for listing, inspecting, approving, rejecting, and editing candidates.
 
 ### Fixed
 - Skill candidate rollback now restores the previous active skill when one existed, or removes the newly activated skill when it did not.
