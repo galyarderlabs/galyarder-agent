@@ -58,6 +58,17 @@ async def _client(
     return client
 
 
+def _skill_md(name: str, body: str) -> str:
+    return f"""---
+name: {name}
+description: Test skill for API learning apply coverage.
+---
+# {name}
+
+{body}
+"""
+
+
 async def test_api_health_status_and_models(tmp_path: Path, monkeypatch) -> None:
     client = await _client(tmp_path, monkeypatch)
     try:
@@ -249,6 +260,58 @@ async def test_api_learning_edit_candidate(tmp_path: Path, monkeypatch) -> None:
         payload = await edited.json()
         assert payload["data"]["content"]["note"] == "new"
         assert payload["data"]["diff_preview"] == "old -> new"
+    finally:
+        await client.close()
+
+
+async def test_api_learning_apply_skill_candidate(tmp_path: Path, monkeypatch) -> None:
+    client = await _client(tmp_path, monkeypatch)
+    try:
+        queue: LearningQueue = client.app[LEARNING_KEY]
+        assert queue.add(
+            LearningCandidate(
+                id="cand-apply",
+                kind="skill",
+                title="Apply skill",
+                rationale="Owner approved reusable workflow.",
+                content={"name": "release", "content": _skill_md("release", "api body")},
+            )
+        )
+
+        applied = await client.post("/learning/cand-apply/apply")
+
+        assert applied.status == 200
+        payload = await applied.json()
+        assert payload["data"]["status"] == "applied"
+        assert payload["result"]["code"] == "applied"
+        skill_md = tmp_path / "skills" / "release" / "SKILL.md"
+        assert "api body" in skill_md.read_text(encoding="utf-8")
+    finally:
+        await client.close()
+
+
+async def test_api_learning_apply_rejects_non_skill_candidate(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    client = await _client(tmp_path, monkeypatch)
+    try:
+        queue: LearningQueue = client.app[LEARNING_KEY]
+        assert queue.add(
+            LearningCandidate(
+                id="cand-memory",
+                kind="memory",
+                title="Remember preference",
+                rationale="Owner stated a durable preference.",
+                content={"text": "Owner prefers direct updates."},
+            )
+        )
+
+        rejected = await client.post("/learning/cand-memory/apply")
+
+        assert rejected.status == 400
+        payload = await rejected.json()
+        assert payload["error"]["code"] == "unsupported_kind"
     finally:
         await client.close()
 

@@ -29,6 +29,7 @@ All notable changes to this project are documented in this file.
 - Added `/approvals clear <id|all>` for removing pending or allowlisted approval records.
 - Added product API approval endpoints for listing, approving, and denying approval records.
 - Added product API learning endpoints for listing, inspecting, approving, rejecting, and editing candidates.
+- Added product API learning apply support for skill candidates through the shared learning applier.
 - Added product API profile endpoints for listing and inspecting character profiles.
 - Added `api/openai_compat.py` for text-only OpenAI-compatible model, message, and chat response helpers.
 

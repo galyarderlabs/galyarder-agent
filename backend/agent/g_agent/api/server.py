@@ -16,6 +16,7 @@ from g_agent.character.profile import CharacterProfile
 from g_agent.character.store import CharacterStore
 from g_agent.config.loader import load_config
 from g_agent.config.schema import Config
+from g_agent.learning.apply import LearningApplyResult, apply_learning_candidate
 from g_agent.learning.candidate import LearningCandidate
 from g_agent.learning.queue import LearningQueue, VALID_STATUSES
 from g_agent.security.approval_state import ApprovalRecord, ApprovalStateStore
@@ -77,6 +78,7 @@ def create_app(
     app.router.add_post("/learning/{candidate_id}/approve", _learning_approve)
     app.router.add_post("/learning/{candidate_id}/reject", _learning_reject)
     app.router.add_post("/learning/{candidate_id}/edit", _learning_edit)
+    app.router.add_post("/learning/{candidate_id}/apply", _learning_apply)
     app.router.add_get("/profiles", _profiles)
     app.router.add_get("/profiles/{profile_id}", _profile_detail)
     app.router.add_get("/v1/models", _models)
@@ -271,6 +273,24 @@ async def _learning_edit(request: web.Request) -> web.Response:
     return web.json_response({"data": _candidate_json(candidate)})
 
 
+async def _learning_apply(request: web.Request) -> web.Response:
+    config = request.app[CONFIG_KEY]
+    result = apply_learning_candidate(config.workspace_path, request.match_info["candidate_id"])
+    if not result.ok:
+        status = 404 if result.code == "not_found" else 400
+        raise ApiError(status, result.code, _apply_error_message(result))
+    return web.json_response(
+        {
+            "data": _candidate_json(result.candidate),
+            "result": {
+                "code": result.code,
+                "message": result.message,
+                "errors": result.errors,
+            },
+        }
+    )
+
+
 async def _profiles(request: web.Request) -> web.Response:
     characters = request.app[CHARACTERS_KEY]
     characters.setup_default_profiles()
@@ -368,6 +388,12 @@ def _candidate_json(candidate: LearningCandidate | None) -> dict[str, Any]:
 
 def _profile_json(profile: CharacterProfile) -> dict[str, Any]:
     return profile.model_dump(mode="json")
+
+
+def _apply_error_message(result: LearningApplyResult) -> str:
+    if result.errors:
+        return result.message + ": " + "; ".join(result.errors)
+    return result.message
 
 
 def _json_error(status: int, code: str, message: str) -> web.Response:

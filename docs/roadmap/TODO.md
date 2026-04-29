@@ -286,7 +286,7 @@ Status: partial; minimal API shipped, WebSocket/Web UI/media/streaming remain.
 - [x] Add `GET /learning`.
 - [x] Add learning candidate detail endpoint.
 - [x] Add learning approve/reject/edit endpoints.
-- [ ] Add learning apply endpoint.
+- [x] Add learning apply endpoint.
 - [x] Add `GET /profiles`.
 - [x] Add profile detail endpoint.
 - [ ] Add profile switch endpoint after profile isolation is implemented.

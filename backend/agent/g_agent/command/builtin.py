@@ -232,8 +232,6 @@ async def cmd_profile(ctx: CommandContext) -> str:
 
 async def cmd_learn(ctx: CommandContext) -> str:
     """Manage the learning queue."""
-    from datetime import datetime
-
     from g_agent.learning.queue import LearningQueue
 
     queue = LearningQueue(ctx.workspace)
@@ -310,31 +308,21 @@ async def cmd_learn(ctx: CommandContext) -> str:
                 f"<b>{skill_name}</b> restored."
             )
 
-        if c.status not in {"pending", "approved"}:
-            return f"⚠️ Candidate <code>{candidate_id}</code> cannot be applied from {c.status}."
+        from g_agent.learning.apply import apply_learning_candidate
 
-        draft_content = c.content.get("content") or c.content.get("skill_md")
-        if isinstance(draft_content, str) and not skills.store.get_skill_path(
-            skill_name, location="draft"
-        ):
-            ok, errors = skills.create_draft(skill_name, draft_content)
-            if not ok:
+        result = apply_learning_candidate(ctx.workspace, candidate_id)
+        if not result.ok:
+            if result.code == "invalid_status":
+                return f"⚠️ Candidate <code>{candidate_id}</code> cannot be applied from {c.status}."
+            if result.code == "draft_validation_failed":
                 return "⚠️ Skill draft validation failed:\n" + "\n".join(
-                    f"- {e}" for e in errors
+                    f"- {e}" for e in result.errors
                 )
-
-        ok, errors, metadata = skills.activate_skill_with_metadata(
-            skill_name, activation_id=candidate_id
-        )
-        if not ok:
-            return "⚠️ Skill activation failed:\n" + "\n".join(f"- {e}" for e in errors)
-
-        queue.update_status(
-            candidate_id,
-            "applied",
-            applied_at=datetime.now(),
-            metadata={"skill_activation": metadata},
-        )
+            if result.code == "activation_failed":
+                return "⚠️ Skill activation failed:\n" + "\n".join(
+                    f"- {e}" for e in result.errors
+                )
+            return f"⚠️ {result.message}"
         return (
             f"✅ Candidate <code>{candidate_id}</code> applied and skill "
             f"<b>{skill_name}</b> activated."
