@@ -610,13 +610,14 @@ Status: partial; trigger/workflow depth missing.
 - [x] Routine scheduler skeleton exists.
 - [x] Cron bridge exists.
 - [x] `/routines` management command exists.
-- [ ] Add script pre-processing step.
-- [ ] Run approved script before agent turn.
-- [ ] Capture stdout as context.
-- [ ] Capture stderr as diagnostics.
-- [ ] Bound script runtime.
-- [ ] Bound script output size.
-- [ ] Apply tool/approval policy to script routines.
+- [x] Add script pre-processing step.
+- [x] Run approved script before agent turn.
+- [x] Capture stdout as context.
+- [x] Capture stderr as diagnostics.
+- [x] Bound script runtime.
+- [x] Bound script output size.
+- [x] Apply approval policy to script routines by blocking scripts when
+  `approval_policy=never`.
 - [ ] Add multi-skill workflow model.
 - [ ] Add routine step list.
 - [ ] Add step-level allowed tools.
@@ -635,11 +636,11 @@ Status: partial; trigger/workflow depth missing.
 
 First PR boundary:
 
-- [ ] Script preprocessing for routines with bounded stdout context.
+- [x] Script preprocessing for routines with bounded stdout context.
 
 Verification target:
 
-- [ ] Add/extend `tests/test_routines_*.py`.
+- [x] Add/extend `tests/test_routines_*.py`.
 - [ ] Existing cron/proactive tests still pass.
 
 ## v0.12: Toolsets, MCP, And Execution Backends
@@ -780,6 +781,6 @@ Every task is not done until:
 ### Then
 
 - [x] v0.10 compression integration.
-- [ ] v0.11 routine script preprocessing.
+- [x] v0.11 routine script preprocessing.
 - [ ] v0.12 streamable HTTP MCP.
 - [ ] v0.5 minimal product API.
