@@ -101,6 +101,17 @@ class SlackChannelConfig(BaseModel):
     dm: SlackDMConfig = Field(default_factory=SlackDMConfig)
 
 
+class WebSocketChannelConfig(BaseModel):
+    """Local WebSocket channel configuration for the first-party control room."""
+
+    enabled: bool = False
+    host: str = "127.0.0.1"
+    port: int = 8787
+    path: str = "/ws"
+    token: str = ""
+    allow_from: list[str] = Field(default_factory=list)
+
+
 class ChannelsConfig(BaseModel):
     """Configuration for chat channels."""
 
@@ -109,6 +120,7 @@ class ChannelsConfig(BaseModel):
     discord: DiscordConfig = Field(default_factory=DiscordConfig)
     email: EmailConfig = Field(default_factory=EmailConfig)
     slack_channel: SlackChannelConfig = Field(default_factory=SlackChannelConfig)
+    websocket: WebSocketChannelConfig = Field(default_factory=WebSocketChannelConfig)
 
 
 class RoutingConfig(BaseModel):

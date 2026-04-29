@@ -299,9 +299,9 @@ Status: partial; minimal API shipped, WebSocket/Web UI/media/streaming remain.
 - [ ] Normalize base64 data URLs.
 - [ ] Add remote URL policy for multimodal input.
 - [ ] Add `POST /v1/responses` later.
-- [ ] Add `channels/websocket.py`.
-- [ ] Add WebSocket token auth.
-- [ ] Add WebSocket session mapping.
+- [x] Add `channels/websocket.py`.
+- [x] Add WebSocket token auth.
+- [x] Add WebSocket session mapping.
 - [ ] Add streaming deltas.
 - [ ] Add lifecycle events.
 - [ ] Add tool-call events.

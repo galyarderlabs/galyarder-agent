@@ -138,6 +138,18 @@ class ChannelManager:
             except ImportError as e:
                 logger.warning(f"Slack channel not available: {e}")
 
+        if self.config.channels.websocket.enabled:
+            try:
+                from g_agent.channels.websocket import WebSocketChannel
+
+                self.channels["websocket"] = WebSocketChannel(
+                    self.config.channels.websocket,
+                    self.bus,
+                )
+                logger.info("WebSocket channel enabled")
+            except ImportError as e:
+                logger.warning(f"WebSocket channel not available: {e}")
+
         if self.plugins:
             context = PluginContext(
                 workspace=self.config.workspace_path,

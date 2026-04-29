@@ -34,6 +34,7 @@ All notable changes to this project are documented in this file.
 - Added `api/openai_compat.py` for text-only OpenAI-compatible model, message, and chat response helpers.
 - Added multipart product API media uploads that persist files under the workspace and write session media references.
 - Added SSE chat-completion responses for OpenAI-compatible `stream=true` API calls.
+- Added a local WebSocket channel slice with token auth, inbound session mapping, outbound sends, and channel manager registration.
 
 ### Fixed
 - Skill candidate rollback now restores the previous active skill when one existed, or removes the newly activated skill when it did not.
