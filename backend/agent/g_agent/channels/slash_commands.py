@@ -10,7 +10,7 @@ import math
 import os
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
@@ -178,7 +178,7 @@ class SlashCommandDispatcher:
                 sender_username=sender_username,
                 sender_id=sender_id,
             ),
-            "approvals": lambda: self._cmd_approvals(session_key),
+            "approvals": lambda: self._cmd_approvals(session_key, args),
             "approve": lambda: self._cmd_approve(session_key, args),
             "deny": lambda: self._cmd_deny(session_key, args),
             "memory": lambda: self._cmd_memory(args),
@@ -411,17 +411,63 @@ class SlashCommandDispatcher:
             f"(<code>{record.id}</code>)."
         )
 
-    def _cmd_approvals(self, session_key: str) -> str:
+    def _cmd_approvals(self, session_key: str, args: str = "") -> str:
         from g_agent.security.approval_state import ApprovalStateStore
 
         approvals = ApprovalStateStore(self.workspace)
+        parts = (args or "").strip().split()
+        if parts and parts[0].lower() == "clear":
+            target = parts[1].strip() if len(parts) > 1 else ""
+            if not target:
+                return "⚠️ Usage: <code>/approvals clear &lt;id|all&gt;</code>."
+            return self._clear_approvals(session_key, target, approvals)
+
         pending = approvals.list(session_key=session_key, status="pending")
-        if not pending:
+        allowlisted = approvals.list(session_key=session_key, status="allowlisted")
+        if not pending and not allowlisted:
             return "✅ No pending approvals."
         lines = ["🛂 <b>Pending Approvals</b>\n"]
         for item in pending[:10]:
             lines.append(f"• <code>{item.id}</code> — <b>{item.tool_name}</b>")
+        if allowlisted:
+            lines.append("\n<b>Allowlisted</b>")
+            for item in allowlisted[:10]:
+                lines.append(
+                    f"• <code>{item.id}</code> — <b>{item.tool_name}</b> ({item.scope})"
+                )
         return "\n".join(lines)
+
+    def _clear_approvals(
+        self,
+        session_key: str,
+        target: str,
+        approvals: Any,
+    ) -> str:
+        from g_agent.session.manager import SessionManager
+
+        target = target.strip()
+        pending = approvals.list(session_key=session_key, status="pending")
+        allowlisted = approvals.list(session_key=session_key, status="allowlisted")
+        candidates = [*pending, *allowlisted]
+        if target.lower() == "all":
+            selected = candidates
+        else:
+            selected = [item for item in candidates if item.id == target]
+        if not selected:
+            return f"✅ No approval found for <code>{target}</code>."
+
+        for item in selected:
+            approvals.update_status(item.id, "denied", decision="clear")
+
+        sessions = SessionManager(self.workspace)
+        session = sessions.get_or_create(session_key)
+        pending_meta = session.metadata.get("pending_approvals", [])
+        selected_ids = {item.id for item in selected}
+        session.metadata["pending_approvals"] = [
+            item for item in pending_meta if item.get("id") not in selected_ids
+        ]
+        sessions.save(session)
+        return f"🧹 Cleared {len(selected)} approval record(s)."
 
     # -- Info Commands -----------------------------------------------------
 

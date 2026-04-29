@@ -152,8 +152,8 @@ Status: core shipped; approval state remains incomplete.
 - [x] Add approve-for-session behavior.
 - [x] Add narrow persistent allowlist behavior.
 - [x] Add owner command to list pending approvals.
-- [ ] Add owner command to clear one pending approval by id.
-- [ ] Add owner command to clear all pending approvals for a session.
+- [x] Add owner command to clear one pending approval by id.
+- [x] Add owner command to clear all pending approvals for a session.
 - [x] Add `security/approval_policy.py`.
 - [x] Add risky shell classifier examples.
 - [x] Add risky filesystem classifier examples.

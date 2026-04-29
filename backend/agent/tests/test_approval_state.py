@@ -148,6 +148,36 @@ def test_approvals_command_lists_pending_ids(tmp_path: Path, monkeypatch) -> Non
     assert "exec" in result
 
 
+def test_approvals_clear_id_removes_pending_metadata_and_state(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    _patch_data_dir(monkeypatch, tmp_path)
+    record = ApprovalStateStore(tmp_path).create_pending(
+        session_key="cli:default",
+        tool_name="exec",
+        tool_args={"command": "uptime"},
+    )
+    manager = SessionManager(tmp_path)
+    session = manager.get_or_create("cli:default")
+    session.metadata["pending_approvals"] = [
+        {"id": record.id, "tool_name": "exec", "tool_args": {"command": "uptime"}}
+    ]
+    manager.save(session)
+
+    dispatcher = SlashCommandDispatcher(tmp_path)
+    result = asyncio.run(
+        dispatcher.try_handle(f"/approvals clear {record.id}", "cli:default", "cli", "default")
+    )
+
+    assert "Cleared 1 approval" in result
+    latest = ApprovalStateStore(tmp_path).get(record.id)
+    assert latest is not None
+    assert latest.status == "denied"
+    reloaded = SessionManager(tmp_path).get_or_create("cli:default")
+    assert reloaded.metadata["pending_approvals"] == []
+
+
 def test_approve_session_command_creates_allowlist(tmp_path: Path, monkeypatch) -> None:
     _patch_data_dir(monkeypatch, tmp_path)
 
@@ -158,6 +188,26 @@ def test_approve_session_command_creates_allowlist(tmp_path: Path, monkeypatch) 
 
     assert "Approved" in result
     assert ApprovalStateStore(tmp_path).is_tool_allowed(session_key="cli:default", tool_name="exec")
+
+
+def test_approvals_clear_all_removes_allowlist(tmp_path: Path, monkeypatch) -> None:
+    _patch_data_dir(monkeypatch, tmp_path)
+    ApprovalStateStore(tmp_path).allow_tool(
+        session_key="cli:default",
+        tool_name="exec",
+        scope="session",
+    )
+
+    dispatcher = SlashCommandDispatcher(tmp_path)
+    result = asyncio.run(
+        dispatcher.try_handle("/approvals clear all", "cli:default", "cli", "default")
+    )
+
+    assert "Cleared 1 approval" in result
+    assert not ApprovalStateStore(tmp_path).is_tool_allowed(
+        session_key="cli:default",
+        tool_name="exec",
+    )
 
 
 def test_agent_loop_uses_allowlisted_tool_without_new_pending_approval(
