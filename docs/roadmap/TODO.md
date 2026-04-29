@@ -40,10 +40,9 @@ runner structure, and operational hardening.
 - [ ] No first-party product API server exists under `g_agent/api/`.
 - [ ] No WebSocket channel exists at `channels/websocket.py`.
 - [ ] No first-party `webui/` exists.
-- [ ] No formal memory manager exists under `g_agent/memory/`.
 - [x] Formal MemoryManager first slice exists under `g_agent/memory/`.
 - [x] Background learning reviewer first slice exists.
-- [ ] No streamable HTTP MCP transport exists.
+- [x] Streamable HTTP MCP transport exists in `mcp/manager.py`.
 - [ ] No Docker execution backend exists.
 
 ## Execution Order
@@ -645,21 +644,22 @@ Verification target:
 
 ## v0.12: Toolsets, MCP, And Execution Backends
 
-Status: partial; streamable HTTP MCP and Docker missing.
+Status: partial; Docker execution backend missing.
 
 - [x] `ToolsetResolver` exists.
 - [x] Per-message tool filtering exists in `AgentLoop`.
 - [x] MCP stdio transport exists.
 - [x] MCP SSE transport exists.
+- [x] MCP streamable HTTP transport exists.
 - [x] Dynamic MCP tool registration exists.
 - [x] Tool grouping by capability exists.
 - [x] Shared runner first slice exists.
 - [x] Local execution backend exists.
-- [ ] Add streamable HTTP MCP transport.
-- [ ] Add streamable HTTP config schema.
-- [ ] Add streamable HTTP auth config.
-- [ ] Add streamable HTTP timeout tests.
-- [ ] Add streamable HTTP retry tests.
+- [x] Add streamable HTTP MCP transport.
+- [x] Add streamable HTTP config fields through the existing MCP server config dict.
+- [x] Add streamable HTTP headers config support.
+- [x] Add streamable HTTP timeout wiring tests.
+- [x] Add MCP transient retry tests.
 - [ ] Add MCP OAuth only when needed.
 - [ ] Add MCP path traversal checks where file paths are accepted.
 - [ ] Add MCP tool schema edge-case tests.
@@ -683,12 +683,12 @@ Status: partial; streamable HTTP MCP and Docker missing.
 
 First PR boundary:
 
-- [ ] Streamable HTTP MCP transport with focused tests.
+- [x] Streamable HTTP MCP transport with focused tests.
 
 Verification target:
 
-- [ ] `pytest -q tests/test_toolsets.py tests/test_execution_backend.py`
-- [ ] Add/extend `tests/test_mcp_*.py`.
+- [x] `pytest -q tests/test_toolsets.py tests/test_execution_backend.py`
+- [x] Add/extend `tests/test_mcp_*.py`.
 
 ## v0.13: Insights, Packaging, And Public Trust
 
@@ -782,5 +782,5 @@ Every task is not done until:
 
 - [x] v0.10 compression integration.
 - [x] v0.11 routine script preprocessing.
-- [ ] v0.12 streamable HTTP MCP.
+- [x] v0.12 streamable HTTP MCP.
 - [ ] v0.5 minimal product API.

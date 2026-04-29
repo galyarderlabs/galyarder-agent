@@ -21,11 +21,13 @@ All notable changes to this project are documented in this file.
 - Added an opt-in background learning reviewer skeleton for memory, tool-quirk, and skill candidates.
 - Replaced `/compact` digest internals with a `ContextCompressor` reference-only summary.
 - Added routine script pre-processing with no-shell execution, workspace-bounded cwd, timeout/output limits, stdout context injection, and stderr/exit diagnostics.
+- Added MCP streamable HTTP transport support with headers, timeout wiring, and HTTP transport aliases.
 
 ### Fixed
 - Skill candidate rollback now restores the previous active skill when one existed, or removes the newly activated skill when it did not.
 - Invalid draft skill patches now roll back to the previous file content.
 - Fixed routine runner bus injection to store the system sender name in metadata instead of passing an unsupported `InboundMessage` field.
+- Fixed MCP tool/resource wrappers so they implement the abstract `Tool` properties required by the registry.
 
 ## [0.1.15] - 2026-04-28
 

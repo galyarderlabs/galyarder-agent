@@ -133,7 +133,7 @@ Current G-Agent already has useful foundations:
 
 | Capability | Source | Evidence files | Decision | Fit for G-Agent | Implementation notes |
 | --- | --- | --- | --- | --- | --- |
-| MCP schema normalization and retry | Nanobot | `nanobot-ref/nanobot/agent/tools/mcp.py`, `nanobot-ref/tests/agent/test_mcp_connection.py`, `nanobot-ref/tests/agent/test_mcp_transient_retry.py` | Adopted first slice | G-Agent already wants app/tool integrations; MCP must be boring and safe. | `mcp/manager.py` supports stdio/SSE connection, schema normalization, timeout, transient retry, and clearer errors. Streamable HTTP MCP remains. |
+| MCP schema normalization and retry | Nanobot | `nanobot-ref/nanobot/agent/tools/mcp.py`, `nanobot-ref/tests/agent/test_mcp_connection.py`, `nanobot-ref/tests/agent/test_mcp_transient_retry.py` | Adopted first slice | G-Agent already wants app/tool integrations; MCP must be boring and safe. | `mcp/manager.py` supports stdio/SSE/streamable HTTP connection, schema normalization, timeout, transient retry, and clearer errors. Docker execution remains separate. |
 | Toolsets/capability groups | Hermes | `hermes-agent-ref/toolsets.py` | Adopted first slice | Prevents every character/session from getting every tool. | `agent/tools/toolsets.py` defines safe/file/terminal/web/search/vision/image/messaging/memory/skills/routines/MCP/subagent groupings and dynamic MCP groups. Per-profile policy remains. |
 | File/shell tool UX | Nanobot + Hermes | `nanobot-ref/nanobot/agent/tools/filesystem.py`, `nanobot-ref/nanobot/agent/tools/shell.py`, `hermes-agent-ref/tools/terminal_tool.py` | Adapted first slice | Useful, but must respect G-Agent sandbox and allowed paths. | File/shell tools, local environment, roots, and approval hooks exist. More path UX, file-state reporting, and durable approval persistence remain. |
 | Notebook/scratch tools | Nanobot | `nanobot-ref/nanobot/agent/tools/notebook.py` | Later | Nice for complex tasks, not first priority. | Consider after session store/skills. |
@@ -231,9 +231,9 @@ Why fourth: once the backend has real state and controls, Web UI becomes useful 
 ### Milestone 5: Routines And Advanced Runtime
 
 1. Completed first slice: routine model/store/runner/scheduler and cron integration exist.
-2. Still open: script preprocessing.
+2. Completed slice: script preprocessing injects bounded stdout context and records diagnostics.
 3. Still open: webhook/API triggers.
-4. Completed first slice: toolsets and MCP stdio/SSE hardening exist; streamable HTTP MCP remains.
+4. Completed slice: toolsets and MCP stdio/SSE/streamable HTTP hardening exist.
 5. Still open: Docker sandbox, then SSH/VPS backend if needed.
 
 Why fifth: routines are powerful only after approvals, memory, sessions, and tools are reliable.

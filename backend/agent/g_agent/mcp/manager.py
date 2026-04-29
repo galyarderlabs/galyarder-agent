@@ -5,12 +5,12 @@ import os
 import shutil
 from contextlib import AsyncExitStack
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 from loguru import logger
 
-from g_agent.agent.tools.registry import ToolRegistry
 from g_agent.agent.tools.base import Tool
+from g_agent.agent.tools.registry import ToolRegistry
 
 
 # Transient connection errors that warrant a single retry.
@@ -131,12 +131,27 @@ class MCPToolWrapper(Tool):
     def __init__(self, session, server_name: str, tool_def, tool_timeout: int = 30):
         self._session = session
         self._original_name = tool_def.name
-        self.name = f"mcp_{server_name}_{tool_def.name}"
-        self.description = tool_def.description or self.name
-        self.parameters = _normalize_schema_for_openai(
+        self._name = f"mcp_{server_name}_{tool_def.name}"
+        self._description = tool_def.description or self._name
+        self._parameters = _normalize_schema_for_openai(
             tool_def.inputSchema or {"type": "object", "properties": {}}
         )
         self._tool_timeout = tool_timeout
+
+    @property
+    def name(self) -> str:
+        """Tool name exposed to the registry."""
+        return self._name
+
+    @property
+    def description(self) -> str:
+        """Tool description from the MCP server."""
+        return self._description
+
+    @property
+    def parameters(self) -> dict[str, Any]:
+        """OpenAI-compatible tool input schema."""
+        return self._parameters
 
     async def execute(self, **kwargs: Any) -> str:
         from mcp import types
@@ -176,11 +191,26 @@ class MCPResourceWrapper(Tool):
     def __init__(self, session, server_name: str, resource_def, resource_timeout: int = 30):
         self._session = session
         self._uri = resource_def.uri
-        self.name = f"mcp_{server_name}_resource_{resource_def.name}"
+        self._name = f"mcp_{server_name}_resource_{resource_def.name}"
         desc = resource_def.description or resource_def.name
-        self.description = f"[MCP Resource] {desc}\nURI: {self._uri}"
-        self.parameters = {"type": "object", "properties": {}, "required": []}
+        self._description = f"[MCP Resource] {desc}\nURI: {self._uri}"
+        self._parameters = {"type": "object", "properties": {}, "required": []}
         self._resource_timeout = resource_timeout
+
+    @property
+    def name(self) -> str:
+        """Tool name exposed to the registry."""
+        return self._name
+
+    @property
+    def description(self) -> str:
+        """Resource description from the MCP server."""
+        return self._description
+
+    @property
+    def parameters(self) -> dict[str, Any]:
+        """Empty input schema for resource reads."""
+        return self._parameters
 
     @property
     def read_only(self) -> bool:
@@ -217,12 +247,13 @@ class MCPManager:
     def __init__(self, workspace: Path, registry: ToolRegistry):
         self.workspace = workspace
         self.registry = registry
-        self._server_stacks: Dict[str, AsyncExitStack] = {}
+        self._server_stacks: dict[str, AsyncExitStack] = {}
 
-    async def connect_server(self, name: str, config: Dict[str, Any]):
+    async def connect_server(self, name: str, config: dict[str, Any]) -> None:
         from mcp import ClientSession, StdioServerParameters
         from mcp.client.sse import sse_client
         from mcp.client.stdio import stdio_client
+        from mcp.client.streamable_http import streamablehttp_client
 
         stack = AsyncExitStack()
         await stack.__aenter__()
@@ -247,6 +278,21 @@ class MCPManager:
                     await stack.aclose()
                     return
                 read, write = await stack.enter_async_context(sse_client(url))
+            elif transport_type in {"streamable_http", "streamable-http", "http"}:
+                url = config.get("url")
+                if not url:
+                    await stack.aclose()
+                    return
+                transport = await stack.enter_async_context(
+                    streamablehttp_client(
+                        url,
+                        headers=config.get("headers"),
+                        timeout=config.get("timeout", 30),
+                        sse_read_timeout=config.get("sse_read_timeout", 300),
+                        terminate_on_close=config.get("terminate_on_close", True),
+                    )
+                )
+                read, write = transport[0], transport[1]
             else:
                 logger.warning(f"Unsupported MCP transport: {transport_type}")
                 await stack.aclose()
