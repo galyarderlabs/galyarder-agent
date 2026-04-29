@@ -264,12 +264,27 @@ async def cmd_learn(ctx: CommandContext) -> str:
     subcmd = args[0] if args else "list"
 
     if subcmd == "list":
-        status_filter = args[1] if len(args) > 1 else "pending"
-        candidates = queue.list(status=status_filter if status_filter != "all" else None)
-        if not candidates:
-            return f"🧠 <b>Learning Queue</b> has no <code>{status_filter}</code> candidates."
+        # Supports positional /learn list [status] or /learn list type=memory status=pending
+        status_filter = "pending"
+        type_filter = None
 
-        lines = [f"🧠 <b>Learning Queue ({len(candidates)} {status_filter})</b>\n"]
+        if len(args) > 1:
+            for arg in args[1:]:
+                if "=" in arg:
+                    k, v = arg.split("=", 1)
+                    if k == "status": status_filter = v
+                    if k == "type": type_filter = v
+                else:
+                    status_filter = arg
+
+        candidates = queue.list(status=status_filter if status_filter != "all" else None)
+        if type_filter:
+            candidates = [c for c in candidates if c.kind == type_filter]
+
+        if not candidates:
+            return f"🧠 <b>Learning Queue</b> has no matching candidates."
+
+        lines = [f"🧠 <b>Learning Queue ({len(candidates)} items)</b>\n"]
         for c in candidates:
             lines.append(
                 f"• <code>{c.id}</code> — <b>{c.title}</b> "

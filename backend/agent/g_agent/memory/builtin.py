@@ -1,48 +1,49 @@
-"""Builtin memory provider backed by the existing markdown MemoryStore."""
-
-from pathlib import Path
 from typing import Any
+from pathlib import Path
 
 from g_agent.agent.memory import MemoryStore
+from g_agent.memory.types import MemoryFragment, MemoryProvider
 
 
-class BuiltinMemoryProvider:
-    """Adapter around the current markdown-backed MemoryStore."""
-
-    name = "builtin"
-    builtin = True
+class BuiltinMemoryProvider(MemoryProvider):
+    """Memory provider that uses the local filesystem (Markdown + SQLite fact index)."""
 
     def __init__(self, workspace: Path):
+        self.workspace = workspace
         self.store = MemoryStore(workspace)
 
+    @property
+    def name(self) -> str:
+        return "builtin"
+
     def system_prompt_block(self) -> str:
-        """Return provider-specific system guidance."""
-        return "Builtin memory is owner-readable local markdown plus a fact index."
+        return (
+            "You have access to a local memory store. Facts you 'remember' are saved to MEMORY.md "
+            "and indexed for semantic recall. Use the `remember` tool to store durable info about the user."
+        )
 
-    def prefetch(
-        self,
-        *,
-        query: str | None = None,
-        session_id: str = "",
-        include_full: bool = True,
-    ) -> str:
-        """Return memory context for a turn."""
-        return self.store.get_memory_context(query=query, include_full=include_full)
+    async def prefetch(self, query: str, session_id: str = "") -> list[MemoryFragment]:
+        """Recall relevant fragments from the builtin store."""
+        recalled = self.store.recall(query, max_items=15)
+        return [
+            MemoryFragment(
+                content=item["text"],
+                source=item["source"],
+                relevance=float(item.get("score", 0)) / 1000.0, # Approximate normalization
+                metadata={
+                    "type": item.get("type"),
+                    "confidence": item.get("confidence"),
+                    "age_days": item.get("age_days"),
+                }
+            )
+            for item in recalled
+        ]
 
-    def sync_turn(
-        self,
-        *,
-        user_content: str,
-        assistant_content: str,
-        session_id: str = "",
-    ) -> None:
-        """No-op until owner-reviewed write cadence is wired."""
-        return None
-
-    def get_tool_schemas(self) -> list[dict[str, Any]]:
-        """The legacy memory tools still own their schemas."""
-        return []
-
-    async def handle_tool_call(self, name: str, arguments: dict[str, Any]) -> str | None:
-        """Legacy memory tools still handle tool calls."""
-        return None
+    async def sync_turn(self, user_content: str, assistant_content: str, session_id: str = "") -> None:
+        """
+        Record the turn in daily notes. 
+        Note: Actual 'learning' of facts happens via tools or background reviewer.
+        """
+        # Append to today's notes
+        self.store.append_today(f"User: {user_content}")
+        self.store.append_today(f"Assistant: {assistant_content}")

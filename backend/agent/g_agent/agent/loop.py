@@ -891,6 +891,13 @@ class AgentLoop:
                     assistant_content=log_content,
                     tool_calls=tool_call_metadata,
                 )
+                asyncio.create_task(
+                    self.context.memory.sync_turn(
+                        user_content=clean_user_content,
+                        assistant_content=log_content,
+                        session_id=session.key,
+                    )
+                )
 
             self.runtime.complete(
                 task_id,

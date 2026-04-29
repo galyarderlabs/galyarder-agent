@@ -34,10 +34,33 @@ class BackgroundLearningReviewer:
             self._memory_candidate(review),
             self._tool_quirk_candidate(review),
             self._skill_candidate(review),
+            self._routine_candidate(review),
         ):
             if candidate:
                 candidates.append(candidate)
         return candidates
+
+    def _routine_candidate(self, review: LearningReviewInput) -> LearningCandidate | None:
+        text = review.user_content.strip()
+        lowered = text.lower()
+        triggers = ("setiap ", "every ", "rutin", "routine", "jadwal", "schedule", "nanti", "besok", "minggu depan")
+        if not text or not any(trigger in lowered for trigger in triggers):
+            return None
+        
+        # Simple check for scheduling intent
+        if not any(word in lowered for word in ("jam", "pukul", "at ", "o'clock", "am", "pm")):
+            # If no time mentioned, maybe not a routine yet, just a reminder.
+            # We'll be inclusive for now to gather evidence.
+            pass
+
+        return self._candidate(
+            review,
+            kind="routine",
+            title="Review possible routine/background task",
+            rationale="User phrasing suggests a recurring task or future reminder.",
+            content={"text": text, "source": "background_reviewer"},
+            diff_preview=f"Proposed routine candidate:\n{text}",
+        )
 
     def enqueue_turn(self, review: LearningReviewInput) -> list[LearningCandidate]:
         """Review a turn and enqueue new candidates, deduped by evidence hash."""

@@ -65,12 +65,17 @@ class ContextBuilder:
         metadata_sections.append(self._get_runtime_info())
 
         # Relevant Memory
-        memory = self.memory.prefetch_all(
-            query=current_message,
-            include_full=not bool(current_message),
-        )
-        if memory:
-            metadata_sections.append(f"# Memory\n\n{memory}")
+        from g_agent.memory.context import format_memory_context
+
+        if current_message:
+            fragments = self.memory.prefetch(query=current_message)
+            memory_block = format_memory_context(fragments)
+            if memory_block:
+                metadata_sections.append(f"# Memory\n\n{memory_block}")
+        else:
+            # Full memory mode (if needed, e.g. for /status or initial prompt)
+            # For now we'll just skip or use a generic query
+            pass
 
         # Active Skills
         always_skills = self.skills.get_always_skills()

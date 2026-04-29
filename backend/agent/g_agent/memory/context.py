@@ -1,27 +1,23 @@
-"""Context fencing helpers for recalled memory."""
+from typing import Iterable
+from g_agent.memory.types import MemoryFragment
 
-import re
-
-_MEMORY_OPEN_RE = re.compile(r"<memory-context\b[^>]*>", re.IGNORECASE)
-_MEMORY_CLOSE_RE = re.compile(r"</memory-context>", re.IGNORECASE)
-
-
-def sanitize_memory_context(text: str) -> str:
-    """Strip nested memory fences from provider output."""
-    sanitized = _MEMORY_OPEN_RE.sub("", text or "")
-    sanitized = _MEMORY_CLOSE_RE.sub("", sanitized)
-    return sanitized.strip()
-
-
-def fence_memory_context(provider_name: str, text: str) -> str:
-    """Wrap recalled memory so it is treated as reference context."""
-    sanitized = sanitize_memory_context(text)
-    if not sanitized:
+def format_memory_context(fragments: Iterable[MemoryFragment]) -> str:
+    """Format memory fragments into a fenced XML-like block for the prompt."""
+    if not fragments:
         return ""
-    safe_name = re.sub(r"[^a-zA-Z0-9_.-]+", "-", provider_name or "memory").strip("-")
-    safe_name = safe_name or "memory"
-    return (
-        f'<memory-context provider="{safe_name}" role="reference-only">\n'
-        f"{sanitized}\n"
-        "</memory-context>"
-    )
+        
+    lines = ["<memory-context>"]
+    for f in fragments:
+        source_label = f"source: {f.source}"
+        if f.metadata.get("type"):
+            source_label += f", type: {f.metadata['type']}"
+        if f.metadata.get("confidence"):
+            source_label += f", confidence: {f.metadata['confidence']:.2f}"
+            
+        lines.append(f"  <!-- {source_label} -->")
+        # Strip any nested memory tags from the content to prevent injection or confusion
+        clean_content = f.content.replace("<memory-context>", "").replace("</memory-context>", "")
+        lines.append(f"  {clean_content}")
+        
+    lines.append("</memory-context>")
+    return "\n".join(lines)

@@ -1,79 +1,76 @@
-"""Memory manager orchestration."""
-
+import asyncio
 from pathlib import Path
+from typing import Any
 
 from loguru import logger
-
+from g_agent.memory.types import MemoryFragment, MemoryProvider
 from g_agent.memory.builtin import BuiltinMemoryProvider
-from g_agent.memory.context import fence_memory_context
-from g_agent.memory.types import MemoryProvider
 
 
 class MemoryManager:
-    """Single integration point for memory providers."""
+    """Manages multiple memory providers and coordinates recall/sync."""
 
-    def __init__(
-        self,
-        workspace: Path,
-        providers: list[MemoryProvider] | None = None,
-    ):
+    def __init__(self, workspace: Path):
         self.workspace = workspace
-        self.providers: list[MemoryProvider] = providers or [BuiltinMemoryProvider(workspace)]
-        self._validate_provider_set()
+        self.providers: dict[str, MemoryProvider] = {}
+        
+        # Register builtin provider by default
+        self.register_provider(BuiltinMemoryProvider(workspace))
 
-    def _validate_provider_set(self) -> None:
-        external = [provider for provider in self.providers if not provider.builtin]
-        if len(external) > 1:
-            names = ", ".join(provider.name for provider in external)
-            raise ValueError(f"Only one external memory provider can be active: {names}")
+    def register_provider(self, provider: MemoryProvider) -> None:
+        """Register a new memory provider."""
+        if provider.name in self.providers:
+            logger.warning(f"Memory provider {provider.name} already registered, overwriting.")
+        self.providers[provider.name] = provider
+        logger.info(f"Memory provider {provider.name} registered.")
 
-    def prefetch_all(
-        self,
-        *,
-        query: str | None = None,
-        session_id: str = "",
-        include_full: bool = True,
-    ) -> str:
-        """Fetch fenced memory context from all active providers."""
-        blocks: list[str] = []
-        for provider in self.providers:
-            try:
-                context = provider.prefetch(
-                    query=query,
-                    session_id=session_id,
-                    include_full=include_full,
-                )
-            except Exception as exc:
-                logger.warning("Memory provider {} prefetch failed: {}", provider.name, exc)
+    async def prefetch(self, query: str, session_id: str = "") -> list[MemoryFragment]:
+        """Fetch relevant fragments from all registered providers in parallel."""
+        from time import perf_counter
+        start = perf_counter()
+        
+        tasks = [p.prefetch(query, session_id) for p in self.providers.values()]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        all_fragments: list[MemoryFragment] = []
+        for i, res in enumerate(results):
+            if isinstance(res, Exception):
+                provider_name = list(self.providers.keys())[i]
+                logger.error(f"Memory provider {provider_name} prefetch failed: {res}")
                 continue
+            all_fragments.extend(res)
+            
+        # Sort by relevance
+        all_fragments.sort(key=lambda f: f.relevance, reverse=True)
+        
+        duration = perf_counter() - start
+        logger.debug(f"Memory prefetch recalled {len(all_fragments)} fragments in {duration:.3f}s")
+        
+        return all_fragments
 
-            fenced = fence_memory_context(provider.name, context)
-            if fenced:
-                blocks.append(fenced)
-        return "\n\n".join(blocks)
+    async def sync_turn(self, user_content: str, assistant_content: str, session_id: str = "") -> None:
+        """Sync a turn to all providers in parallel."""
+        tasks = [p.sync_turn(user_content, assistant_content, session_id) for p in self.providers.values()]
+        await asyncio.gather(*tasks, return_exceptions=True)
 
-    def append_today(self, entry: str) -> None:
-        """Compatibility helper for daily-note writes through builtin memory."""
-        builtin = next((provider for provider in self.providers if provider.builtin), None)
-        store = getattr(builtin, "store", None)
-        if store is None:
-            return
-        store.append_today(entry)
+    def get_system_prompt_blocks(self) -> list[str]:
+        """Collect prompt blocks from all providers."""
+        return [p.system_prompt_block() for p in self.providers.values()]
 
-    def sync_turn_all(
-        self,
-        *,
-        user_content: str,
-        assistant_content: str,
-        session_id: str = "",
-    ) -> None:
-        """Run post-turn memory sync hooks for all providers."""
-        for provider in self.providers:
+    def get_all_tool_schemas(self) -> list[dict[str, Any]]:
+        """Collect all memory-specific tool schemas."""
+        all_schemas = []
+        for p in self.providers.values():
+            all_schemas.extend(p.get_tool_schemas())
+        return all_schemas
+
+    async def handle_tool_call(self, name: str, args: dict[str, Any], session_id: str = "") -> Any:
+        """Route tool call to the provider that owns it."""
+        for p in self.providers.values():
             try:
-                provider.sync_turn(
-                    user_content=user_content,
-                    assistant_content=assistant_content,
-                    session_id=session_id,
-                )
-            except Exception as exc:
-                logger.warning("Memory provider {} sync failed: {}", provider.name, exc)
+                # This is a bit inefficient if multiple providers have same tool names,
+                # but currently only one provider will own a specific memory tool.
+                return await p.handle_tool_call(name, args, session_id)
+            except NotImplementedError:
+                continue
+        raise ValueError(f"No memory provider found for tool: {name}")
