@@ -2142,10 +2142,20 @@ class AgentLoop:
             return result_text
 
         decision = self._resolve_tool_policy(tool_name, channel, sender_id)
+        if decision == "ask" and session is not None and self.approvals.is_tool_allowed(
+            session_key=session.key,
+            tool_name=tool_name,
+        ):
+            decision = "allow"
         if decision == "allow" and self.approval_mode == "confirm":
             risk = classify_tool_call(tool_name, tool_args)
             if risk.needs_approval:
                 decision = "ask"
+        if decision == "ask" and session is not None and self.approvals.is_tool_allowed(
+            session_key=session.key,
+            tool_name=tool_name,
+        ):
+            decision = "allow"
         if decision == "deny":
             return _record(f"Error: tool '{tool_name}' blocked by policy.")
         if decision == "ask" and not (approve_all or tool_name in approved_tools):

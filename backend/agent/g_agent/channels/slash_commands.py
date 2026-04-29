@@ -106,7 +106,7 @@ class SlashCommandDispatcher:
 
         # Approval replay is implemented in AgentLoop so it can execute the
         # pending tool call with the live registry. Let /approve pass through.
-        if raw_cmd == "approve":
+        if raw_cmd == "approve" and not args.strip().lower().startswith(("session ", "always ")):
             return None
 
         canonical = self._handlers.get(raw_cmd)
@@ -179,6 +179,7 @@ class SlashCommandDispatcher:
                 sender_id=sender_id,
             ),
             "approvals": lambda: self._cmd_approvals(session_key),
+            "approve": lambda: self._cmd_approve(session_key, args),
             "deny": lambda: self._cmd_deny(session_key, args),
             "memory": lambda: self._cmd_memory(args),
             "model": lambda: self._cmd_model(args),
@@ -392,6 +393,23 @@ class SlashCommandDispatcher:
                 approvals.update_status(str(item["id"]), "denied", decision="deny")
         names = ", ".join(item.get("tool_name", "unknown") for item in denied)
         return f"🚫 Denied pending approval: <code>{names}</code>."
+
+    def _cmd_approve(self, session_key: str, args: str) -> str | None:
+        from g_agent.security.approval_state import ApprovalStateStore
+
+        parts = (args or "").strip().split()
+        if len(parts) < 2 or parts[0].lower() not in {"session", "always"}:
+            return None
+        scope = parts[0].lower()
+        tool_name = parts[1].strip().lower()
+        if not tool_name:
+            return "⚠️ Usage: <code>/approve session &lt;tool&gt;</code> or <code>/approve always &lt;tool&gt;</code>."
+        approvals = ApprovalStateStore(self.workspace)
+        record = approvals.allow_tool(session_key=session_key, tool_name=tool_name, scope=scope)
+        return (
+            f"✅ Approved <code>{tool_name}</code> for <b>{scope}</b> scope "
+            f"(<code>{record.id}</code>)."
+        )
 
     def _cmd_approvals(self, session_key: str) -> str:
         from g_agent.security.approval_state import ApprovalStateStore

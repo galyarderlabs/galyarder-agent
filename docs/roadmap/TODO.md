@@ -148,9 +148,9 @@ Status: core shipped; approval state remains incomplete.
 - [x] Add `/skills`.
 - [x] Persist approval decisions into first-class approval state.
 - [x] Add approval ids that survive process restarts.
-- [ ] Add approve-once behavior.
-- [ ] Add approve-for-session behavior.
-- [ ] Add narrow persistent allowlist behavior.
+- [x] Add approve-once behavior.
+- [x] Add approve-for-session behavior.
+- [x] Add narrow persistent allowlist behavior.
 - [x] Add owner command to list pending approvals.
 - [ ] Add owner command to clear one pending approval by id.
 - [ ] Add owner command to clear all pending approvals for a session.
@@ -158,7 +158,7 @@ Status: core shipped; approval state remains incomplete.
 - [x] Add risky shell classifier examples.
 - [x] Add risky filesystem classifier examples.
 - [x] Add tests for dangerous command detection.
-- [ ] Add tests for denied command replay safety.
+- [x] Add tests for approved command replay safety.
 - [ ] Move more legacy handlers from `channels/slash_commands.py` into
   `command/builtin.py`.
 - [ ] Regenerate CLI docs after CLI command surface changes.

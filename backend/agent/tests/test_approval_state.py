@@ -146,3 +146,70 @@ def test_approvals_command_lists_pending_ids(tmp_path: Path, monkeypatch) -> Non
 
     assert record.id in result
     assert "exec" in result
+
+
+def test_approve_session_command_creates_allowlist(tmp_path: Path, monkeypatch) -> None:
+    _patch_data_dir(monkeypatch, tmp_path)
+
+    dispatcher = SlashCommandDispatcher(tmp_path)
+    result = asyncio.run(
+        dispatcher.try_handle("/approve session exec", "cli:default", "cli", "default")
+    )
+
+    assert "Approved" in result
+    assert ApprovalStateStore(tmp_path).is_tool_allowed(session_key="cli:default", tool_name="exec")
+
+
+def test_agent_loop_uses_allowlisted_tool_without_new_pending_approval(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    _patch_data_dir(monkeypatch, tmp_path)
+    ApprovalStateStore(tmp_path).allow_tool(
+        session_key="cli:default",
+        tool_name="exec",
+        scope="session",
+    )
+    loop = AgentLoop(
+        bus=MessageBus(),
+        provider=DummyProvider(
+            [
+                LLMResponse(
+                    content="",
+                    tool_calls=[
+                        ToolCallRequest(
+                            id="tc1",
+                            name="exec",
+                            arguments={"command": "sudo pacman -Syu"},
+                        )
+                    ],
+                ),
+                LLMResponse(content="done"),
+            ]
+        ),
+        workspace=tmp_path,
+        model="dummy-model",
+        max_iterations=2,
+        enable_reflection=False,
+        approval_mode="confirm",
+        risky_tools=[],
+    )
+
+    async def fake_execute(name: str, args: dict[str, Any]) -> str:
+        assert name == "exec"
+        assert args == {"command": "sudo pacman -Syu"}
+        return "allowed"
+
+    loop.tools.execute = fake_execute
+    result = asyncio.run(
+        loop.process_direct(
+            content="run approved command",
+            session_key="cli:default",
+            channel="cli",
+            chat_id="default",
+        )
+    )
+
+    session = loop.sessions.get_or_create("cli:default")
+    assert result == "done"
+    assert session.metadata.get("pending_approvals", []) == []

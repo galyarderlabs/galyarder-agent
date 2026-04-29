@@ -9,7 +9,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 
-ApprovalStatus = Literal["pending", "approved", "denied", "executed"]
+ApprovalStatus = Literal["pending", "approved", "denied", "executed", "allowlisted"]
 
 
 class ApprovalRecord(BaseModel):
@@ -23,6 +23,7 @@ class ApprovalRecord(BaseModel):
     created_at: float = Field(default_factory=time.time)
     updated_at: float = Field(default_factory=time.time)
     decision: str = ""
+    scope: str = "once"
 
 
 class ApprovalStateStore:
@@ -88,6 +89,27 @@ class ApprovalStateStore:
         )
         self._append(updated)
         return updated
+
+    def allow_tool(self, *, session_key: str, tool_name: str, scope: str) -> ApprovalRecord:
+        """Persist a narrow tool allowlist entry."""
+        record = ApprovalRecord(
+            id=f"appr_{uuid.uuid4().hex[:12]}",
+            session_key=session_key,
+            tool_name=tool_name,
+            tool_args={},
+            status="allowlisted",
+            decision=f"allow_{scope}",
+            scope=scope,
+        )
+        self._append(record)
+        return record
+
+    def is_tool_allowed(self, *, session_key: str, tool_name: str) -> bool:
+        """Return whether a persisted allowlist permits this tool in a session."""
+        for record in self.list(session_key=session_key, status="allowlisted"):
+            if record.tool_name == tool_name and record.scope in {"session", "always"}:
+                return True
+        return False
 
     def _latest(self) -> dict[str, ApprovalRecord]:
         records: dict[str, ApprovalRecord] = {}
