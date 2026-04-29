@@ -2,6 +2,7 @@
 
 from g_agent.api.openai_compat import (
     chat_completion_response,
+    chat_completion_stream_events,
     chat_id_from_session_key,
     last_user_content,
     model_list,
@@ -54,3 +55,15 @@ def test_chat_completion_response_shape() -> None:
         "completion_tokens": 0,
         "total_tokens": 0,
     }
+
+
+def test_chat_completion_stream_events_shape() -> None:
+    events = chat_completion_stream_events(model="model-a", response_text="done")
+
+    assert len(events) == 4
+    assert events[0].startswith(b"data: ")
+    assert b'"object":"chat.completion.chunk"' in events[0]
+    assert b'"role":"assistant"' in events[0]
+    assert b'"content":"done"' in events[1]
+    assert b'"finish_reason":"stop"' in events[2]
+    assert events[3] == b"data: [DONE]\n\n"

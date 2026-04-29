@@ -1,5 +1,6 @@
 """OpenAI-compatible request and response helpers."""
 
+import json
 import time
 import uuid
 from typing import Any
@@ -64,3 +65,64 @@ def chat_completion_response(*, model: str, response_text: str) -> dict[str, Any
         ],
         "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
     }
+
+
+def chat_completion_stream_events(*, model: str, response_text: str) -> list[bytes]:
+    """Build SSE data frames for a non-tokenized chat completion stream."""
+    completion_id = f"chatcmpl-{uuid.uuid4().hex[:24]}"
+    created = int(time.time())
+    return [
+        _sse_data(
+            _chat_completion_chunk(
+                completion_id=completion_id,
+                created=created,
+                model=model,
+                delta={"role": "assistant"},
+            )
+        ),
+        _sse_data(
+            _chat_completion_chunk(
+                completion_id=completion_id,
+                created=created,
+                model=model,
+                delta={"content": response_text},
+            )
+        ),
+        _sse_data(
+            _chat_completion_chunk(
+                completion_id=completion_id,
+                created=created,
+                model=model,
+                delta={},
+                finish_reason="stop",
+            )
+        ),
+        b"data: [DONE]\n\n",
+    ]
+
+
+def _chat_completion_chunk(
+    *,
+    completion_id: str,
+    created: int,
+    model: str,
+    delta: dict[str, str],
+    finish_reason: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "id": completion_id,
+        "object": "chat.completion.chunk",
+        "created": created,
+        "model": model,
+        "choices": [
+            {
+                "index": 0,
+                "delta": delta,
+                "finish_reason": finish_reason,
+            }
+        ],
+    }
+
+
+def _sse_data(payload: dict[str, Any]) -> bytes:
+    return f"data: {json.dumps(payload, separators=(',', ':'))}\n\n".encode()

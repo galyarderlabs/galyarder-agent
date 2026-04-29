@@ -224,6 +224,32 @@ async def test_openai_chat_completion_uses_agent(tmp_path: Path, monkeypatch) ->
         await client.close()
 
 
+async def test_openai_chat_completion_streams_sse(tmp_path: Path, monkeypatch) -> None:
+    fake_agent = FakeAgent()
+    client = await _client(tmp_path, monkeypatch, agent=fake_agent)
+    try:
+        response = await client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "test-model",
+                "stream": True,
+                "session_key": "api:stream-room",
+                "messages": [{"role": "user", "content": "hello stream"}],
+            },
+        )
+
+        assert response.status == 200
+        assert response.headers["Content-Type"].startswith("text/event-stream")
+        body = await response.text()
+        assert '"object":"chat.completion.chunk"' in body
+        assert '"role":"assistant"' in body
+        assert '"content":"api-ok"' in body
+        assert "data: [DONE]" in body
+        assert fake_agent.calls[0]["content"] == "hello stream"
+    finally:
+        await client.close()
+
+
 async def test_api_lists_and_denies_approvals(tmp_path: Path, monkeypatch) -> None:
     client = await _client(tmp_path, monkeypatch)
     try:

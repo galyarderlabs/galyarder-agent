@@ -12,6 +12,7 @@ from g_agent import __version__
 from g_agent.agent.api import Agent
 from g_agent.api.openai_compat import (
     chat_completion_response,
+    chat_completion_stream_events,
     chat_id_from_session_key,
     last_user_content,
     model_list,
@@ -410,8 +411,6 @@ async def _models(request: web.Request) -> web.Response:
 
 async def _chat_completions(request: web.Request) -> web.Response:
     payload = await request.json()
-    if payload.get("stream"):
-        raise ApiError(400, "streaming_not_supported", "streaming chat completions are not shipped")
     messages = payload.get("messages")
     if not isinstance(messages, list) or not messages:
         raise ApiError(400, "invalid_request", "messages must be a non-empty array")
@@ -431,7 +430,30 @@ async def _chat_completions(request: web.Request) -> web.Response:
         chat_id=chat_id_from_session_key(session_key),
     )
 
+    if payload.get("stream"):
+        return await _chat_completion_stream(request, model=model, response_text=response_text)
     return web.json_response(chat_completion_response(model=model, response_text=response_text))
+
+
+async def _chat_completion_stream(
+    request: web.Request,
+    *,
+    model: str,
+    response_text: str,
+) -> web.StreamResponse:
+    response = web.StreamResponse(
+        status=200,
+        headers={
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+    await response.prepare(request)
+    for event in chat_completion_stream_events(model=model, response_text=response_text):
+        await response.write(event)
+    await response.write_eof()
+    return response
 
 
 async def _get_agent(request: web.Request) -> Any:

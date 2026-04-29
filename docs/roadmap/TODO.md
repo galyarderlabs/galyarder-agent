@@ -293,8 +293,8 @@ Status: partial; minimal API shipped, WebSocket/Web UI/media/streaming remain.
 - [x] Add `GET /v1/models`.
 - [x] Add `POST /v1/chat/completions`.
 - [x] Add non-streaming OpenAI-compatible chat response.
-- [ ] Add streaming/SSE chat response.
-- [ ] Normalize text input.
+- [x] Add streaming/SSE chat response.
+- [x] Normalize text input.
 - [ ] Normalize image input.
 - [ ] Normalize base64 data URLs.
 - [ ] Add remote URL policy for multimodal input.
