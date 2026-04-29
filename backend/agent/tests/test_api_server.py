@@ -251,3 +251,21 @@ async def test_api_learning_edit_candidate(tmp_path: Path, monkeypatch) -> None:
         assert payload["data"]["diff_preview"] == "old -> new"
     finally:
         await client.close()
+
+
+async def test_api_profiles_list_and_detail(tmp_path: Path, monkeypatch) -> None:
+    client = await _client(tmp_path, monkeypatch)
+    try:
+        listed = await client.get("/profiles")
+        assert listed.status == 200
+        payload = await listed.json()
+        ids = {item["id"] for item in payload["data"]}
+        assert {"owner", "guest"} <= ids
+
+        detail = await client.get("/profiles/owner")
+        assert detail.status == 200
+        detail_payload = await detail.json()
+        assert detail_payload["data"]["id"] == "owner"
+        assert detail_payload["data"]["is_guest"] is False
+    finally:
+        await client.close()

@@ -8,6 +8,8 @@ from aiohttp import web
 
 from g_agent import __version__
 from g_agent.agent.api import Agent
+from g_agent.character.profile import CharacterProfile
+from g_agent.character.store import CharacterStore
 from g_agent.config.loader import load_config
 from g_agent.config.schema import Config
 from g_agent.learning.candidate import LearningCandidate
@@ -21,6 +23,7 @@ AGENT_KEY = web.AppKey("agent", object)
 SESSIONS_KEY = web.AppKey("sessions", SessionManager)
 APPROVALS_KEY = web.AppKey("approvals", ApprovalStateStore)
 LEARNING_KEY = web.AppKey("learning", LearningQueue)
+CHARACTERS_KEY = web.AppKey("characters", CharacterStore)
 
 
 class ApiError(Exception):
@@ -43,6 +46,7 @@ def create_app(
     resolved_sessions = session_manager or SessionManager(resolved_config.workspace_path)
     resolved_approvals = ApprovalStateStore(resolved_config.workspace_path)
     resolved_learning = LearningQueue(resolved_config.workspace_path)
+    resolved_characters = CharacterStore(resolved_config.workspace_path)
     app = web.Application(
         middlewares=[
             _error_middleware,
@@ -55,6 +59,7 @@ def create_app(
     app[SESSIONS_KEY] = resolved_sessions
     app[APPROVALS_KEY] = resolved_approvals
     app[LEARNING_KEY] = resolved_learning
+    app[CHARACTERS_KEY] = resolved_characters
 
     app.router.add_get("/health", _health)
     app.router.add_get("/status", _status)
@@ -68,6 +73,8 @@ def create_app(
     app.router.add_post("/learning/{candidate_id}/approve", _learning_approve)
     app.router.add_post("/learning/{candidate_id}/reject", _learning_reject)
     app.router.add_post("/learning/{candidate_id}/edit", _learning_edit)
+    app.router.add_get("/profiles", _profiles)
+    app.router.add_get("/profiles/{profile_id}", _profile_detail)
     app.router.add_get("/v1/models", _models)
     app.router.add_post("/v1/chat/completions", _chat_completions)
     return app
@@ -260,6 +267,21 @@ async def _learning_edit(request: web.Request) -> web.Response:
     return web.json_response({"data": _candidate_json(candidate)})
 
 
+async def _profiles(request: web.Request) -> web.Response:
+    characters = request.app[CHARACTERS_KEY]
+    characters.setup_default_profiles()
+    return web.json_response({"data": [_profile_json(profile) for profile in characters.list()]})
+
+
+async def _profile_detail(request: web.Request) -> web.Response:
+    characters = request.app[CHARACTERS_KEY]
+    characters.setup_default_profiles()
+    profile = characters.get(request.match_info["profile_id"])
+    if profile is None:
+        raise ApiError(404, "not_found", "profile not found")
+    return web.json_response({"data": _profile_json(profile)})
+
+
 async def _models(request: web.Request) -> web.Response:
     config = request.app[CONFIG_KEY]
     model_ids = [config.agents.defaults.model, *config.agents.defaults.routing.fallback_models]
@@ -384,6 +406,10 @@ def _candidate_json(candidate: LearningCandidate | None) -> dict[str, Any]:
     if candidate is None:
         return {}
     return candidate.model_dump(mode="json")
+
+
+def _profile_json(profile: CharacterProfile) -> dict[str, Any]:
+    return profile.model_dump(mode="json")
 
 
 def _json_error(status: int, code: str, message: str) -> web.Response:

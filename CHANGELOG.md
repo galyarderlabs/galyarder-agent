@@ -29,6 +29,7 @@ All notable changes to this project are documented in this file.
 - Added `/approvals clear <id|all>` for removing pending or allowlisted approval records.
 - Added product API approval endpoints for listing, approving, and denying approval records.
 - Added product API learning endpoints for listing, inspecting, approving, rejecting, and editing candidates.
+- Added product API profile endpoints for listing and inspecting character profiles.
 
 ### Fixed
 - Skill candidate rollback now restores the previous active skill when one existed, or removes the newly activated skill when it did not.

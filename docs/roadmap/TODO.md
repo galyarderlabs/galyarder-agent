@@ -37,7 +37,7 @@ runner structure, and operational hardening.
   plus docs.
 - [x] Shared channel contracts exist for capability flags, media envelopes, and
   delivery result/error types.
-- [ ] No first-party product API server exists under `g_agent/api/`.
+- [x] First-party product API server exists under `g_agent/api/`.
 - [ ] No WebSocket channel exists at `channels/websocket.py`.
 - [ ] No first-party `webui/` exists.
 - [x] Formal MemoryManager first slice exists under `g_agent/memory/`.
@@ -260,7 +260,7 @@ Verification target:
 
 ## v0.5: Web UI And OpenAI-Compatible API
 
-Status: partial; minimal API shipped, WebSocket/Web UI/media/approvals remain.
+Status: partial; minimal API shipped, WebSocket/Web UI/media/streaming remain.
 
 - [x] `GatewayConfig` exists in `config/schema.py`.
 - [x] `Agent`, `AgentLoop`, `MessageBus`, `ChannelManager`, and
@@ -287,8 +287,8 @@ Status: partial; minimal API shipped, WebSocket/Web UI/media/approvals remain.
 - [x] Add learning candidate detail endpoint.
 - [x] Add learning approve/reject/edit endpoints.
 - [ ] Add learning apply endpoint.
-- [ ] Add `GET /profiles`.
-- [ ] Add profile detail endpoint.
+- [x] Add `GET /profiles`.
+- [x] Add profile detail endpoint.
 - [ ] Add profile switch endpoint after profile isolation is implemented.
 - [x] Add `GET /v1/models`.
 - [x] Add `POST /v1/chat/completions`.
