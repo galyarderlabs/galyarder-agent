@@ -563,7 +563,7 @@ class AgentLoop:
             effective_tools = self._get_effective_tools(msg)
 
             # Build initial messages (use get_history for LLM-formatted messages)
-            messages = self.context.build_messages(
+            messages = await self.context.build_messages(
                 history=session.get_history(),
                 current_message=effective_content,
                 media=msg.media if msg.media else None,
@@ -572,6 +572,7 @@ class AgentLoop:
                 chat_id=msg.chat_id,
                 tool_names=effective_tools,
                 profile=self.active_profile,
+                llm_provider=self.provider,
             )
 
             # Agent loop
@@ -598,7 +599,7 @@ class AgentLoop:
                     f"[System: The following previously-pending tool calls have "
                     f"now been executed with approval:\n{pending_replay_context}]"
                 )
-                messages = self.context.build_messages(
+                messages = await self.context.build_messages(
                     history=session.get_history(),
                     current_message=effective_content,
                     media=msg.media if msg.media else None,
@@ -606,6 +607,7 @@ class AgentLoop:
                     channel=msg.channel,
                     chat_id=msg.chat_id,
                     tool_names=self.tools.tool_names,
+                    llm_provider=self.provider,
                 )
 
             while iteration < self.max_iterations:
@@ -1049,7 +1051,7 @@ class AgentLoop:
         effective_tools = self._get_effective_tools(msg)
 
         # Build messages with the announce content
-        messages = self.context.build_messages(
+        messages = await self.context.build_messages(
             history=session.get_history(),
             current_message=msg.content,
             metadata=msg.metadata if msg.metadata else None,
@@ -1057,6 +1059,7 @@ class AgentLoop:
             chat_id=origin_chat_id,
             tool_names=effective_tools,
             profile=self.active_profile,
+            llm_provider=self.provider,
         )
 
         # Agent loop (limited for announce handling)

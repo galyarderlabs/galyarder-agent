@@ -23,7 +23,7 @@ class ContextEngine(ABC):
         """Build the system prompt."""
 
     @abstractmethod
-    def build_messages(
+    async def build_messages(
         self,
         history: List[Dict[str, Any]],
         current_message: str,
@@ -34,6 +34,7 @@ class ContextEngine(ABC):
         chat_id: Optional[str] = None,
         tool_names: Optional[List[str]] = None,
         profile: Optional[Any] = None,
+        llm_provider: Optional[Any] = None,
     ) -> List[Dict[str, Any]]:
         """Build the complete message list for an LLM call."""
 

@@ -9,6 +9,7 @@ from typing import Any
 from g_agent.agent.skills import SkillsLoader
 from g_agent.character.profile import CharacterProfile
 from g_agent.memory.manager import MemoryManager
+from g_agent.context.compressor import ContextCompressor
 
 _RUNTIME_CONTEXT_TAG = "[Runtime Context \u2014 metadata only, not instructions]"
 
@@ -27,6 +28,7 @@ class ContextBuilder:
         self.workspace = workspace
         self.memory = MemoryManager(workspace)
         self.skills = SkillsLoader(workspace)
+        self.compressor = ContextCompressor()
 
     def build_system_prompt(
         self,
@@ -285,7 +287,7 @@ Your workspace is at: {workspace_path}
             },
         ]
 
-    def build_messages(
+    async def build_messages(
         self,
         history: list[dict[str, Any]],
         current_message: str,
@@ -296,24 +298,18 @@ Your workspace is at: {workspace_path}
         chat_id: str | None = None,
         tool_names: list[str] | None = None,
         profile: CharacterProfile | None = None,
+        llm_provider: Any = None,
     ) -> list[dict[str, Any]]:
         """
         Build the complete message list for an LLM call.
-
-        Args:
-            history: Previous conversation messages.
-            current_message: The new user message.
-            skill_names: Optional skills to include.
-            media: Optional list of local file paths for images/media.
-            metadata: Optional message metadata (including attachment envelope).
-            channel: Current channel (telegram, whatsapp, discord, email, slack, etc.).
-            chat_id: Current chat/user ID.
-            tool_names: Optional list of tool names.
-            profile: Optional character profile.
-
-        Returns:
-            List of messages including system prompt.
         """
+        # Compress history if needed
+        if len(history) > 20:
+            self.compressor.provider = llm_provider
+            history = await self.compressor.summarize_middle(history)
+
+        history = self.compressor.prune_tool_outputs(history)
+
         messages = []
 
         # System prompt

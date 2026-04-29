@@ -526,24 +526,24 @@ Status: partial; local lifecycle strong, background proposal missing.
 - [x] `/skills list` exists.
 - [x] `/skills view` exists.
 - [x] `/skills patch-draft` exists.
-- [ ] Background reviewer proposes skill candidates.
-- [ ] Add broader supporting-file lifecycle commands.
-- [ ] Add create draft command through `/skills`.
-- [ ] Add validate draft command through `/skills`.
-- [ ] Add activate draft command through `/skills` or `/learn`.
-- [ ] Add disable skill command.
-- [ ] Add rollback active skill command outside candidate flow.
-- [ ] Add delete draft command.
+- [x] Background reviewer proposes skill candidates.
+- [x] Add broader supporting-file lifecycle commands.
+- [x] Add create draft command through `/skills`.
+- [x] Add validate draft command through `/skills`.
+- [x] Add activate draft command through `/skills` or `/learn`.
+- [x] Add disable skill command.
+- [x] Add rollback active skill command outside candidate flow.
+- [x] Add delete draft command.
 - [ ] Add supporting file add/update/delete operations.
-- [ ] Enforce allowed supporting-file directories.
-- [ ] Validate `references/`.
-- [ ] Validate `templates/`.
-- [ ] Validate `scripts/`.
-- [ ] Validate `assets/`.
-- [ ] Add optional security scan for scripts.
-- [ ] Add prompt-injection scan for skill files.
-- [ ] Add hidden-character scan for skill files.
-- [ ] Add max-size policy per skill package.
+- [x] Enforce allowed supporting-file directories.
+- [x] Validate `references/`.
+- [x] Validate `templates/`.
+- [x] Validate `scripts/`.
+- [x] Validate `assets/`.
+- [x] Add optional security scan for scripts.
+- [x] Add prompt-injection scan for skill files.
+- [x] Add hidden-character scan for skill files.
+- [x] Add max-size policy per skill package.
 - [ ] Add `/skill <name>` invocation later.
 - [ ] Add skill setup metadata later.
 - [ ] Add progressive loading improvements.

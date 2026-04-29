@@ -35,7 +35,7 @@ class DefaultContextEngine(ContextEngine):
             profile=profile,
         )
 
-    def build_messages(
+    async def build_messages(
         self,
         history: List[Dict[str, Any]],
         current_message: str,
@@ -46,8 +46,9 @@ class DefaultContextEngine(ContextEngine):
         chat_id: Optional[str] = None,
         tool_names: Optional[List[str]] = None,
         profile: Optional[Any] = None,
+        llm_provider: Optional[Any] = None,
     ) -> List[Dict[str, Any]]:
-        return self.builder.build_messages(
+        return await self.builder.build_messages(
             history=history,
             current_message=current_message,
             skill_names=skill_names,
@@ -57,6 +58,7 @@ class DefaultContextEngine(ContextEngine):
             chat_id=chat_id,
             tool_names=tool_names,
             profile=profile,
+            llm_provider=llm_provider,
         )
 
     def should_compress(self, messages: List[Dict[str, Any]]) -> bool:
