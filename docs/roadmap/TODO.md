@@ -309,18 +309,18 @@ Status: partial; minimal API shipped, WebSocket/Web UI/media/streaming remain.
 - [x] Add learning-candidate events.
 - [x] Add media-upload events.
 - [x] Add channel-status events.
-- [ ] Add `webui/`.
-- [ ] Build session sidebar.
-- [ ] Build chat thread.
-- [ ] Build image lightbox.
-- [ ] Build connection/channel status panel.
-- [ ] Build character/profile switcher.
-- [ ] Build memory review panel.
-- [ ] Build skill review panel.
-- [ ] Build approvals panel.
-- [ ] Build routine scheduler panel.
-- [ ] Build provider and visual settings panel.
-- [ ] Add Web UI tests or smoke tests.
+- [x] Add `webui/`.
+- [x] Build session sidebar.
+- [x] Build chat thread.
+- [x] Build image lightbox.
+- [x] Build connection/channel status panel.
+- [x] Build character/profile switcher.
+- [x] Build memory review panel.
+- [x] Build skill review panel.
+- [x] Build approvals panel.
+- [x] Build routine scheduler panel.
+- [x] Build provider and visual settings panel.
+- [x] Add Web UI tests or smoke tests.
 - [x] Add API tests.
 - [x] Add WebSocket tests.
 - [x] Add docs for API auth and local bind behavior.

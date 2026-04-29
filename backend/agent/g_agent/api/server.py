@@ -47,6 +47,15 @@ class ApiError(Exception):
         self.message = message
 
 
+async def _webui_bootstrap(request: web.Request) -> web.Response:
+    config = request.app[CONFIG_KEY]
+    token = config.gateway.api_token or ""
+    return web.json_response({
+        "token": token,
+        "ws_path": "/ws",
+        "model_name": config.model.name if hasattr(config, "model") else "g-agent"
+    })
+
 def create_app(
     *,
     config: Config | None = None,
@@ -75,8 +84,11 @@ def create_app(
 
     app.router.add_get("/health", _health)
     app.router.add_get("/status", _status)
+    app.router.add_get("/webui/bootstrap", _webui_bootstrap)
     app.router.add_get("/sessions", _sessions)
     app.router.add_get("/sessions/{session_id}", _session_detail)
+    app.router.add_post("/sessions/{session_key}/delete", _session_delete)
+    app.router.add_get("/sessions/{session_key}/messages", _session_messages)
     app.router.add_post("/media", _media_upload)
     app.router.add_get("/approvals", _approvals)
     app.router.add_post("/approvals/{approval_id}/approve", _approval_approve)
@@ -91,6 +103,20 @@ def create_app(
     app.router.add_get("/profiles/{profile_id}", _profile_detail)
     app.router.add_get("/v1/models", _models)
     app.router.add_post("/v1/chat/completions", _chat_completions)
+
+    webui_dir = Path(__file__).parent.parent / "webui" / "dist"
+    if webui_dir.exists():
+        app.router.add_static("/assets", webui_dir / "assets")
+        
+        async def _serve_index(request: web.Request) -> web.Response:
+            index_path = webui_dir / "index.html"
+            if index_path.exists():
+                return web.FileResponse(index_path)
+            raise web.HTTPNotFound()
+            
+        app.router.add_get("/", _serve_index)
+        app.router.add_get("/index.html", _serve_index)
+
     return app
 
 
@@ -176,6 +202,38 @@ async def _sessions(request: web.Request) -> web.Response:
     sessions = request.app[SESSIONS_KEY]
     limit = _int_query(request, "limit", default=50, minimum=1, maximum=200)
     return web.json_response({"data": sessions.sqlite_store.list_sessions(limit=limit)})
+
+
+async def _session_delete(request: web.Request) -> web.Response:
+    sessions = request.app[SESSIONS_KEY]
+    session_key = request.match_info["session_key"]
+    # Key is often URL-encoded in the path
+    decoded_key = unquote(session_key)
+    session = sessions.get_or_create(decoded_key)
+    if not session:
+        raise ApiError(404, "not_found", "session not found")
+    
+    # Actually delete from store
+    sessions.sqlite_store.delete_session(session["id"])
+    return web.json_response({"deleted": True})
+
+async def _session_messages(request: web.Request) -> web.Response:
+    sessions = request.app[SESSIONS_KEY]
+    session_key = request.match_info["session_key"]
+    decoded_key = unquote(session_key)
+    session = sessions.get_or_create(decoded_key)
+    if not session:
+        raise ApiError(404, "not_found", "session not found")
+    
+    limit = _int_query(request, "limit", default=100, minimum=1, maximum=500)
+    messages = sessions.sqlite_store.get_history(session["id"], limit=limit)
+    
+    return web.json_response({
+        "key": decoded_key,
+        "created_at": session.get("created_at"),
+        "updated_at": session.get("updated_at"),
+        "messages": messages
+    })
 
 
 async def _session_detail(request: web.Request) -> web.Response:
