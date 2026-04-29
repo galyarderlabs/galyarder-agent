@@ -8,7 +8,7 @@ from typing import Any
 
 from aiohttp import WSMsgType, web
 
-from g_agent.bus.events import OutboundMessage
+from g_agent.bus.events import LifecycleEvent, OutboundMessage
 from g_agent.bus.queue import MessageBus
 from g_agent.channels.base import BaseChannel
 from g_agent.channels.capabilities import ChannelCapabilities
@@ -37,6 +37,7 @@ class WebSocketChannel(BaseChannel):
         self._site: web.TCPSite | None = None
         self._stop_event = asyncio.Event()
         self._clients: dict[str, set[web.WebSocketResponse]] = {}
+        self.bus.subscribe_events(self.send_event)
 
     def make_app(self) -> web.Application:
         """Build the aiohttp app used by the channel server."""
@@ -80,6 +81,28 @@ class WebSocketChannel(BaseChannel):
             "reply_to": msg.reply_to,
             "media": list(msg.media),
             "metadata": dict(msg.metadata or {}),
+        }
+        stale: list[web.WebSocketResponse] = []
+        for client in clients:
+            if client.closed:
+                stale.append(client)
+                continue
+            await client.send_json(payload)
+        for client in stale:
+            clients.discard(client)
+
+    async def send_event(self, event: LifecycleEvent) -> None:
+        """Send a lifecycle event to connected WebSocket clients."""
+        clients = self._clients.get(event.chat_id, set())
+        if not clients:
+            return
+        payload = {
+            "type": "event",
+            "event_type": event.type,
+            "channel": self.name,
+            "chat_id": event.chat_id,
+            "data": event.data,
+            "timestamp": event.timestamp.isoformat(),
         }
         stale: list[web.WebSocketResponse] = []
         for client in clients:

@@ -303,12 +303,12 @@ Status: partial; minimal API shipped, WebSocket/Web UI/media/streaming remain.
 - [x] Add WebSocket token auth.
 - [x] Add WebSocket session mapping.
 - [ ] Add streaming deltas.
-- [ ] Add lifecycle events.
-- [ ] Add tool-call events.
-- [ ] Add approval-needed events.
-- [ ] Add learning-candidate events.
-- [ ] Add media-upload events.
-- [ ] Add channel-status events.
+- [x] Add lifecycle events.
+- [x] Add tool-call events.
+- [x] Add approval-needed events.
+- [x] Add learning-candidate events.
+- [x] Add media-upload events.
+- [x] Add channel-status events.
 - [ ] Add `webui/`.
 - [ ] Build session sidebar.
 - [ ] Build chat thread.

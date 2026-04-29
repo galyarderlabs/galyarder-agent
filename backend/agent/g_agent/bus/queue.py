@@ -5,7 +5,7 @@ from typing import Awaitable, Callable
 
 from loguru import logger
 
-from g_agent.bus.events import InboundMessage, OutboundMessage
+from g_agent.bus.events import InboundMessage, LifecycleEvent, OutboundMessage
 
 
 class MessageBus:
@@ -19,9 +19,11 @@ class MessageBus:
     def __init__(self):
         self.inbound: asyncio.Queue[InboundMessage] = asyncio.Queue()
         self.outbound: asyncio.Queue[OutboundMessage] = asyncio.Queue()
+        self.events: asyncio.Queue[LifecycleEvent] = asyncio.Queue()
         self._outbound_subscribers: dict[
             str, list[Callable[[OutboundMessage], Awaitable[None]]]
         ] = {}
+        self._event_subscribers: list[Callable[[LifecycleEvent], Awaitable[None]]] = []
         self._running = False
 
     async def publish_inbound(self, msg: InboundMessage) -> None:
@@ -40,6 +42,14 @@ class MessageBus:
         """Consume the next outbound message (blocks until available)."""
         return await self.outbound.get()
 
+    async def publish_event(self, event: LifecycleEvent) -> None:
+        """Publish a lifecycle event to subscribed channels."""
+        await self.events.put(event)
+
+    async def consume_event(self) -> LifecycleEvent:
+        """Consume the next event (blocks until available)."""
+        return await self.events.get()
+
     def subscribe_outbound(
         self, channel: str, callback: Callable[[OutboundMessage], Awaitable[None]]
     ) -> None:
@@ -47,6 +57,12 @@ class MessageBus:
         if channel not in self._outbound_subscribers:
             self._outbound_subscribers[channel] = []
         self._outbound_subscribers[channel].append(callback)
+
+    def subscribe_events(
+        self, callback: Callable[[LifecycleEvent], Awaitable[None]]
+    ) -> None:
+        """Subscribe to all lifecycle events."""
+        self._event_subscribers.append(callback)
 
     async def dispatch_outbound(self) -> None:
         """
@@ -64,7 +80,19 @@ class MessageBus:
                     except Exception as e:
                         logger.error(f"Error dispatching to {msg.channel}: {e}")
             except asyncio.TimeoutError:
-                continue
+                pass
+            
+            # also dispatch events
+            while not self.events.empty():
+                try:
+                    event = self.events.get_nowait()
+                    for callback in self._event_subscribers:
+                        try:
+                            await callback(event)
+                        except Exception as e:
+                            logger.error(f"Error dispatching event {event.type}: {e}")
+                except asyncio.QueueEmpty:
+                    break
 
     def stop(self) -> None:
         """Stop the dispatcher loop."""
@@ -79,3 +107,8 @@ class MessageBus:
     def outbound_size(self) -> int:
         """Number of pending outbound messages."""
         return self.outbound.qsize()
+
+    @property
+    def event_size(self) -> int:
+        """Number of pending events."""
+        return self.events.qsize()

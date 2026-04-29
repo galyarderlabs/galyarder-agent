@@ -1,5 +1,6 @@
 """Local product API server for G-Agent."""
 
+import asyncio
 import re
 import uuid
 from pathlib import Path
@@ -17,6 +18,7 @@ from g_agent.api.openai_compat import (
     last_user_content,
     model_list,
 )
+from g_agent.bus.events import LifecycleEvent
 from g_agent.character.profile import CharacterProfile
 from g_agent.character.store import CharacterStore
 from g_agent.config.loader import load_config
@@ -264,6 +266,32 @@ async def _media_upload(request: web.Request) -> web.Response:
             "field": uploaded.get("field"),
         },
     )
+
+    try:
+        agent = await _get_agent(request)
+        chat_id = session_key.split(":", 1)[1] if ":" in session_key else session_key
+        asyncio.create_task(
+            agent.bus.publish_event(
+                LifecycleEvent(
+                    type="media_upload",
+                    chat_id=chat_id,
+                    data={
+                        "id": media_id,
+                        "session_id": session["id"],
+                        "session_key": session_key,
+                        "message_id": message_id,
+                        "kind": kind,
+                        "path": uploaded["path"],
+                        "mime_type": uploaded.get("mime_type"),
+                        "filename": uploaded["filename"],
+                        "size": uploaded["size"],
+                    }
+                )
+            )
+        )
+    except Exception:
+        pass
+
     return web.json_response(
         {
             "data": {

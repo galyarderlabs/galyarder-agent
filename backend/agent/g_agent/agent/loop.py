@@ -69,7 +69,7 @@ from g_agent.agent.workflow_packs import (
     extract_workflow_pack_flags,
     resolve_workflow_pack_request,
 )
-from g_agent.bus.events import InboundMessage, OutboundMessage
+from g_agent.bus.events import InboundMessage, LifecycleEvent, OutboundMessage
 from g_agent.bus.queue import MessageBus
 from g_agent.character.store import CharacterStore
 from g_agent.config.presets import GUEST_LIMITED_EXTRA_TOOLS, GUEST_SAFE_TOOLS
@@ -485,6 +485,20 @@ class AgentLoop:
                 "has_metadata": bool(msg.metadata),
             },
         )
+
+        try:
+            asyncio.create_task(
+                self.bus.publish_event(
+                    LifecycleEvent(
+                        type="agent:thinking",
+                        chat_id=msg.chat_id,
+                        data={"task_id": task_id, "session_key": msg.session_key}
+                    )
+                )
+            )
+        except Exception as e:
+            logger.debug(f"Failed to emit agent:thinking event: {e}")
+
         if previous_running and previous_running.get("task_id") != task_id:
             previous_task_id = str(previous_running.get("task_id", ""))
             if previous_task_id:
@@ -642,6 +656,23 @@ class AgentLoop:
                         args_str = json.dumps(tool_call.arguments)
                         logger.debug(f"Executing tool: {tool_call.name} with arguments: {args_str}")
                         self.runtime.append_event(task_id, "tool_call", tool_call.name)
+                        
+                        try:
+                            asyncio.create_task(
+                                self.bus.publish_event(
+                                    LifecycleEvent(
+                                        type="tool_call",
+                                        chat_id=msg.chat_id,
+                                        data={
+                                            "tool_name": tool_call.name,
+                                            "tool_args": tool_call.arguments,
+                                        }
+                                    )
+                                )
+                            )
+                        except Exception as e:
+                            logger.debug(f"Failed to emit tool_call event: {e}")
+
                         result = await self._execute_tool_with_policy(
                             tool_name=tool_call.name,
                             tool_args=tool_call.arguments,
@@ -941,7 +972,26 @@ class AgentLoop:
 
         async def _run_review() -> None:
             try:
-                self._learning_reviewer.enqueue_turn(review)
+                candidates = self._learning_reviewer.enqueue_turn(review)
+                for candidate in candidates:
+                    chat_id = session_key.split(":", 1)[1] if ":" in session_key else session_key
+                    try:
+                        asyncio.create_task(
+                            self.bus.publish_event(
+                                LifecycleEvent(
+                                    type="learning_candidate",
+                                    chat_id=chat_id,
+                                    data={
+                                        "candidate_id": candidate.id,
+                                        "kind": candidate.kind,
+                                        "title": candidate.title,
+                                        "session_key": session_key
+                                    }
+                                )
+                            )
+                        )
+                    except Exception as e:
+                        logger.debug(f"Failed to emit learning_candidate event: {e}")
             except Exception as exc:
                 logger.warning("Background learning review failed: {}", exc)
 
@@ -2205,6 +2255,25 @@ class AgentLoop:
             tool_name=tool_name,
             tool_args=tool_args,
         )
+        if record:
+            try:
+                chat_id = session.key.split(":", 1)[1] if ":" in session.key else session.key
+                asyncio.create_task(
+                    self.bus.publish_event(
+                        LifecycleEvent(
+                            type="approval_needed",
+                            chat_id=chat_id,
+                            data={
+                                "approval_id": record.id,
+                                "tool_name": tool_name,
+                                "tool_args": tool_args,
+                                "session_key": session.key
+                            }
+                        )
+                    )
+                )
+            except Exception as e:
+                logger.debug(f"Failed to emit approval_needed event: {e}")
         pending.append(
             {
                 "id": record.id,

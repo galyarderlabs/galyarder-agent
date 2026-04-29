@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 
 from loguru import logger
 
-from g_agent.bus.events import OutboundMessage
+from g_agent.bus.events import LifecycleEvent, OutboundMessage
 from g_agent.bus.queue import MessageBus
 from g_agent.channels.base import BaseChannel
 from g_agent.config.schema import Config
@@ -220,6 +220,20 @@ class ChannelManager:
 
         self._channel_restart_history.clear()
 
+    async def _emit_status(self, name: str, status: str) -> None:
+        try:
+            asyncio.create_task(
+                self.bus.publish_event(
+                    LifecycleEvent(
+                        type="channel_status",
+                        chat_id="system",
+                        data={"channel": name, "status": status}
+                    )
+                )
+            )
+        except Exception as e:
+            logger.debug(f"Failed to emit channel status event: {e}")
+
     async def _run_channel_supervisor(self, name: str, channel: BaseChannel) -> None:
         """Run one channel with restart-on-failure supervision."""
         backoff = self._channel_restart_delay_s
@@ -227,6 +241,7 @@ class ChannelManager:
         while self._running:
             started_at = time.monotonic()
             try:
+                await self._emit_status(name, "online")
                 await channel.start()
                 if not self._running:
                     break
@@ -237,9 +252,12 @@ class ChannelManager:
                     f"{name} channel stopped unexpectedly after {runtime_s:.1f}s; "
                     f"restarting in {backoff:.1f}s"
                 )
+                await self._emit_status(name, "offline")
             except asyncio.CancelledError:
+                await self._emit_status(name, "offline")
                 break
             except Exception as exc:
+                await self._emit_status(name, "crashed")
                 if not self._running:
                     break
                 runtime_s = time.monotonic() - started_at

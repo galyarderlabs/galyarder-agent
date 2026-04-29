@@ -26,8 +26,17 @@ class InboundMessage:
 
 
 @dataclass
+class LifecycleEvent:
+    """A generic lifecycle or system event."""
+
+    type: str
+    chat_id: str
+    data: dict[str, Any] = field(default_factory=dict)
+    timestamp: datetime = field(default_factory=datetime.now)
+
+
+@dataclass
 class OutboundMessage:
-    """Message to send to a chat channel."""
 
     channel: str
     chat_id: str
