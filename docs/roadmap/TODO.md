@@ -779,7 +779,7 @@ Every task is not done until:
 
 ### Then
 
-- [ ] v0.10 compression integration.
+- [x] v0.10 compression integration.
 - [ ] v0.11 routine script preprocessing.
 - [ ] v0.12 streamable HTTP MCP.
 - [ ] v0.5 minimal product API.

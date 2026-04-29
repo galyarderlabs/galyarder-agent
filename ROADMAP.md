@@ -563,7 +563,7 @@ this document.
 - [x] `docs/roadmap/v0.7-memory-manager-owner-model.md` — first MemoryManager/provider/fencing slice shipped; write cadence and manager-routed memory tools remain.
 - [x] `docs/roadmap/v0.8-owner-reviewed-learning-loop.md` — queue/model/chat command, skill candidate edit/apply/rollback, and opt-in background reviewer first slice shipped; non-skill apply flows remain.
 - [x] `docs/roadmap/v0.9-skills-procedural-memory.md` — skill store/validator/manager/tool plus `/skills`, draft patching, owner-reviewed skill apply/rollback, and background skill proposals shipped; broader file lifecycle remains.
-- [x] `docs/roadmap/v0.10-context-engine-compression.md` — first slice shipped; automated compression triggering in `AgentLoop` and `/compact` replacement remain.
+- [x] `docs/roadmap/v0.10-context-engine-compression.md` — first slice and `/compact` compressor replacement shipped; automated compression triggering in `AgentLoop` remains.
 - [x] `docs/roadmap/v0.11-routines-cron-triggers.md` — first slice shipped; multi-skill workflows and webhook/API triggers remain.
 - [x] `docs/roadmap/v0.12-toolsets-mcp-execution.md` — local backend/toolset/MCP slice shipped; streamable HTTP MCP and Docker execution backend remain.
 - [x] `docs/roadmap/v0.13-insights-packaging-public-trust.md` — completed slice; insights, guest enforcement, profile setup, release checklist, install matrix, and security docs are covered.

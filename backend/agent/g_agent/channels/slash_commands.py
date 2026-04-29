@@ -255,6 +255,7 @@ class SlashCommandDispatcher:
         return f"✅ <b>Session already empty.</b> · model: <code>{self.model_name}</code>"
 
     def _cmd_compact(self, session_key: str) -> str:
+        from g_agent.context.compressor import ContextCompressor
         from g_agent.session.manager import SessionManager
 
         sessions = SessionManager(self.workspace)
@@ -268,8 +269,8 @@ class SlashCommandDispatcher:
         total_chars_before = sum(len(str(m.get("content", ""))) for m in session.messages)
         est_tokens_before = total_chars_before // 4
 
-        # Build digest and compress
-        digest = sessions._build_digest(session, max_chars=4000)
+        # Build reference-only digest through the context compressor.
+        digest = ContextCompressor().build_reference_summary(session.messages, max_chars=4000)
 
         # Replace history with single summary message
         session.clear()
