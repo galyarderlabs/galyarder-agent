@@ -1,6 +1,10 @@
 """Local product API server for G-Agent."""
 
+import re
+import uuid
+from pathlib import Path
 from typing import Any
+from urllib.parse import unquote
 
 from aiohttp import web
 
@@ -70,6 +74,7 @@ def create_app(
     app.router.add_get("/status", _status)
     app.router.add_get("/sessions", _sessions)
     app.router.add_get("/sessions/{session_id}", _session_detail)
+    app.router.add_post("/media", _media_upload)
     app.router.add_get("/approvals", _approvals)
     app.router.add_post("/approvals/{approval_id}/approve", _approval_approve)
     app.router.add_post("/approvals/{approval_id}/deny", _approval_deny)
@@ -182,6 +187,97 @@ async def _session_detail(request: web.Request) -> web.Response:
             "session": session,
             "messages": sessions.sqlite_store.get_history(session["id"], limit=limit),
         }
+    )
+
+
+async def _media_upload(request: web.Request) -> web.Response:
+    if not request.content_type.startswith("multipart/"):
+        raise ApiError(400, "invalid_request", "multipart upload is required")
+
+    config = request.app[CONFIG_KEY]
+    sessions = request.app[SESSIONS_KEY]
+    fields: dict[str, str] = {}
+    uploaded: dict[str, Any] | None = None
+    upload_dir = config.workspace_path / "media" / "uploads"
+    upload_dir.mkdir(parents=True, exist_ok=True)
+
+    reader = await request.multipart()
+    async for part in reader:
+        if part.filename:
+            filename = _safe_filename(part.filename)
+            target = upload_dir / f"{uuid.uuid4().hex}-{filename}"
+            size = 0
+            with target.open("wb") as handle:
+                while True:
+                    chunk = await part.read_chunk()
+                    if not chunk:
+                        break
+                    size += len(chunk)
+                    handle.write(chunk)
+            uploaded = {
+                "path": str(target),
+                "filename": filename,
+                "size": size,
+                "mime_type": part.headers.get("Content-Type"),
+                "field": part.name,
+            }
+        elif part.name:
+            fields[part.name] = (await part.text()).strip()
+
+    if uploaded is None:
+        raise ApiError(400, "invalid_request", "file part is required")
+
+    session_key = fields.get("session_key") or request.query.get("session_key") or "api:uploads"
+    session = sessions.sqlite_store.get_or_create_session(session_key)
+    kind = fields.get("kind") or _media_kind(uploaded.get("mime_type")) or "file"
+    caption = fields.get("caption") or f"[{kind}: {uploaded['filename']}]"
+    metadata = {
+        "attachments": [
+            {
+                "type": kind,
+                "path": uploaded["path"],
+                "mime": uploaded.get("mime_type"),
+                "filename": uploaded["filename"],
+                "size": uploaded["size"],
+                "sourceChannel": "api",
+            }
+        ]
+    }
+    message_id = sessions.sqlite_store.append_message(
+        session["id"],
+        "user",
+        caption,
+        content_type="media",
+        metadata=metadata,
+    )
+    media_id = sessions.sqlite_store.append_media_ref(
+        session["id"],
+        message_id=message_id,
+        kind=kind,
+        path=uploaded["path"],
+        mime_type=uploaded.get("mime_type"),
+        metadata={
+            "filename": uploaded["filename"],
+            "size": uploaded["size"],
+            "source": "api_upload",
+            "field": uploaded.get("field"),
+        },
+    )
+    return web.json_response(
+        {
+            "data": {
+                "id": media_id,
+                "session_id": session["id"],
+                "session_key": session_key,
+                "message_id": message_id,
+                "kind": kind,
+                "path": uploaded["path"],
+                "mime_type": uploaded.get("mime_type"),
+                "filename": uploaded["filename"],
+                "size": uploaded["size"],
+            }
+        },
+        status=201,
     )
 
 
@@ -394,6 +490,21 @@ def _apply_error_message(result: LearningApplyResult) -> str:
     if result.errors:
         return result.message + ": " + "; ".join(result.errors)
     return result.message
+
+
+def _safe_filename(filename: str) -> str:
+    name = Path(unquote(filename).replace("\\", "/")).name
+    sanitized = re.sub(r"[^A-Za-z0-9._-]+", "-", name).strip(".-")
+    return sanitized or "upload.bin"
+
+
+def _media_kind(mime_type: str | None) -> str | None:
+    if not mime_type:
+        return None
+    prefix = mime_type.split("/", 1)[0].lower()
+    if prefix in {"image", "audio", "video"}:
+        return prefix
+    return "document"
 
 
 def _json_error(status: int, code: str, message: str) -> web.Response:

@@ -349,6 +349,38 @@ class SessionSQLiteStore:
 
         return self._execute_write(_do)
 
+    def append_media_ref(
+        self,
+        session_id: str,
+        *,
+        path: str,
+        kind: str = "file",
+        message_id: int | None = None,
+        mime_type: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> int:
+        """Append a media reference to a session."""
+        now = time.time()
+        metadata_json = json.dumps(metadata) if metadata else None
+        sha256 = _sha256_file(Path(path))
+
+        def _do(conn: sqlite3.Connection) -> int:
+            cursor = conn.execute(
+                """INSERT INTO media_refs (
+                       session_id, message_id, kind, path, mime_type,
+                       sha256, metadata_json, created_at
+                   )
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (session_id, message_id, kind, path, mime_type, sha256, metadata_json, now),
+            )
+            conn.execute(
+                "UPDATE sessions SET updated_at = ? WHERE id = ?",
+                (now, session_id),
+            )
+            return int(cursor.lastrowid)
+
+        return self._execute_write(_do)
+
     def replace_messages(self, session_id: str, messages: list[dict[str, Any]]) -> None:
         """Replace all messages for a session with the provided history."""
         now = time.time()

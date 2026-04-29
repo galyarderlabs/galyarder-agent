@@ -1,8 +1,10 @@
 """Product API server tests."""
 
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 
+from aiohttp import FormData
 from aiohttp.test_utils import TestClient, TestServer
 
 from g_agent.api.server import APPROVALS_KEY, LEARNING_KEY, SESSIONS_KEY, create_app
@@ -111,6 +113,67 @@ async def test_api_lists_sessions_and_fetches_history(tmp_path: Path, monkeypatc
         detail_payload = await detail.json()
         assert detail_payload["session"]["id"] == session["id"]
         assert [msg["content"] for msg in detail_payload["messages"]] == ["hello", "world"]
+    finally:
+        await client.close()
+
+
+async def test_api_media_upload_stores_file_and_session_ref(tmp_path: Path, monkeypatch) -> None:
+    client = await _client(tmp_path, monkeypatch)
+    try:
+        data = FormData()
+        data.add_field("session_key", "api:media-room")
+        data.add_field("kind", "image")
+        data.add_field("caption", "uploaded image")
+        data.add_field(
+            "file",
+            BytesIO(b"fake image bytes"),
+            filename="../photo.png",
+            content_type="image/png",
+        )
+
+        response = await client.post("/media", data=data)
+
+        assert response.status == 201
+        payload = await response.json()
+        media = payload["data"]
+        assert media["session_key"] == "api:media-room"
+        assert media["kind"] == "image"
+        assert media["filename"] == "photo.png"
+        path = Path(media["path"])
+        assert path.is_file()
+        assert path.read_bytes() == b"fake image bytes"
+
+        manager: SessionManager = client.app[SESSIONS_KEY]
+        session = manager.sqlite_store.get_session("api:media-room")
+        assert session is not None
+        history = manager.sqlite_store.get_history(session["id"], limit=1)
+        assert history == [
+            {
+                "role": "user",
+                "content": "uploaded image",
+                "content_type": "media",
+            }
+        ]
+        row = manager.sqlite_store._conn.execute(
+            "SELECT kind, path, mime_type, sha256 FROM media_refs WHERE id = ?",
+            (media["id"],),
+        ).fetchone()
+        assert row["kind"] == "image"
+        assert row["path"] == media["path"]
+        assert row["mime_type"] == "image/png"
+        assert row["sha256"]
+    finally:
+        await client.close()
+
+
+async def test_api_media_upload_requires_multipart_file(tmp_path: Path, monkeypatch) -> None:
+    client = await _client(tmp_path, monkeypatch)
+    try:
+        response = await client.post("/media", json={"session_key": "api:media-room"})
+
+        assert response.status == 400
+        payload = await response.json()
+        assert payload["error"]["code"] == "invalid_request"
     finally:
         await client.close()
 

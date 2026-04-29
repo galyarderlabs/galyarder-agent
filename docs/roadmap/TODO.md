@@ -278,8 +278,8 @@ Status: partial; minimal API shipped, WebSocket/Web UI/media/streaming remain.
 - [x] Add `GET /sessions`.
 - [x] Add `GET /sessions/{id}`.
 - [x] Add session history response model.
-- [ ] Add media upload endpoint.
-- [ ] Store uploaded media as refs, not raw blobs in sessions.
+- [x] Add media upload endpoint.
+- [x] Store uploaded media as refs, not raw blobs in sessions.
 - [x] Add `GET /approvals`.
 - [x] Add `POST /approvals/{id}/approve`.
 - [x] Add `POST /approvals/{id}/deny`.

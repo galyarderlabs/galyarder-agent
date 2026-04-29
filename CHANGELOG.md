@@ -32,6 +32,7 @@ All notable changes to this project are documented in this file.
 - Added product API learning apply support for skill candidates through the shared learning applier.
 - Added product API profile endpoints for listing and inspecting character profiles.
 - Added `api/openai_compat.py` for text-only OpenAI-compatible model, message, and chat response helpers.
+- Added multipart product API media uploads that persist files under the workspace and write session media references.
 
 ### Fixed
 - Skill candidate rollback now restores the previous active skill when one existed, or removes the newly activated skill when it did not.
