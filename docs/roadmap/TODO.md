@@ -268,7 +268,7 @@ Status: partial; minimal API shipped, WebSocket/Web UI/media/streaming remain.
 - [x] `observability/http_server.py` exists for metrics.
 - [x] Add `g_agent/api/`.
 - [x] Add `g_agent/api/server.py`.
-- [ ] Add `g_agent/api/openai_compat.py`.
+- [x] Add `g_agent/api/openai_compat.py`.
 - [x] Add API auth/token config.
 - [x] Add local-first bind defaults.
 - [x] Add request size limits.

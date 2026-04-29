@@ -1,13 +1,17 @@
 """Local product API server for G-Agent."""
 
-import time
-import uuid
 from typing import Any
 
 from aiohttp import web
 
 from g_agent import __version__
 from g_agent.agent.api import Agent
+from g_agent.api.openai_compat import (
+    chat_completion_response,
+    chat_id_from_session_key,
+    last_user_content,
+    model_list,
+)
 from g_agent.character.profile import CharacterProfile
 from g_agent.character.store import CharacterStore
 from g_agent.config.loader import load_config
@@ -285,14 +289,7 @@ async def _profile_detail(request: web.Request) -> web.Response:
 async def _models(request: web.Request) -> web.Response:
     config = request.app[CONFIG_KEY]
     model_ids = [config.agents.defaults.model, *config.agents.defaults.routing.fallback_models]
-    seen: set[str] = set()
-    data = []
-    for model_id in model_ids:
-        if not model_id or model_id in seen:
-            continue
-        seen.add(model_id)
-        data.append({"id": model_id, "object": "model", "owned_by": "g-agent"})
-    return web.json_response({"object": "list", "data": data})
+    return web.json_response(model_list(model_ids))
 
 
 async def _chat_completions(request: web.Request) -> web.Response:
@@ -303,7 +300,7 @@ async def _chat_completions(request: web.Request) -> web.Response:
     if not isinstance(messages, list) or not messages:
         raise ApiError(400, "invalid_request", "messages must be a non-empty array")
 
-    content = _last_user_content(messages)
+    content = last_user_content(messages)
     if not content:
         raise ApiError(400, "invalid_request", "last user message content is required")
 
@@ -315,25 +312,10 @@ async def _chat_completions(request: web.Request) -> web.Response:
         content,
         session_key=session_key,
         channel="api",
-        chat_id=session_key.split(":", 1)[1] if ":" in session_key else session_key,
+        chat_id=chat_id_from_session_key(session_key),
     )
 
-    return web.json_response(
-        {
-            "id": f"chatcmpl-{uuid.uuid4().hex[:24]}",
-            "object": "chat.completion",
-            "created": int(time.time()),
-            "model": model,
-            "choices": [
-                {
-                    "index": 0,
-                    "message": {"role": "assistant", "content": response_text},
-                    "finish_reason": "stop",
-                }
-            ],
-            "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
-        }
-    )
+    return web.json_response(chat_completion_response(model=model, response_text=response_text))
 
 
 async def _get_agent(request: web.Request) -> Any:
@@ -342,30 +324,6 @@ async def _get_agent(request: web.Request) -> Any:
         agent = Agent(config=request.app[CONFIG_KEY])
         request.app[AGENT_KEY] = agent
     return agent
-
-
-def _last_user_content(messages: list[Any]) -> str:
-    for message in reversed(messages):
-        if not isinstance(message, dict) or message.get("role") != "user":
-            continue
-        return _normalize_content(message.get("content"))
-    return ""
-
-
-def _normalize_content(content: Any) -> str:
-    if isinstance(content, str):
-        return content.strip()
-    if isinstance(content, list):
-        parts = []
-        for item in content:
-            if not isinstance(item, dict):
-                continue
-            if item.get("type") in {"text", "input_text"}:
-                text = item.get("text")
-                if isinstance(text, str):
-                    parts.append(text)
-        return "\n".join(parts).strip()
-    return ""
 
 
 def _int_query(

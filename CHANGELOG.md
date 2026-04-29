@@ -30,6 +30,7 @@ All notable changes to this project are documented in this file.
 - Added product API approval endpoints for listing, approving, and denying approval records.
 - Added product API learning endpoints for listing, inspecting, approving, rejecting, and editing candidates.
 - Added product API profile endpoints for listing and inspecting character profiles.
+- Added `api/openai_compat.py` for text-only OpenAI-compatible model, message, and chat response helpers.
 
 ### Fixed
 - Skill candidate rollback now restores the previous active skill when one existed, or removes the newly activated skill when it did not.

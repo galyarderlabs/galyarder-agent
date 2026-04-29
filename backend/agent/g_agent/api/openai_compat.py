@@ -1,0 +1,66 @@
+"""OpenAI-compatible request and response helpers."""
+
+import time
+import uuid
+from typing import Any
+
+
+def model_list(model_ids: list[str]) -> dict[str, Any]:
+    """Build an OpenAI-compatible model list response."""
+    seen: set[str] = set()
+    data: list[dict[str, str]] = []
+    for model_id in model_ids:
+        if not model_id or model_id in seen:
+            continue
+        seen.add(model_id)
+        data.append({"id": model_id, "object": "model", "owned_by": "g-agent"})
+    return {"object": "list", "data": data}
+
+
+def last_user_content(messages: list[Any]) -> str:
+    """Return normalized content from the last user message."""
+    for message in reversed(messages):
+        if not isinstance(message, dict) or message.get("role") != "user":
+            continue
+        return normalize_content(message.get("content"))
+    return ""
+
+
+def normalize_content(content: Any) -> str:
+    """Normalize text-only chat content into a prompt string."""
+    if isinstance(content, str):
+        return content.strip()
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if not isinstance(item, dict):
+                continue
+            if item.get("type") in {"text", "input_text"}:
+                text = item.get("text")
+                if isinstance(text, str):
+                    parts.append(text)
+        return "\n".join(parts).strip()
+    return ""
+
+
+def chat_id_from_session_key(session_key: str) -> str:
+    """Derive the API chat id used by the runtime from a session key."""
+    return session_key.split(":", 1)[1] if ":" in session_key else session_key
+
+
+def chat_completion_response(*, model: str, response_text: str) -> dict[str, Any]:
+    """Build a non-streaming OpenAI-compatible chat completion response."""
+    return {
+        "id": f"chatcmpl-{uuid.uuid4().hex[:24]}",
+        "object": "chat.completion",
+        "created": int(time.time()),
+        "model": model,
+        "choices": [
+            {
+                "index": 0,
+                "message": {"role": "assistant", "content": response_text},
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+    }
