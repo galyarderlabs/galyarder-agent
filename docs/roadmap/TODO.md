@@ -146,12 +146,12 @@ Status: core shipped; approval state remains incomplete.
 - [x] Add `/deny`.
 - [x] Add `/learn`.
 - [x] Add `/skills`.
-- [ ] Persist approval decisions into first-class approval state.
-- [ ] Add approval ids that survive process restarts.
+- [x] Persist approval decisions into first-class approval state.
+- [x] Add approval ids that survive process restarts.
 - [ ] Add approve-once behavior.
 - [ ] Add approve-for-session behavior.
 - [ ] Add narrow persistent allowlist behavior.
-- [ ] Add owner command to list pending approvals.
+- [x] Add owner command to list pending approvals.
 - [ ] Add owner command to clear one pending approval by id.
 - [ ] Add owner command to clear all pending approvals for a session.
 - [ ] Add `security/approval_policy.py`.
@@ -166,6 +166,7 @@ Status: core shipped; approval state remains incomplete.
 Verification target:
 
 - [ ] `pytest -q tests/test_slash_command_router.py`
+- [x] Add `tests/test_approval_state.py`.
 - [ ] Add `tests/test_approval_policy.py`.
 
 ## v0.4: Core Channel Reliability

@@ -80,6 +80,7 @@ from g_agent.plugins.base import PluginContext
 from g_agent.plugins.loader import load_installed_plugins, register_tool_plugins
 from g_agent.providers.base import LLMProvider
 from g_agent.routines.scheduler import RoutineScheduler
+from g_agent.security.approval_state import ApprovalStateStore
 from g_agent.session.manager import SessionManager
 
 if TYPE_CHECKING:
@@ -192,6 +193,7 @@ class AgentLoop:
         self.engine = DefaultContextEngine(workspace)
         self.context = self.engine.builder
         self.sessions = SessionManager(workspace)
+        self.approvals = ApprovalStateStore(workspace)
         self.characters = CharacterStore(workspace)
         self.active_profile = self.characters.get_default()
         self.runtime = TaskCheckpointStore(workspace)
@@ -2183,8 +2185,14 @@ class AgentLoop:
     ) -> None:
         """Store a denied tool call for later replay when approved."""
         pending: list[dict[str, Any]] = session.metadata.get("pending_approvals", [])
+        record = self.approvals.create_pending(
+            session_key=session.key,
+            tool_name=tool_name,
+            tool_args=tool_args,
+        )
         pending.append(
             {
+                "id": record.id,
                 "tool_name": tool_name,
                 "tool_args": tool_args,
             }
@@ -2227,6 +2235,12 @@ class AgentLoop:
                 try:
                     result = await self.tools.execute(t_name, t_args)
                     replayed.append(f"- {t_name}: {result}")
+                    if entry.get("id"):
+                        self.approvals.update_status(
+                            str(entry["id"]),
+                            "executed",
+                            decision="approve_all" if approve_all else f"approve {t_name}",
+                        )
                 except Exception as exc:
                     replayed.append(f"- {t_name}: Error: {exc}")
             else:

@@ -62,6 +62,7 @@ class SlashCommandDispatcher:
             ("routines", [], "Manage background tasks", "[list|enable|disable <id>]"),
             ("insights", [], "Session usage and cost insights", "[days]"),
             ("logs", [], "View recent activity logs", ""),
+            ("approvals", [], "List pending approvals", ""),
             ("deny", [], "Deny pending approval", "[tool|all]"),
             ("approve", [], "Approve pending tool call", "[tool|all]"),
             ("memory", ["mem"], "View stored memories", "[query]"),
@@ -177,6 +178,7 @@ class SlashCommandDispatcher:
                 sender_username=sender_username,
                 sender_id=sender_id,
             ),
+            "approvals": lambda: self._cmd_approvals(session_key),
             "deny": lambda: self._cmd_deny(session_key, args),
             "memory": lambda: self._cmd_memory(args),
             "model": lambda: self._cmd_model(args),
@@ -360,9 +362,11 @@ class SlashCommandDispatcher:
         return "\n".join(lines)
 
     def _cmd_deny(self, session_key: str, args: str) -> str:
+        from g_agent.security.approval_state import ApprovalStateStore
         from g_agent.session.manager import SessionManager
 
         sessions = SessionManager(self.workspace)
+        approvals = ApprovalStateStore(self.workspace)
         session = sessions.get_or_create(session_key)
         pending: list[dict] = session.metadata.get("pending_approvals", [])
         if not pending:
@@ -383,8 +387,23 @@ class SlashCommandDispatcher:
 
         session.metadata["pending_approvals"] = remaining
         sessions.save(session)
+        for item in denied:
+            if item.get("id"):
+                approvals.update_status(str(item["id"]), "denied", decision="deny")
         names = ", ".join(item.get("tool_name", "unknown") for item in denied)
         return f"🚫 Denied pending approval: <code>{names}</code>."
+
+    def _cmd_approvals(self, session_key: str) -> str:
+        from g_agent.security.approval_state import ApprovalStateStore
+
+        approvals = ApprovalStateStore(self.workspace)
+        pending = approvals.list(session_key=session_key, status="pending")
+        if not pending:
+            return "✅ No pending approvals."
+        lines = ["🛂 <b>Pending Approvals</b>\n"]
+        for item in pending[:10]:
+            lines.append(f"• <code>{item.id}</code> — <b>{item.tool_name}</b>")
+        return "\n".join(lines)
 
     # -- Info Commands -----------------------------------------------------
 
