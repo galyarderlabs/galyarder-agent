@@ -322,7 +322,7 @@ Status: partial; minimal API shipped, WebSocket/Web UI/media/streaming remain.
 - [ ] Build provider and visual settings panel.
 - [ ] Add Web UI tests or smoke tests.
 - [x] Add API tests.
-- [ ] Add WebSocket tests.
+- [x] Add WebSocket tests.
 - [x] Add docs for API auth and local bind behavior.
 
 First PR boundary:
