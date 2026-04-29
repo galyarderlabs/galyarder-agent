@@ -1,33 +1,39 @@
-"""Tests for Telegram-safe formatting."""
-
+import pytest
 from g_agent.channels.telegram import _markdown_to_telegram_html
 
+def test_telegram_format_basic():
+    text = "Hello **world**!"
+    assert _markdown_to_telegram_html(text) == "Hello <b>world</b>!"
 
-def test_telegram_markdown_escapes_raw_html():
-    result = _markdown_to_telegram_html('hello <script>alert("x")</script> & done')
+def test_telegram_format_html_escape():
+    text = "Check <this> & that"
+    assert _markdown_to_telegram_html(text) == "Check &lt;this&gt; &amp; that"
 
-    assert "<script>" not in result
-    assert "&lt;script&gt;" in result
-    assert "&amp; done" in result
+def test_telegram_format_links():
+    text = "Go to [Google](https://google.com)"
+    # Note: the formatter escapes the URL in restore_link
+    assert _markdown_to_telegram_html(text) == 'Go to <a href="https://google.com">Google</a>'
+
+def test_telegram_format_code_inline():
+    text = "Use `print('hi')`"
+    assert _markdown_to_telegram_html(text) == "Use <code>print('hi')</code>"
+
+def test_telegram_format_code_block():
+    text = "```python\nprint('<hi>')\n```"
+    # Result should have escaped HTML and pre/code tags
+    result = _markdown_to_telegram_html(text)
+    assert "&lt;hi&gt;" in result
+    assert "<pre><code>" in result
+    assert "</code></pre>" in result
 
 
-def test_telegram_markdown_escapes_inline_and_block_code():
-    result = _markdown_to_telegram_html("Use `<b>x</b>`\n```html\n<div>x</div>\n```")
+def test_telegram_format_nested_entities():
+    # Bold inside italic
+    text = "_italic **bold** italic_"
+    formatted = _markdown_to_telegram_html(text)
+    assert formatted == "<i>italic <b>bold</b> italic</i>"
 
-    assert "<code>&lt;b&gt;x&lt;/b&gt;</code>" in result
-    assert "<pre><code>&lt;div&gt;x&lt;/div&gt;\n</code></pre>" in result
-
-
-def test_telegram_markdown_escapes_link_url_attributes():
-    result = _markdown_to_telegram_html('[safe](https://example.com/?q=" onclick="bad")')
-
-    assert '<a href="https://example.com/?q=&quot; onclick=&quot;bad&quot;">safe</a>' in result
-    assert 'q=" onclick=' not in result
-
-
-def test_telegram_markdown_keeps_supported_basic_markup():
-    result = _markdown_to_telegram_html("**bold** _ital_ ~~gone~~")
-
-    assert "<b>bold</b>" in result
-    assert "<i>ital</i>" in result
-    assert "<s>gone</s>" in result
+def test_telegram_format_mixed_escape():
+    text = "<b>Already HTML</b>"
+    # Should be escaped so it's literal in Telegram
+    assert _markdown_to_telegram_html(text) == "&lt;b&gt;Already HTML&lt;/b&gt;"

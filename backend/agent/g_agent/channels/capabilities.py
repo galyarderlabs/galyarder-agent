@@ -1,5 +1,6 @@
 """Shared channel capability contracts."""
 
+import re
 from dataclasses import dataclass, field
 
 
@@ -64,7 +65,7 @@ WHATSAPP_CAPABILITIES = ChannelCapabilities(
 )
 
 DISCORD_CAPABILITIES = ChannelCapabilities(
-    supports_media_send=False,
+    supports_media_send=True,
     supports_media_receive=True,
     supports_typing=True,
     supports_threads=True,
@@ -105,34 +106,75 @@ def capabilities_for_channel(channel: str) -> ChannelCapabilities:
 
 
 def split_text(text: str, max_chars: int | None) -> list[str]:
-    """Split text on paragraph or line boundaries before hard wrapping."""
+    """Split text on paragraph or line boundaries before hard wrapping,
+    ensuring markdown code blocks are closed/reopened across chunks.
+    """
     if max_chars is None or max_chars <= 0 or len(text) <= max_chars:
         return [text]
 
     chunks: list[str] = []
-    current = ""
+    current_chunk = ""
+    in_code_block = False
+    code_block_lang = ""
 
-    for paragraph in text.splitlines(keepends=True):
-        if len(paragraph) > max_chars:
-            if current:
-                chunks.append(current.rstrip())
-                current = ""
-            chunks.extend(_hard_wrap(paragraph, max_chars))
+    # Split by lines to preserve structure where possible
+    lines = text.splitlines(keepends=True)
+
+    for line in lines:
+        # Track code block state
+        if line.strip().startswith("```"):
+            if in_code_block:
+                in_code_block = False
+                code_block_lang = ""
+            else:
+                in_code_block = True
+                # Try to capture language
+                lang_match = re.match(r"```(\w+)", line.strip())
+                code_block_lang = lang_match.group(1) if lang_match else ""
+
+        # If this line alone is too long, we must hard wrap it
+        if len(line) > max_chars:
+            if current_chunk:
+                # Close code block if needed before pushing chunk
+                if in_code_block:
+                    current_chunk = current_chunk.rstrip() + "\n```"
+                chunks.append(current_chunk.rstrip())
+                current_chunk = "```" + code_block_lang + "\n" if in_code_block else ""
+
+            # Hard wrap the long line
+            sub_chunks = _hard_wrap(line, max_chars - (4 if in_code_block else 0))
+            for i, sc in enumerate(sub_chunks):
+                if in_code_block:
+                    sc = "```" + code_block_lang + "\n" + sc + "\n```"
+                chunks.append(sc)
             continue
 
-        if len(current) + len(paragraph) > max_chars:
-            if current:
-                chunks.append(current.rstrip())
-            current = paragraph
+        # Check if adding this line exceeds the limit
+        # Reserved space: 4 chars for "```\n" closure
+        reserved = 4 if in_code_block else 0
+        if len(current_chunk) + len(line) + reserved > max_chars:
+            if current_chunk:
+                # Close code block in current chunk
+                if in_code_block:
+                    current_chunk = current_chunk.rstrip() + "\n```"
+                chunks.append(current_chunk.rstrip())
+                # Reopen code block in next chunk
+                current_chunk = "```" + code_block_lang + "\n" if in_code_block else ""
+            
+            current_chunk += line
         else:
-            current += paragraph
+            current_chunk += line
 
-    if current:
-        chunks.append(current.rstrip())
+    if current_chunk and current_chunk.strip():
+        if in_code_block:
+            current_chunk = current_chunk.rstrip() + "\n```"
+        chunks.append(current_chunk.rstrip())
 
     return chunks or [""]
 
 
 def _hard_wrap(text: str, max_chars: int) -> list[str]:
     """Hard-wrap a single over-limit segment."""
+    if max_chars <= 0:
+        return [text]
     return [text[i : i + max_chars].rstrip() for i in range(0, len(text), max_chars)]

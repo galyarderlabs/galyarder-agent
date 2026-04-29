@@ -38,6 +38,10 @@ async def cmd_status(ctx: CommandContext) -> str:
 
     # Channel capability contract
     try:
+        from g_agent.channels.manager import ChannelManager
+        cm = ChannelManager(ctx.config, None) # Transient manager to check status
+        # Better: if we had access to the live manager, but we don't here.
+        # We'll use the capabilities helper for now as a fallback.
         from g_agent.channels.capabilities import capabilities_for_channel
 
         caps = capabilities_for_channel(ctx.channel)
@@ -59,6 +63,26 @@ async def cmd_status(ctx: CommandContext) -> str:
         lines.append(f"🧠 Memory: {len(facts)} facts stored")
     except Exception:
         pass
+
+    return "\n".join(lines)
+
+
+async def cmd_diagnostics(ctx: CommandContext) -> str:
+    """Detailed channel and system diagnostics."""
+    lines = []
+    lines.append("🔍 <b>System Diagnostics</b>")
+
+    manager = ctx.metadata.get("live_manager")
+    if not manager:
+        return "⚠️ Live channel manager not available in this context."
+
+    status_map = manager.get_status()
+    for name, status in status_map.items():
+        lines.append(f"\n📡 <b>{name.upper()}</b>")
+        for key, value in status.items():
+            if key == "name":
+                continue
+            lines.append(f"• {key}: <code>{value}</code>")
 
     return "\n".join(lines)
 
@@ -484,6 +508,7 @@ async def cmd_routines(ctx: CommandContext) -> str:
 def register_builtin_commands(router: Any):
     """Register all built-in commands to a router."""
     router.register("status", cmd_status, description="System diagnostics")
+    router.register("diagnostics", cmd_diagnostics, description="Detailed system diagnostics")
     router.register(
         "insights",
         cmd_insights,

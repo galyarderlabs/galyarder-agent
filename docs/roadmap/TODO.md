@@ -199,10 +199,10 @@ Status: next best move; partial, not shipped.
 - [ ] Expose capabilities from Discord.
 - [ ] Expose capabilities from Email.
 - [ ] Expose capabilities from Slack.
-- [ ] Surface channel capabilities through `/status` or a channel diagnostics
+- [x] Surface channel capabilities through `/status` or a channel diagnostics
   command.
-- [ ] Add `channels/media.py`.
-- [ ] Define normalized inbound media envelope.
+- [x] Add `channels/media.py`.
+- [x] Define normalized inbound media envelope.
 - [x] Define normalized outbound media envelope.
 - [x] Include path/url fields.
 - [x] Include mime type.
@@ -223,7 +223,7 @@ Status: next best move; partial, not shipped.
 - [x] Normalize message-too-long errors.
 - [x] Add shared long-message splitter.
 - [x] Add per-channel split limits.
-- [ ] Preserve code blocks when splitting where possible.
+- [x] Preserve code blocks when splitting where possible.
 - [ ] Preserve links when splitting where possible.
 - [x] Add tests for splitter edge cases.
 - [x] Harden WhatsApp bridge diagnostics.
@@ -232,20 +232,20 @@ Status: next best move; partial, not shipped.
 - [ ] Improve WhatsApp local-file media send errors.
 - [ ] Improve WhatsApp sandbox/allowed-path error text.
 - [ ] Add WhatsApp media delivery tests.
-- [ ] Harden Telegram formatting.
-- [ ] Add Telegram HTML/Markdown escape helper tests.
-- [ ] Add Telegram DM/group policy tests.
+- [x] Harden Telegram formatting.
+- [x] Add Telegram HTML/Markdown escape helper tests.
+- [x] Add Telegram DM/group policy tests.
 - [ ] Add Telegram rate/flood handling tests where practical.
-- [ ] Harden Discord attachment replies.
-- [ ] Add Discord DM/mention policy tests.
-- [ ] Add Discord thread/session key mapping tests.
+- [x] Harden Discord attachment replies.
+- [x] Add Discord DM/mention policy tests.
+- [x] Add Discord thread/session key mapping tests.
 - [ ] Add delivery receipts/errors where channel APIs expose them.
-- [ ] Extend `test_multimodal_outbound.py`.
-- [ ] Add `test_channel_capabilities.py`.
-- [ ] Add `test_media_envelope.py`.
-- [ ] Add `test_whatsapp_media_delivery.py`.
-- [ ] Add `test_telegram_formatting.py`.
-- [ ] Add `test_discord_session_mapping.py`.
+- [x] Extend `test_multimodal_outbound.py`.
+- [x] Add `test_channel_capabilities.py`.
+- [x] Add `test_media_envelope.py`.
+- [x] Add `test_whatsapp_media_delivery.py`.
+- [x] Add `test_telegram_formatting.py`.
+- [x] Add `test_discord_session_mapping.py`.
 - [ ] Update `docs/channels.md`.
 - [ ] Update `docs/troubleshooting.md` for channel diagnostics.
 

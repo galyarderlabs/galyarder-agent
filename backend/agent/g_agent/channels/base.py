@@ -225,3 +225,11 @@ class BaseChannel(ABC):
     def is_running(self) -> bool:
         """Check if the channel is running."""
         return self._running
+
+    def get_detailed_status(self) -> dict[str, Any]:
+        """Return detailed runtime status for diagnostics."""
+        return {
+            "name": self.name,
+            "running": self._running,
+            "capabilities": self.capabilities.summary(),
+        }

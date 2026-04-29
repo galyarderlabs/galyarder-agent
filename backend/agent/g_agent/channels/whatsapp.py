@@ -25,10 +25,17 @@ class WhatsAppChannel(BaseChannel):
     name = "whatsapp"
     capabilities = WHATSAPP_CAPABILITIES
 
-    def __init__(self, config: WhatsAppConfig, bus: MessageBus, groq_api_key: str = ""):
+    def __init__(
+        self,
+        config: WhatsAppConfig,
+        bus: MessageBus,
+        groq_api_key: str = "",
+        live_manager: Any = None,
+    ):
         super().__init__(config, bus)
         self.config: WhatsAppConfig = config
         self.groq_api_key = groq_api_key
+        self.live_manager = live_manager
         self._ws = None
         self._connected = False
         self._request_seq = 0
@@ -270,6 +277,19 @@ class WhatsAppChannel(BaseChannel):
         elif msg_type == "qr":
             # QR code for authentication
             logger.info("Scan QR code in the bridge terminal to connect WhatsApp")
+
+    def get_detailed_status(self) -> dict[str, Any]:
+        """Return detailed WhatsApp connection status."""
+        status = super().get_detailed_status()
+        status.update(
+            {
+                "connected": self._connected,
+                "bridge_url": self.config.bridge_url,
+            }
+        )
+        if not self._connected:
+            status["hint"] = "Check bridge terminal for QR code or connection errors."
+        return status
 
     def _next_request_id(self) -> str:
         """Generate monotonic request id for bridge send correlation."""

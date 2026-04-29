@@ -79,18 +79,40 @@ class DiscordChannel(BaseChannel):
             raise RuntimeError("Discord HTTP client not initialized")
 
         url = f"{DISCORD_API_BASE}/channels/{msg.chat_id}/messages"
-        payload: dict[str, Any] = {"content": msg.content}
+        headers = {"Authorization": f"Bot {self.config.token}"}
 
+        # Build payload
+        payload: dict[str, Any] = {"content": msg.content}
         if msg.reply_to:
             payload["message_reference"] = {"message_id": msg.reply_to}
             payload["allowed_mentions"] = {"replied_user": False}
 
-        headers = {"Authorization": f"Bot {self.config.token}"}
-
+        files = []
         try:
+            # Handle attachments
+            if msg.media:
+                for i, path_str in enumerate(msg.media):
+                    path = Path(path_str)
+                    if path.exists() and path.is_file():
+                        files.append(
+                            (
+                                f"file{i}",
+                                (path.name, path.read_bytes(), "application/octet-stream"),
+                            )
+                        )
+
             for attempt in range(3):
                 try:
-                    response = await self._http.post(url, headers=headers, json=payload)
+                    if files:
+                        # Multipart for files
+                        data = {"payload_json": json.dumps(payload)}
+                        response = await self._http.post(
+                            url, headers=headers, data=data, files=files
+                        )
+                    else:
+                        # Regular JSON
+                        response = await self._http.post(url, headers=headers, json=payload)
+
                     if response.status_code == 429:
                         data = response.json()
                         retry_after = float(data.get("retry_after", 1.0))

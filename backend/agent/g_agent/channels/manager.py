@@ -89,6 +89,7 @@ class ChannelManager:
                     brave_api_key=self.config.tools.web.search.api_key,
                     cron_service=self._cron_service,
                     tool_names=self._tool_names,
+                    live_manager=self,
                 )
                 logger.info("Telegram channel enabled")
             except ImportError as e:
@@ -103,6 +104,7 @@ class ChannelManager:
                     self.config.channels.whatsapp,
                     self.bus,
                     groq_api_key=self.config.providers.groq.api_key,
+                    live_manager=self,
                 )
                 logger.info("WhatsApp channel enabled")
             except ImportError as e:
@@ -419,11 +421,8 @@ class ChannelManager:
         return self.channels.get(name)
 
     def get_status(self) -> dict[str, Any]:
-        """Get status of all channels."""
-        return {
-            name: {"enabled": True, "running": channel.is_running}
-            for name, channel in self.channels.items()
-        }
+        """Get detailed status of all channels."""
+        return {name: channel.get_detailed_status() for name, channel in self.channels.items()}
 
     @property
     def enabled_channels(self) -> list[str]:

@@ -33,6 +33,7 @@ class SlashCommandDispatcher:
         cron_service: CronService | None = None,
         tool_names: list[str] | None = None,
         version: str = "",
+        live_manager: Any = None,
     ) -> None:
         self.workspace = workspace
         self.model_name = model_name or "unknown"
@@ -40,6 +41,7 @@ class SlashCommandDispatcher:
         self.cron_service = cron_service
         self.tool_names = tool_names or []
         self.version = version or "dev"
+        self.live_manager = live_manager
         self._boot_time = time.monotonic()
         self._command_router = self._build_command_router()
 
@@ -55,6 +57,7 @@ class SlashCommandDispatcher:
             ("sessions", [], "List recent sessions", ""),
             # Info
             ("status", [], "System diagnostics", ""),
+            ("diagnostics", [], "Detailed diagnostics", ""),
             ("whoami", [], "Your profile info", ""),
             ("profile", [], "Manage character profiles", "[list|set <id>]"),
             ("learn", [], "Review learning candidates", "[list|approve|reject <id>]"),
@@ -235,7 +238,7 @@ class SlashCommandDispatcher:
             session_key=session_key,
             user_id=sender_id,
             username=sender_username,
-            metadata={"model_name": self.model_name},
+            metadata={"model_name": self.model_name, "live_manager": self.live_manager},
         )
         return await self._command_router.handle(text, context)
 
