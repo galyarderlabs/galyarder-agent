@@ -80,6 +80,7 @@ from g_agent.plugins.base import PluginContext
 from g_agent.plugins.loader import load_installed_plugins, register_tool_plugins
 from g_agent.providers.base import LLMProvider
 from g_agent.routines.scheduler import RoutineScheduler
+from g_agent.security.approval_policy import classify_tool_call
 from g_agent.security.approval_state import ApprovalStateStore
 from g_agent.session.manager import SessionManager
 
@@ -2141,6 +2142,10 @@ class AgentLoop:
             return result_text
 
         decision = self._resolve_tool_policy(tool_name, channel, sender_id)
+        if decision == "allow" and self.approval_mode == "confirm":
+            risk = classify_tool_call(tool_name, tool_args)
+            if risk.needs_approval:
+                decision = "ask"
         if decision == "deny":
             return _record(f"Error: tool '{tool_name}' blocked by policy.")
         if decision == "ask" and not (approve_all or tool_name in approved_tools):

@@ -154,10 +154,10 @@ Status: core shipped; approval state remains incomplete.
 - [x] Add owner command to list pending approvals.
 - [ ] Add owner command to clear one pending approval by id.
 - [ ] Add owner command to clear all pending approvals for a session.
-- [ ] Add `security/approval_policy.py`.
-- [ ] Add risky shell classifier examples.
-- [ ] Add risky filesystem classifier examples.
-- [ ] Add tests for dangerous command detection.
+- [x] Add `security/approval_policy.py`.
+- [x] Add risky shell classifier examples.
+- [x] Add risky filesystem classifier examples.
+- [x] Add tests for dangerous command detection.
 - [ ] Add tests for denied command replay safety.
 - [ ] Move more legacy handlers from `channels/slash_commands.py` into
   `command/builtin.py`.
@@ -167,7 +167,7 @@ Verification target:
 
 - [ ] `pytest -q tests/test_slash_command_router.py`
 - [x] Add `tests/test_approval_state.py`.
-- [ ] Add `tests/test_approval_policy.py`.
+- [x] Add `tests/test_approval_policy.py`.
 
 ## v0.4: Core Channel Reliability
 
