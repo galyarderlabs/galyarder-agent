@@ -280,9 +280,9 @@ Status: partial; minimal API shipped, WebSocket/Web UI/media/approvals remain.
 - [x] Add session history response model.
 - [ ] Add media upload endpoint.
 - [ ] Store uploaded media as refs, not raw blobs in sessions.
-- [ ] Add `GET /approvals`.
-- [ ] Add `POST /approvals/{id}/approve`.
-- [ ] Add `POST /approvals/{id}/deny`.
+- [x] Add `GET /approvals`.
+- [x] Add `POST /approvals/{id}/approve`.
+- [x] Add `POST /approvals/{id}/deny`.
 - [ ] Add `GET /learning`.
 - [ ] Add learning candidate detail endpoint.
 - [ ] Add learning approve/reject/edit/apply endpoints.

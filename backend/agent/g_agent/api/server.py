@@ -10,12 +10,14 @@ from g_agent import __version__
 from g_agent.agent.api import Agent
 from g_agent.config.loader import load_config
 from g_agent.config.schema import Config
+from g_agent.security.approval_state import ApprovalRecord, ApprovalStateStore
 from g_agent.session.manager import SessionManager
 
 
 CONFIG_KEY = web.AppKey("config", Config)
 AGENT_KEY = web.AppKey("agent", object)
 SESSIONS_KEY = web.AppKey("sessions", SessionManager)
+APPROVALS_KEY = web.AppKey("approvals", ApprovalStateStore)
 
 
 class ApiError(Exception):
@@ -36,6 +38,7 @@ def create_app(
     """Create the aiohttp product API app."""
     resolved_config = config or load_config()
     resolved_sessions = session_manager or SessionManager(resolved_config.workspace_path)
+    resolved_approvals = ApprovalStateStore(resolved_config.workspace_path)
     app = web.Application(
         middlewares=[
             _error_middleware,
@@ -46,11 +49,15 @@ def create_app(
     app[CONFIG_KEY] = resolved_config
     app[AGENT_KEY] = agent
     app[SESSIONS_KEY] = resolved_sessions
+    app[APPROVALS_KEY] = resolved_approvals
 
     app.router.add_get("/health", _health)
     app.router.add_get("/status", _status)
     app.router.add_get("/sessions", _sessions)
     app.router.add_get("/sessions/{session_id}", _session_detail)
+    app.router.add_get("/approvals", _approvals)
+    app.router.add_post("/approvals/{approval_id}/approve", _approval_approve)
+    app.router.add_post("/approvals/{approval_id}/deny", _approval_deny)
     app.router.add_get("/v1/models", _models)
     app.router.add_post("/v1/chat/completions", _chat_completions)
     return app
@@ -155,6 +162,44 @@ async def _session_detail(request: web.Request) -> web.Response:
     )
 
 
+async def _approvals(request: web.Request) -> web.Response:
+    approvals = request.app[APPROVALS_KEY]
+    session_key = request.query.get("session_key") or None
+    raw_status = request.query.get("status") or "pending"
+    status = None if raw_status == "all" else raw_status
+    records = approvals.list(session_key=session_key, status=status)
+    return web.json_response({"data": [_approval_json(record) for record in records]})
+
+
+async def _approval_approve(request: web.Request) -> web.Response:
+    approvals = request.app[APPROVALS_KEY]
+    approval_id = request.match_info["approval_id"]
+    payload = await _optional_json(request)
+    scope = str(payload.get("scope") or "once")
+    record = approvals.get(approval_id)
+    if record is None:
+        raise ApiError(404, "not_found", "approval not found")
+    if scope in {"session", "always"}:
+        approvals.update_status(approval_id, "approved", decision=f"api_approve_{scope}")
+        updated = approvals.allow_tool(
+            session_key=record.session_key,
+            tool_name=record.tool_name,
+            scope=scope,
+        )
+    else:
+        updated = approvals.update_status(approval_id, "approved", decision="approve_once")
+    return web.json_response({"data": _approval_json(updated)})
+
+
+async def _approval_deny(request: web.Request) -> web.Response:
+    approvals = request.app[APPROVALS_KEY]
+    approval_id = request.match_info["approval_id"]
+    updated = approvals.update_status(approval_id, "denied", decision="api_deny")
+    if updated is None:
+        raise ApiError(404, "not_found", "approval not found")
+    return web.json_response({"data": _approval_json(updated)})
+
+
 async def _models(request: web.Request) -> web.Response:
     config = request.app[CONFIG_KEY]
     model_ids = [config.agents.defaults.model, *config.agents.defaults.routing.fallback_models]
@@ -257,6 +302,22 @@ def _int_query(
     except ValueError:
         return default
     return max(minimum, min(maximum, value))
+
+
+async def _optional_json(request: web.Request) -> dict[str, Any]:
+    if not request.can_read_body:
+        return {}
+    try:
+        payload = await request.json()
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _approval_json(record: ApprovalRecord | None) -> dict[str, Any]:
+    if record is None:
+        return {}
+    return record.model_dump()
 
 
 def _json_error(status: int, code: str, message: str) -> web.Response:

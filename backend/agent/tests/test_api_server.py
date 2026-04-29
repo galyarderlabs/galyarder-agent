@@ -5,8 +5,9 @@ from typing import Any
 
 from aiohttp.test_utils import TestClient, TestServer
 
-from g_agent.api.server import SESSIONS_KEY, create_app
+from g_agent.api.server import APPROVALS_KEY, SESSIONS_KEY, create_app
 from g_agent.config.schema import Config
+from g_agent.security.approval_state import ApprovalStateStore
 from g_agent.session.manager import SessionManager
 
 
@@ -143,5 +144,50 @@ async def test_openai_chat_completion_uses_agent(tmp_path: Path, monkeypatch) ->
                 "chat_id": "room-1",
             }
         ]
+    finally:
+        await client.close()
+
+
+async def test_api_lists_and_denies_approvals(tmp_path: Path, monkeypatch) -> None:
+    client = await _client(tmp_path, monkeypatch)
+    try:
+        approvals: ApprovalStateStore = client.app[APPROVALS_KEY]
+        record = approvals.create_pending(
+            session_key="api:room-1",
+            tool_name="exec",
+            tool_args={"command": "uptime"},
+        )
+
+        listed = await client.get("/approvals?session_key=api:room-1")
+        assert listed.status == 200
+        listed_payload = await listed.json()
+        assert listed_payload["data"][0]["id"] == record.id
+
+        denied = await client.post(f"/approvals/{record.id}/deny")
+        assert denied.status == 200
+        denied_payload = await denied.json()
+        assert denied_payload["data"]["status"] == "denied"
+    finally:
+        await client.close()
+
+
+async def test_api_approves_approval_as_session_allowlist(tmp_path: Path, monkeypatch) -> None:
+    client = await _client(tmp_path, monkeypatch)
+    try:
+        approvals: ApprovalStateStore = client.app[APPROVALS_KEY]
+        record = approvals.create_pending(
+            session_key="api:room-1",
+            tool_name="exec",
+            tool_args={"command": "uptime"},
+        )
+
+        approved = await client.post(f"/approvals/{record.id}/approve", json={"scope": "session"})
+
+        assert approved.status == 200
+        payload = await approved.json()
+        assert payload["data"]["status"] == "allowlisted"
+        assert payload["data"]["scope"] == "session"
+        assert approvals.get(record.id).status == "approved"
+        assert approvals.is_tool_allowed(session_key="api:room-1", tool_name="exec")
     finally:
         await client.close()
