@@ -247,8 +247,10 @@ class ProactiveConfig(BaseModel):
 class GatewayConfig(BaseModel):
     """Gateway/server configuration."""
 
-    host: str = "0.0.0.0"
+    host: str = "127.0.0.1"
     port: int = 18790
+    api_token: str = ""
+    max_request_bytes: int = 1_000_000
 
 
 class WebSearchConfig(BaseModel):

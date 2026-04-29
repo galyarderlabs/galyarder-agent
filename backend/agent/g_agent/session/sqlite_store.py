@@ -565,6 +565,16 @@ class SessionSQLiteStore:
             )
             return [dict(row) for row in cursor.fetchall()]
 
+    def get_session(self, session_id_or_key: str) -> dict[str, Any] | None:
+        """Get one session by internal id or public session key."""
+        with self._lock:
+            cursor = self._conn.execute(
+                "SELECT * FROM sessions WHERE id = ? OR key = ?",
+                (session_id_or_key, session_id_or_key),
+            )
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
     def delete_session(self, session_id: str) -> bool:
         """Delete a session and its associated data."""
 

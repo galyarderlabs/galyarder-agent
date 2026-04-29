@@ -259,24 +259,24 @@ Verification target:
 
 ## v0.5: Web UI And OpenAI-Compatible API
 
-Status: not shipped; build after core backend state is reliable.
+Status: partial; minimal API shipped, WebSocket/Web UI/media/approvals remain.
 
 - [x] `GatewayConfig` exists in `config/schema.py`.
 - [x] `Agent`, `AgentLoop`, `MessageBus`, `ChannelManager`, and
   `SessionManager` expose reusable runtime hooks.
 - [x] `observability/http_server.py` exists for metrics.
-- [ ] Add `g_agent/api/`.
-- [ ] Add `g_agent/api/server.py`.
+- [x] Add `g_agent/api/`.
+- [x] Add `g_agent/api/server.py`.
 - [ ] Add `g_agent/api/openai_compat.py`.
-- [ ] Add API auth/token config.
-- [ ] Add local-first bind defaults.
-- [ ] Add request size limits.
-- [ ] Add response error model.
-- [ ] Add `GET /health`.
-- [ ] Add `GET /status`.
-- [ ] Add `GET /sessions`.
-- [ ] Add `GET /sessions/{id}`.
-- [ ] Add session history response model.
+- [x] Add API auth/token config.
+- [x] Add local-first bind defaults.
+- [x] Add request size limits.
+- [x] Add response error model.
+- [x] Add `GET /health`.
+- [x] Add `GET /status`.
+- [x] Add `GET /sessions`.
+- [x] Add `GET /sessions/{id}`.
+- [x] Add session history response model.
 - [ ] Add media upload endpoint.
 - [ ] Store uploaded media as refs, not raw blobs in sessions.
 - [ ] Add `GET /approvals`.
@@ -288,9 +288,9 @@ Status: not shipped; build after core backend state is reliable.
 - [ ] Add `GET /profiles`.
 - [ ] Add profile detail endpoint.
 - [ ] Add profile switch endpoint after profile isolation is implemented.
-- [ ] Add `GET /v1/models`.
-- [ ] Add `POST /v1/chat/completions`.
-- [ ] Add non-streaming OpenAI-compatible chat response.
+- [x] Add `GET /v1/models`.
+- [x] Add `POST /v1/chat/completions`.
+- [x] Add non-streaming OpenAI-compatible chat response.
 - [ ] Add streaming/SSE chat response.
 - [ ] Normalize text input.
 - [ ] Normalize image input.
@@ -319,17 +319,18 @@ Status: not shipped; build after core backend state is reliable.
 - [ ] Build routine scheduler panel.
 - [ ] Build provider and visual settings panel.
 - [ ] Add Web UI tests or smoke tests.
-- [ ] Add API tests.
+- [x] Add API tests.
 - [ ] Add WebSocket tests.
-- [ ] Add docs for API auth and local bind behavior.
+- [x] Add docs for API auth and local bind behavior.
 
 First PR boundary:
 
-- [ ] Minimal product API with health/status/sessions plus `/v1/models`.
+- [x] Minimal product API with health/status/sessions plus `/v1/models`.
 
 Verification target:
 
-- [ ] `pytest -q tests/test_api_*.py tests/test_websocket_*.py`
+- [x] `pytest -q tests/test_api_*.py`
+- [ ] `pytest -q tests/test_websocket_*.py`
 - [ ] Web UI smoke command once `webui/` exists.
 
 ## v0.6: Character Profiles And Visual Identity
@@ -783,4 +784,4 @@ Every task is not done until:
 - [x] v0.10 compression integration.
 - [x] v0.11 routine script preprocessing.
 - [x] v0.12 streamable HTTP MCP.
-- [ ] v0.5 minimal product API.
+- [x] v0.5 minimal product API.

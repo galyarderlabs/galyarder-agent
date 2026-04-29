@@ -648,6 +648,28 @@ Actionable feedback and mistakes to avoid repeating.
 
 
 @app.command()
+def api(
+    host: str = typer.Option("127.0.0.1", "--host", help="API bind host"),
+    port: int = typer.Option(18790, "--port", "-p", help="API bind port"),
+    token: str = typer.Option("", "--token", help="Optional bearer token for API routes"),
+):
+    """Start the local product API server."""
+    import asyncio
+
+    from g_agent.api.server import run_api_server
+    from g_agent.config.loader import load_config
+
+    config = load_config()
+    config.gateway.host = host
+    config.gateway.port = port
+    config.gateway.api_token = token or config.gateway.api_token
+    console.print(f"[bold green]Starting API server on {config.gateway.host}:{config.gateway.port}[/bold green]")
+    if config.gateway.api_token:
+        console.print("[dim]API token auth enabled for non-health routes[/dim]")
+    asyncio.run(run_api_server(config))
+
+
+@app.command()
 def gateway(
     port: int = typer.Option(18790, "--port", "-p", help="Gateway port"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output"),

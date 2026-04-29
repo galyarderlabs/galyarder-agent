@@ -29,6 +29,7 @@ g-agent [OPTIONS] COMMAND [ARGS]...
 | `version` | Show g-agent version. |
 | `login` | Link device via QR code (alias for `channels login`). |
 | `onboard` | Initialize g-agent configuration and workspace. |
+| `api` | Start the local product API server. |
 | `gateway` | Start the g-agent gateway. |
 | `agent` | Interact with the agent directly. |
 | `new` | Start fresh by clearing/archiving conversation history. |

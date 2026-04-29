@@ -558,7 +558,7 @@ this document.
 - [x] `docs/roadmap/v0.2-session-store-and-recall.md` — SQLite/FTS/session-search first slice shipped; historical JSONL backfill and richer search context remain follow-up work.
 - [x] `docs/roadmap/v0.3-commands-logs-approvals.md` — core command router, logs/history/sessions, approve/deny replay shipped; persisted approval state remains follow-up work.
 - [ ] `docs/roadmap/v0.4-core-channel-reliability.md` — channel supervisor/retry/media basics exist; capability flags, media envelopes, splitting, and delivery diagnostics remain.
-- [ ] `docs/roadmap/v0.5-web-ui-openai-api.md` — not shipped; no first-party product API server, WebSocket channel, or Web UI exists.
+- [x] `docs/roadmap/v0.5-web-ui-openai-api.md` — minimal product API shipped; WebSocket channel, Web UI, media, and `/v1/responses` remain.
 - [x] `docs/roadmap/v0.6-character-profiles-visual-identity.md` — core profile model/store/context shipped; full switching isolation, per-profile visual merge, and reviewable profile diffs remain.
 - [x] `docs/roadmap/v0.7-memory-manager-owner-model.md` — first MemoryManager/provider/fencing slice shipped; write cadence and manager-routed memory tools remain.
 - [x] `docs/roadmap/v0.8-owner-reviewed-learning-loop.md` — queue/model/chat command, skill candidate edit/apply/rollback, and opt-in background reviewer first slice shipped; non-skill apply flows remain.
