@@ -4,7 +4,12 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [0.1.16] - 2026-04-30
+
 ### Added
+- Added focused regression coverage for routine step rendering, busy-session bypass rules, Docker execution errors, learning heuristics, quiet hours, and session metadata preservation.
+- Added transient Docker command execution scaffolding with deterministic backend, timeout, image, and network validation.
+- Added shared redaction utilities for safer context and memory surfaces.
 - Extended the owner-reviewed learning queue with approve/reject/edit plus skill-candidate apply and rollback commands.
 - Added rollback metadata persistence for learning candidates and skill activation backups.
 - Added atomic draft skill patching through `SkillManager` and `skill_manage.patch_draft`.
@@ -36,7 +41,17 @@ All notable changes to this project are documented in this file.
 - Added SSE chat-completion responses for OpenAI-compatible `stream=true` API calls.
 - Added a local WebSocket channel slice with token auth, inbound session mapping, outbound sends, and channel manager registration.
 
+### Changed
+- Reconciled roadmap, channel, embedding, and reference-audit documentation against verified source and test evidence.
+- Reclassified WebSocket, Web UI, memory, context compression, MCP/toolsets, and Docker roadmap claims as implemented or partial according to connected runtime paths and focused tests.
+- Tightened owner-reviewed learning heuristics so profile, relationship, routine, and tool-quirk mutations require explicit evidence or manual review.
+
 ### Fixed
+- Fixed routine-step prompt rendering to use the canonical `RoutineStep` fields instead of nonexistent description metadata.
+- Fixed SQLite session message replacement so omitted metadata preserves existing session metadata.
+- Fixed direct/API busy-session protection so user messages no longer bypass running sessions by default while explicit internal bypass and resume intents remain supported.
+- Fixed OpenAI-compatible API route aliases, media helper usage, provider-safe title generation, and F-level lint/import issues found during audit verification.
+- Clarified Docker execution as transient/stateless command execution instead of claiming hardened stateful container parity.
 - Skill candidate rollback now restores the previous active skill when one existed, or removes the newly activated skill when it did not.
 - Invalid draft skill patches now roll back to the previous file content.
 - Fixed routine runner bus injection to store the system sender name in metadata instead of passing an unsupported `InboundMessage` field.
