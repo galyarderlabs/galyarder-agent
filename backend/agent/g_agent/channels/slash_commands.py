@@ -86,6 +86,10 @@ class SlashCommandDispatcher:
             for alias in aliases:
                 self._handlers[alias] = cmd
 
+    def telegram_commands(self) -> list[tuple[str, str]]:
+        """Return canonical commands for Telegram's bot command menu."""
+        return [(cmd, description) for cmd, _, description, _ in self._registry]
+
     async def try_handle(
         self,
         text: str,
@@ -246,19 +250,28 @@ class SlashCommandDispatcher:
         return "👋 <b>yo.</b> send me a message, I'm listening."
 
     def _cmd_reset(self, session_key: str) -> str:
+        from g_agent.agent.runtime import TaskCheckpointStore
         from g_agent.session.manager import SessionManager
 
         sessions = SessionManager(self.workspace)
         session = sessions.get_or_create(session_key)
         msg_count = len(session.messages)
+        runtime = TaskCheckpointStore(self.workspace)
+        cancelled = 0
+        for task in runtime.list_running(session_key):
+            task_id = str(task.get("task_id") or "")
+            if task_id and runtime.cancel(task_id):
+                cancelled += 1
 
+        suffix = f"\n<i>Cleared {cancelled} running task(s).</i>" if cancelled else ""
         if msg_count > 0:
             sessions.archive(session_key)
             return (
                 f"✅ <b>New session started</b> · model: <code>{self.model_name}</code>\n"
                 f"<i>Archived {msg_count} messages.</i>"
+                f"{suffix}"
             )
-        return f"✅ <b>Session already empty.</b> · model: <code>{self.model_name}</code>"
+        return f"✅ <b>Session already empty.</b> · model: <code>{self.model_name}</code>{suffix}"
 
     def _cmd_compact(self, session_key: str) -> str:
         from g_agent.context.compressor import ContextCompressor

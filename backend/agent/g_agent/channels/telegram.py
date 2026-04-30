@@ -196,24 +196,17 @@ class TelegramChannel(BaseChannel):
                 # Auto-register bot commands in Telegram UI
                 from telegram import BotCommand
 
-                await self._app.bot.set_my_commands(
-                    [
-                        BotCommand("start", "Start conversation"),
-                        BotCommand("new", "New session"),
-                        BotCommand("reset", "Clear context & start fresh"),
-                        BotCommand("compact", "Summarize current session"),
-                        BotCommand("context", "Current session info"),
-                        BotCommand("status", "System diagnostics"),
-                        BotCommand("whoami", "Your profile"),
-                        BotCommand("memory", "View stored memories"),
-                        BotCommand("model", "Active model"),
-                        BotCommand("tools", "List active tools"),
-                        BotCommand("cron", "Scheduled jobs"),
-                        BotCommand("packs", "Workflow packs"),
-                        BotCommand("search", "Web search"),
-                        BotCommand("help", "Commands & guide"),
-                        BotCommand("commands", "Full command list"),
+                command_specs = (
+                    self._slash.telegram_commands()
+                    if self._slash
+                    else [
+                        ("start", "Start conversation"),
+                        ("help", "Commands & guide"),
+                        ("commands", "Full command list"),
                     ]
+                )
+                await self._app.bot.set_my_commands(
+                    [BotCommand(command, description) for command, description in command_specs]
                 )
 
                 # Start polling (this runs until stopped)
@@ -420,7 +413,7 @@ class TelegramChannel(BaseChannel):
             )
         else:
             try:
-                response = self._slash.try_handle(
+                response = await self._slash.try_handle(
                     query.data,
                     session_key,
                     "telegram",
@@ -492,7 +485,7 @@ class TelegramChannel(BaseChannel):
                 response = "⛔ Access denied: you are not authorized to use commands."
             else:
                 session_key = f"telegram:{chat_id}"
-                response = self._slash.try_handle(
+                response = await self._slash.try_handle(
                     message.text,
                     session_key,
                     "telegram",

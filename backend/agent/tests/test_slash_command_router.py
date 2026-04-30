@@ -4,6 +4,7 @@ import asyncio
 import json
 from pathlib import Path
 
+from g_agent.agent.runtime import TaskCheckpointStore
 from g_agent.channels.slash_commands import SlashCommandDispatcher
 from g_agent.command.context import CommandContext
 from g_agent.command.router import CommandRouter
@@ -60,6 +61,33 @@ def test_approve_command_passes_through_to_agent_loop(tmp_path: Path, monkeypatc
     )
 
     assert result is None
+
+
+def test_reset_command_clears_running_checkpoint(tmp_path: Path, monkeypatch):
+    _patch_data_dir(monkeypatch, tmp_path)
+    manager = SessionManager(tmp_path)
+    session = manager.get_or_create("telegram:123")
+    session.add_message("user", "kei")
+    manager.save(session)
+    runtime = TaskCheckpointStore(tmp_path)
+    task_id = runtime.start(
+        kind="inbound_message",
+        session_key="telegram:123",
+        channel="telegram",
+        chat_id="123",
+        sender_id="user",
+        input_text="unfinished",
+    )
+
+    dispatcher = SlashCommandDispatcher(tmp_path)
+    result = asyncio.run(dispatcher.try_handle("/new", "telegram:123", "telegram", "123"))
+
+    assert "New session started" in result
+    assert "Cleared 1 running task" in result
+    assert runtime.latest_running_for_session("telegram:123") is None
+    payload = runtime.get(task_id)
+    assert payload is not None
+    assert payload["status"] == "cancelled"
 
 
 def test_slash_history_uses_shared_quoted_arg_parser(tmp_path: Path, monkeypatch):

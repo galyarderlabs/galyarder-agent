@@ -12,6 +12,7 @@ from g_agent.agent.tools.base import Tool
 from g_agent.bus.events import OutboundMessage
 from g_agent.config.schema import VisualIdentityConfig
 from g_agent.providers.base import LLMProvider
+from g_agent.utils.redaction import redact_secrets
 
 
 async def extract_physical_description(
@@ -312,15 +313,29 @@ class SelfieTool(Tool):
                 raise RuntimeError(f"Unexpected HuggingFace response: {data}")
             return resp.content
 
+    def _openai_images_url(self, api_base: str) -> str:
+        """Construct OpenAI images/generations endpoint URL from api_base.
+
+        Handles various api_base formats:
+        - http://host/v1 -> http://host/v1/images/generations
+        - http://host/api/v1 -> http://host/api/v1/images/generations
+        - http://host/v1/images/generations -> http://host/v1/images/generations (unchanged)
+        - http://host/v1/ -> http://host/v1/images/generations (trailing slash stripped)
+        """
+        base = api_base.rstrip("/")
+        if base.endswith("/images/generations"):
+            return base
+        return f"{base}/images/generations"
+
     async def _generate_openai_compatible(self, prompt: str, cfg: Any) -> bytes:
         """Generate image via an OpenAI-compatible image API."""
-        api_base = cfg.image_gen.api_base.rstrip("/")
+        api_base = cfg.image_gen.api_base
         if not api_base:
             raise ValueError("api_base is required for openai-compatible image generation.")
         model = cfg.image_gen.model
-        url = f"{api_base}/images/generations"
+        url = self._openai_images_url(api_base)
         headers = {"Authorization": f"Bearer {cfg.image_gen.api_key}"}
-        if str(model).startswith("gpt-image-"):
+        if "gpt-image-" in str(model) or str(model).startswith(("cx/", "codex/")):
             payload: dict[str, Any] = {
                 "prompt": prompt,
                 "response_format": "b64_json",
@@ -352,6 +367,9 @@ class SelfieTool(Tool):
 
         async with httpx.AsyncClient(timeout=cfg.image_gen.timeout) as client:
             resp = await client.post(url, headers=headers, json=payload)
+            if resp.status_code >= 400:
+                detail = redact_secrets(resp.text[:1000])
+                raise RuntimeError(f"Image API HTTP {resp.status_code}: {detail}")
             resp.raise_for_status()
             data = resp.json()
             image_data = data["data"][0]

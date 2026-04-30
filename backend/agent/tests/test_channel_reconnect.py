@@ -98,11 +98,18 @@ class _FakeUpdater:
 
 
 class _FakeBot:
+    def __init__(self):
+        self.sent_messages: list[dict[str, object]] = []
+        self.commands: list[object] = []
+
     async def get_me(self):
         return type("BotInfo", (), {"username": "g-agent-test-bot"})()
 
     async def set_my_commands(self, commands):
-        pass
+        self.commands = list(commands)
+
+    async def send_message(self, **kwargs):
+        self.sent_messages.append(kwargs)
 
 
 class _FakeMessage:
@@ -199,6 +206,35 @@ class _FakeApplicationFactory:
         return cls.builder_instance
 
 
+def test_telegram_slash_status_awaits_dispatcher_and_sends_response(tmp_path):
+    bus = MessageBus()
+    channel = TelegramChannel(
+        config=TelegramConfig(enabled=True, token="token-123", allow_from=["6218572023"]),
+        bus=bus,
+        workspace=tmp_path,
+    )
+    app = _FakeTelegramApp()
+    channel._app = app
+
+    class _FakeUser:
+        id = 6218572023
+        username = "galyarderlabs"
+        first_name = "Galyarder"
+
+    class _FakeUpdate:
+        def __init__(self):
+            self.message = _FakeMessage(text="/status")
+            self.effective_user = _FakeUser()
+
+    asyncio.run(channel._on_message(_FakeUpdate(), object()))
+
+    assert len(app.bot.sent_messages) == 1
+    sent = app.bot.sent_messages[0]
+    assert sent["chat_id"] == 12345
+    assert "Channel" in str(sent["text"])
+    assert "telegram" in str(sent["text"])
+
+
 def test_telegram_pack_command_forwards_as_message(monkeypatch):
     bus = MessageBus()
     channel = TelegramChannel(
@@ -229,11 +265,12 @@ def test_telegram_pack_command_forwards_as_message(monkeypatch):
     assert captured[0].content == "/pack daily_brief --voice --silent"
 
 
-def test_telegram_channel_reconnects_after_startup_error(monkeypatch):
+def test_telegram_channel_reconnects_after_startup_error(tmp_path, monkeypatch):
     bus = MessageBus()
     channel = TelegramChannel(
         config=TelegramConfig(enabled=True, token="token-123"),
         bus=bus,
+        workspace=tmp_path,
     )
 
     first_app = _FakeTelegramApp(fail_initialize=True)
@@ -260,6 +297,17 @@ def test_telegram_channel_reconnects_after_startup_error(monkeypatch):
     assert first_app.shutdown_calls == 1
     assert second_app.start_calls == 1
     assert second_app.updater.start_polling_calls == 1
+    command_names = {command.command for command in second_app.bot.commands}
+    assert {
+        "start",
+        "reset",
+        "status",
+        "approvals",
+        "approve",
+        "deny",
+        "logs",
+        "insights",
+    } <= command_names
     assert channel.is_running is False
 
 

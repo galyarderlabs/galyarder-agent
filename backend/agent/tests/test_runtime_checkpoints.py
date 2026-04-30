@@ -1,6 +1,7 @@
 import asyncio
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -37,6 +38,51 @@ class DummyProvider(LLMProvider):
 
     def get_default_model(self) -> str:
         return "dummy-model"
+
+
+class FakeSelfieTool:
+    """Fake selfie tool for testing deterministic routing."""
+
+    def __init__(self, result: str = "Selfie photo has been delivered"):
+        self._result = result
+        self._channel = ""
+        self._chat_id = ""
+        self._profile = None
+        self.calls: list[dict[str, str]] = []
+
+    @property
+    def name(self) -> str:
+        return "selfie"
+
+    @property
+    def description(self) -> str:
+        return "Generate and send a selfie photo."
+
+    @property
+    def parameters(self) -> dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "context": {"type": "string"},
+                "caption": {"type": "string"},
+                "mode": {"type": "string", "enum": ["mirror", "direct", "auto"]},
+            },
+            "required": ["context", "caption"],
+        }
+
+    def set_context(self, channel: str, chat_id: str) -> None:
+        self._channel = channel
+        self._chat_id = chat_id
+
+    def set_profile(self, profile: Any) -> None:
+        self._profile = profile
+
+    def validate_params(self, params: dict[str, Any]) -> list[str]:
+        return []
+
+    async def execute(self, context: str = "", caption: str = "", mode: str = "auto", **kwargs: Any) -> str:
+        self.calls.append({"context": context, "caption": caption, "mode": mode})
+        return self._result
 
 
 def _load_checkpoint_files(tasks_dir: Path) -> list[dict]:
@@ -96,6 +142,143 @@ def test_agent_loop_writes_success_checkpoint(tmp_path: Path, monkeypatch: pytes
     assert checkpoint["status"] == "ok"
     assert checkpoint["session_key"] == "cli:ok"
     assert checkpoint["metadata"]["iterations"] == 1
+
+
+def test_extract_selfie_request_detects_pap():
+    """Test that _extract_selfie_request detects various PAP patterns."""
+    provider = DummyProvider()
+    loop = AgentLoop(
+        bus=MessageBus(),
+        provider=provider,
+        workspace=Path("/tmp"),
+        model="dummy-model",
+    )
+
+    # Positive cases
+    assert loop._extract_selfie_request("pap") is not None
+    assert loop._extract_selfie_request("PAP!!!!") is not None
+    assert loop._extract_selfie_request("pappppppp") is not None
+    assert loop._extract_selfie_request("minta pap") is not None
+    assert loop._extract_selfie_request("pap kamu lagi ngapain") is not None
+    assert loop._extract_selfie_request("selfie dong") is not None
+    assert loop._extract_selfie_request("foto kamu") is not None
+    assert loop._extract_selfie_request("kirim selfie") is not None
+
+    # Negative cases (false positives)
+    assert loop._extract_selfie_request("paper") is None
+    assert loop._extract_selfie_request("paprika") is None
+    assert loop._extract_selfie_request("papua") is None
+    assert loop._extract_selfie_request("pap smear") is None
+    assert loop._extract_selfie_request("hello world") is None
+
+
+def test_deterministic_selfie_disabled_completes_checkpoint(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Test that selfie request with disabled visual completes checkpoint properly."""
+    monkeypatch.setenv("G_AGENT_DATA_DIR", str(tmp_path / "data"))
+    provider = DummyProvider()
+    loop = AgentLoop(
+        bus=MessageBus(),
+        provider=provider,
+        workspace=tmp_path,
+        model="dummy-model",
+        max_iterations=3,
+        enable_reflection=False,
+    )
+
+    result = asyncio.run(
+        loop.process_direct(
+            content="pap dong",
+            session_key="cli:selfie_disabled",
+            channel="cli",
+            chat_id="selfie_disabled",
+        )
+    )
+    assert "belum aktif" in result.lower() or "not enabled" in result.lower()
+
+    checkpoints = _load_checkpoint_files(tmp_path / "state" / "tasks")
+    assert len(checkpoints) == 1
+    checkpoint = checkpoints[0]
+    assert checkpoint["status"] == "ok"
+    assert checkpoint["metadata"].get("deterministic_selfie_disabled") is True
+
+
+def test_deterministic_selfie_with_tool_registered(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Test that selfie request with registered tool executes deterministically."""
+    monkeypatch.setenv("G_AGENT_DATA_DIR", str(tmp_path / "data"))
+    provider = DummyProvider()
+    loop = AgentLoop(
+        bus=MessageBus(),
+        provider=provider,
+        workspace=tmp_path,
+        model="dummy-model",
+        max_iterations=3,
+        enable_reflection=False,
+    )
+
+    # Register fake selfie tool
+    fake_selfie = FakeSelfieTool(result="Selfie photo has been delivered to telegram:123")
+    loop.tools.register(fake_selfie)
+
+    result = asyncio.run(
+        loop.process_direct(
+            content="PAP!!!!",
+            session_key="telegram:selfie_test",
+            channel="telegram",
+            chat_id="selfie_test",
+        )
+    )
+    # Should suppress outbound (return None from process_direct means empty string)
+    assert result == ""
+
+    checkpoints = _load_checkpoint_files(tmp_path / "state" / "tasks")
+    assert len(checkpoints) == 1
+    checkpoint = checkpoints[0]
+    assert checkpoint["status"] == "ok"
+    assert checkpoint["metadata"].get("deterministic_selfie") is True
+    assert checkpoint["metadata"].get("tool_calls") == 1
+    assert fake_selfie.calls == [
+        {
+            "context": "casual candid selfie, responding to the user",
+            "caption": "nih pap aku.",
+            "mode": "auto",
+        }
+    ]
+
+
+def test_deterministic_selfie_error_completes_checkpoint(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Test that selfie tool error completes checkpoint with error message."""
+    monkeypatch.setenv("G_AGENT_DATA_DIR", str(tmp_path / "data"))
+    provider = DummyProvider()
+    loop = AgentLoop(
+        bus=MessageBus(),
+        provider=provider,
+        workspace=tmp_path,
+        model="dummy-model",
+        max_iterations=3,
+        enable_reflection=False,
+    )
+
+    # Register fake selfie tool that returns error
+    fake_selfie = FakeSelfieTool(result="Error: image generation failed")
+    loop.tools.register(fake_selfie)
+
+    result = asyncio.run(
+        loop.process_direct(
+            content="selfie dong",
+            session_key="telegram:selfie_error",
+            channel="telegram",
+            chat_id="selfie_error",
+        )
+    )
+    assert "error" in result.lower() or "maaf" in result.lower()
+
+    checkpoints = _load_checkpoint_files(tmp_path / "state" / "tasks")
+    assert len(checkpoints) == 1
+    checkpoint = checkpoints[0]
+    assert checkpoint["status"] == "ok"
+    assert checkpoint["metadata"].get("deterministic_selfie_error") is True
+    assert checkpoint["metadata"].get("selfie_error_detail") == "Error: image generation failed"
+
 
 
 def test_agent_loop_writes_error_checkpoint(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):

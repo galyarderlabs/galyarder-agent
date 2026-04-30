@@ -23,6 +23,7 @@ class _FakeResponse:
         self.status_code = status_code
         self.headers = {"content-type": content_type}
         self._json_data = json_data
+        self.text = content.decode(errors="replace")
 
     def raise_for_status(self):
         if self.status_code >= 400:
@@ -322,18 +323,54 @@ def test_openai_compatible_gpt_image_uses_openai_payload(tmp_path, monkeypatch):
             provider="openai-compatible",
             api_key="sk-test",
             api_base="http://127.0.0.1:8317/v1",
-            model="gpt-image-2",
+            model="gpt-image-test",
         ),
     )
     tool, _ = _make_tool(config=config, tmp_path=tmp_path)
     result = asyncio.run(tool.execute(context="studio photo"))
 
     assert "Selfie photo has been delivered" in result
-    assert fake_client.last_json["model"] == "gpt-image-2"
+    assert fake_client.last_json["model"] == "gpt-image-test"
     assert fake_client.last_json["size"] == "1024x1024"
     assert "width" not in fake_client.last_json
     assert "height" not in fake_client.last_json
     assert "num_inference_steps" not in fake_client.last_json
+
+
+def test_openai_compatible_codex_image_models_use_openai_payload(tmp_path, monkeypatch):
+    """Codex response models should use OpenAI Images payload shape for OmniRoute."""
+    for model in ("cx/gpt-5.5", "cx/gpt-5.4", "cx/gpt-5.3-codex"):
+        b64_img = base64.b64encode(model.encode()).decode()
+        json_data = {"data": [{"b64_json": b64_img, "revised_prompt": "ok"}]}
+        fake_resp = _FakeResponse(
+            content=json.dumps(json_data).encode(),
+            content_type="application/json",
+            json_data=json_data,
+        )
+        fake_client = _FakeAsyncClient(fake_resp)
+        monkeypatch.setattr(
+            "g_agent.agent.tools.selfie.httpx.AsyncClient",
+            lambda **kw: fake_client,
+        )
+
+        config = _make_config(
+            image_gen=ImageGenProviderConfig(
+                provider="openai-compatible",
+                api_key="sk-test",
+                api_base="http://localhost:20128/v1",
+                model=model,
+            ),
+        )
+        tool, _ = _make_tool(config=config, tmp_path=tmp_path)
+        result = asyncio.run(tool.execute(context="studio photo"))
+
+        assert "Selfie photo has been delivered" in result
+        assert fake_client.last_json["model"] == model
+        assert fake_client.last_json["response_format"] == "b64_json"
+        assert fake_client.last_json["size"] == "1024x1024"
+        assert "width" not in fake_client.last_json
+        assert "height" not in fake_client.last_json
+        assert "num_inference_steps" not in fake_client.last_json
 
 
 def test_provider_error_handling(tmp_path, monkeypatch):
@@ -349,6 +386,43 @@ def test_provider_error_handling(tmp_path, monkeypatch):
     result = asyncio.run(tool.execute(context="at the gym"))
 
     assert "Error: image generation failed" in result
+
+
+def test_openai_compatible_http_error_includes_provider_body(tmp_path, monkeypatch):
+    """OpenAI-compatible errors should include sanitized provider response details."""
+    error_body = {
+        "error": {
+            "message": "No credentials for image provider: openai",
+            "type": "invalid_request_error",
+            "code": "bad_request",
+        }
+    }
+    fake_resp = _FakeResponse(
+        content=json.dumps(error_body).encode(),
+        status_code=400,
+        content_type="application/json",
+    )
+    fake_client = _FakeAsyncClient(fake_resp)
+    monkeypatch.setattr(
+        "g_agent.agent.tools.selfie.httpx.AsyncClient",
+        lambda **kw: fake_client,
+    )
+
+    config = _make_config(
+        image_gen=ImageGenProviderConfig(
+            provider="openai-compatible",
+            api_key="sk-test-secret-1234567890",
+            api_base="http://127.0.0.1:20128/v1",
+            model="gpt-image-test",
+        ),
+    )
+    tool, _ = _make_tool(config=config, tmp_path=tmp_path)
+    result = asyncio.run(tool.execute(context="studio photo"))
+
+    assert "Error: image generation failed" in result
+    assert "Image API HTTP 400" in result
+    assert "No credentials for image provider: openai" in result
+    assert "sk-test-secret" not in result
 
 
 def test_cloudflare_provider_call(tmp_path, monkeypatch):
@@ -390,6 +464,129 @@ def test_cloudflare_missing_account_id(tmp_path, monkeypatch):
 
     assert "Error: image generation failed" in result
     assert "account_id" in result
+
+
+# ── URL Construction Tests (16d-16g) ──────────────────────────────
+
+
+def test_openai_url_construction_v1_base(tmp_path, monkeypatch):
+    """Test 16d: api_base='http://localhost:20128/v1' constructs correct URL."""
+    b64_img = base64.b64encode(b"test-image").decode()
+    json_data = {"data": [{"b64_json": b64_img}]}
+    fake_resp = _FakeResponse(
+        content=json.dumps(json_data).encode(),
+        content_type="application/json",
+        json_data=json_data,
+    )
+    fake_client = _FakeAsyncClient(fake_resp)
+    monkeypatch.setattr(
+        "g_agent.agent.tools.selfie.httpx.AsyncClient",
+        lambda **kw: fake_client,
+    )
+
+    config = _make_config(
+        image_gen=ImageGenProviderConfig(
+            provider="openai-compatible",
+            api_key="sk-test",
+            api_base="http://localhost:20128/v1",
+            model="gpt-image-test",
+        ),
+    )
+    tool, _ = _make_tool(config=config, tmp_path=tmp_path)
+    result = asyncio.run(tool.execute(context="test scene"))
+
+    assert "Selfie photo has been delivered" in result
+    assert fake_client.last_url == "http://localhost:20128/v1/images/generations"
+
+
+def test_openai_url_construction_api_v1_base(tmp_path, monkeypatch):
+    """Test 16e: api_base='http://localhost:20128/api/v1' constructs correct URL."""
+    b64_img = base64.b64encode(b"test-image").decode()
+    json_data = {"data": [{"b64_json": b64_img}]}
+    fake_resp = _FakeResponse(
+        content=json.dumps(json_data).encode(),
+        content_type="application/json",
+        json_data=json_data,
+    )
+    fake_client = _FakeAsyncClient(fake_resp)
+    monkeypatch.setattr(
+        "g_agent.agent.tools.selfie.httpx.AsyncClient",
+        lambda **kw: fake_client,
+    )
+
+    config = _make_config(
+        image_gen=ImageGenProviderConfig(
+            provider="openai-compatible",
+            api_key="sk-test",
+            api_base="http://localhost:20128/api/v1",
+            model="gpt-image-test",
+        ),
+    )
+    tool, _ = _make_tool(config=config, tmp_path=tmp_path)
+    result = asyncio.run(tool.execute(context="test scene"))
+
+    assert "Selfie photo has been delivered" in result
+    assert fake_client.last_url == "http://localhost:20128/api/v1/images/generations"
+
+
+def test_openai_url_construction_full_endpoint(tmp_path, monkeypatch):
+    """Test 16f: api_base='http://localhost:20128/v1/images/generations' uses as-is."""
+    b64_img = base64.b64encode(b"test-image").decode()
+    json_data = {"data": [{"b64_json": b64_img}]}
+    fake_resp = _FakeResponse(
+        content=json.dumps(json_data).encode(),
+        content_type="application/json",
+        json_data=json_data,
+    )
+    fake_client = _FakeAsyncClient(fake_resp)
+    monkeypatch.setattr(
+        "g_agent.agent.tools.selfie.httpx.AsyncClient",
+        lambda **kw: fake_client,
+    )
+
+    config = _make_config(
+        image_gen=ImageGenProviderConfig(
+            provider="openai-compatible",
+            api_key="sk-test",
+            api_base="http://localhost:20128/v1/images/generations",
+            model="gpt-image-test",
+        ),
+    )
+    tool, _ = _make_tool(config=config, tmp_path=tmp_path)
+    result = asyncio.run(tool.execute(context="test scene"))
+
+    assert "Selfie photo has been delivered" in result
+    assert fake_client.last_url == "http://localhost:20128/v1/images/generations"
+
+
+def test_openai_url_construction_trailing_slash(tmp_path, monkeypatch):
+    """Test 16g: api_base with trailing slash is handled correctly."""
+    b64_img = base64.b64encode(b"test-image").decode()
+    json_data = {"data": [{"b64_json": b64_img}]}
+    fake_resp = _FakeResponse(
+        content=json.dumps(json_data).encode(),
+        content_type="application/json",
+        json_data=json_data,
+    )
+    fake_client = _FakeAsyncClient(fake_resp)
+    monkeypatch.setattr(
+        "g_agent.agent.tools.selfie.httpx.AsyncClient",
+        lambda **kw: fake_client,
+    )
+
+    config = _make_config(
+        image_gen=ImageGenProviderConfig(
+            provider="openai-compatible",
+            api_key="sk-test",
+            api_base="http://localhost:20128/v1/",
+            model="gpt-image-test",
+        ),
+    )
+    tool, _ = _make_tool(config=config, tmp_path=tmp_path)
+    result = asyncio.run(tool.execute(context="test scene"))
+
+    assert "Selfie photo has been delivered" in result
+    assert fake_client.last_url == "http://localhost:20128/v1/images/generations"
 
 
 # ── File & Delivery Tests (17-18) ─────────────────────────────────

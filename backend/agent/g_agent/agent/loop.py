@@ -476,10 +476,22 @@ class AgentLoop:
             )
             return OutboundMessage(channel=msg.channel, chat_id=msg.chat_id, content=ack)
 
+        stale_tasks = self.runtime.mark_stale_running_for_session(msg.session_key)
+        if stale_tasks:
+            logger.warning(
+                f"Marked {len(stale_tasks)} stale running task(s) for session {msg.session_key}"
+            )
         previous_running = self.runtime.latest_running_for_session(msg.session_key)
         previous_task_id = str(previous_running.get("task_id", "")) if previous_running else ""
+        approved_tools, approve_all = self._extract_approval_intent(trimmed)
         resume_intent = trimmed in {"continue", "resume", "lanjut", "lanjutkan"}
-        if previous_running and not resume_intent and not msg.metadata.get("bypass_busy"):
+        approval_intent = approve_all or bool(approved_tools)
+        if (
+            previous_running
+            and not resume_intent
+            and not approval_intent
+            and not msg.metadata.get("bypass_busy")
+        ):
             logger.warning(f"Session {msg.session_key} is busy, ignoring message: {msg.content[:50]}")
             # Optional: send a 'busy' notice to the user
             # but usually better to just ignore or queue.
@@ -591,6 +603,17 @@ class AgentLoop:
                     selfie_tool.set_profile(active_profile)
             effective_tools = self._get_effective_tools(msg)
 
+            # Deterministic selfie/PAP routing: execute immediately if detected
+            selfie_request = self._extract_selfie_request(msg.content)
+            if selfie_request:
+                selfie_result = await self._handle_deterministic_selfie(
+                    msg, task_id, session, selfie_tool, selfie_request
+                )
+                # None means success (no outbound text), OutboundMessage means error/disabled
+                if selfie_result is None:
+                    return None
+                return selfie_result
+
             # Build initial messages (use get_history for LLM-formatted messages)
             messages = await self.context.build_messages(
                 history=session.get_history(),
@@ -612,8 +635,6 @@ class AgentLoop:
             executed_tool_results: list[tuple[str, str]] = []
             message_delivery_to_origin = False
             message_delivery_origin_text = ""
-            approved_tools, approve_all = self._extract_approval_intent(msg.content)
-
             # Replay pending approvals from previous turn
             pending_replay_context = await self._replay_pending_approvals(
                 session=session,
@@ -934,6 +955,12 @@ class AgentLoop:
                     )
                 )
 
+            if previous_running and approval_intent and previous_task_id:
+                self.runtime.complete(
+                    previous_task_id,
+                    log_content,
+                    metadata={"resolved_by_approval": True},
+                )
             self.runtime.complete(
                 task_id,
                 log_content,
@@ -1782,6 +1809,168 @@ class AgentLoop:
         skip = {"tool", "tools", "and", "please", "pls"}
         names = {item.strip() for item in chunks if item.strip() and item.strip() not in skip}
         return names, False
+
+    def _extract_selfie_request(self, text: str) -> dict[str, str] | None:
+        """Detect explicit selfie/PAP request with context extraction.
+
+        Returns dict with 'context' and 'caption' if detected, None otherwise.
+        """
+        content = (text or "").strip()
+        if not content:
+            return None
+
+        # Normalize repeated punctuation and case for matching
+        normalized = re.sub(r'([!?.])\1+', r'\1', content.lower())
+
+        # False positive filters - avoid matching these words
+        false_positives = (
+            r'\bpaper\b', r'\bpaprika\b', r'\bpapua\b',
+            r'\bpap\s+smear\b', r'\bpapa\b', r'\bmama\b'
+        )
+        if any(re.search(pattern, normalized) for pattern in false_positives):
+            return None
+
+        # Explicit selfie/PAP patterns
+        selfie_patterns = (
+            # Indonesian PAP slang (most common)
+            r'\bpap+\b',  # pap, pappp, etc
+            r'\bminta\s+pap\b',
+            r'\bkirim\s+pap\b',
+            r'\bpap\s+(dong|deh|kamu|lu|lo|aku|gue)\b',
+            r'\b(kamu|lu|lo)\s+pap\b',
+            # Explicit selfie requests
+            r'\bselfie\b',
+            r'\bselfie\s+(dong|deh|kamu|lu|lo)\b',
+            r'\bminta\s+selfie\b',
+            r'\bkirim\s+selfie\b',
+            # Photo requests with personal pronouns
+            r'\bfoto\s+(kamu|lu|lo)\b',
+            r'\b(kamu|lu|lo)\s+foto\b',
+            r'\bminta\s+foto\s+(kamu|lu|lo)\b',
+        )
+
+        matched = False
+        for pattern in selfie_patterns:
+            if re.search(pattern, normalized):
+                matched = True
+                break
+
+        if not matched:
+            return None
+
+        # Extract context from the message (what they're asking about)
+        # Remove the trigger words to get context
+        context_text = re.sub(
+            r'\b(pap+|selfie|foto|minta|kirim|dong|deh|kamu|lu|lo|aku|gue|!|\?|\.)\b',
+            ' ',
+            normalized,
+            flags=re.IGNORECASE
+        ).strip()
+
+        # Clean up extra whitespace
+        context_text = re.sub(r'\s+', ' ', context_text).strip()
+
+        # Build context and caption
+        if context_text and len(context_text) > 3:
+            context = f"casual candid selfie, {context_text}"
+        else:
+            context = "casual candid selfie, responding to the user"
+
+        caption = "nih pap aku."
+
+        return {"context": context, "caption": caption, "mode": "auto"}
+
+    async def _handle_deterministic_selfie(
+        self,
+        msg: InboundMessage,
+        task_id: str,
+        session: Any,
+        selfie_tool: Any,
+        selfie_request: dict[str, str],
+    ) -> OutboundMessage | None:
+        """Handle deterministic selfie/PAP request execution.
+
+        Returns OutboundMessage if response needed, None if selfie delivered successfully.
+        """
+        if not selfie_tool:
+            logger.info("Selfie request detected but visual identity not enabled")
+            fallback_msg = "maaf, fitur selfie belum aktif di config."
+            session.add_message("user", msg.content)
+            session.add_message("assistant", fallback_msg)
+            self.sessions.save(session)
+            self.runtime.complete(
+                task_id,
+                fallback_msg,
+                metadata={"deterministic_selfie_disabled": True},
+            )
+            return OutboundMessage(
+                channel=msg.channel,
+                chat_id=msg.chat_id,
+                content=fallback_msg,
+                metadata=self._build_outbound_metadata(msg, task_id),
+            )
+
+        logger.info(f"Deterministic selfie request detected: {msg.content[:50]}")
+        self.runtime.append_event(task_id, "deterministic_selfie", "detected")
+
+        try:
+            result = await self.tools.execute("selfie", selfie_request)
+            result_str = str(result)
+
+            if "delivered" in result_str.lower():
+                logger.info("Deterministic selfie delivered successfully")
+                session.add_message("user", msg.content)
+                session.add_message(
+                    "assistant",
+                    "",
+                    metadata={
+                        "tool_calls": [
+                            {
+                                "tool_name": "selfie",
+                                "result_summary": result_str[:1000],
+                                "status": "success",
+                            }
+                        ],
+                        "deterministic_selfie": True,
+                    },
+                )
+                self.sessions.save(session)
+                self.runtime.complete(
+                    task_id,
+                    "",
+                    metadata={
+                        "deterministic_selfie": True,
+                        "tool_calls": 1,
+                    },
+                )
+                return None
+
+            logger.warning(f"Deterministic selfie failed: {result_str}")
+            error_msg = (
+                "maaf, selfie lagi error. coba lagi nanti ya."
+                if "error" in result_str.lower()
+                else result_str
+            )
+        except Exception as e:
+            logger.error(f"Deterministic selfie execution failed: {e}")
+            error_msg = "maaf, selfie lagi error. coba lagi nanti ya."
+            metadata = {"deterministic_selfie_exception": str(e)}
+        else:
+            metadata = {
+                "deterministic_selfie_error": True,
+                "selfie_error_detail": result_str[:1000],
+            }
+
+        session.add_message("user", msg.content)
+        session.add_message("assistant", error_msg)
+        self.sessions.save(session)
+        self.runtime.complete(task_id, error_msg, metadata=metadata)
+        return OutboundMessage(
+            channel=msg.channel,
+            chat_id=msg.chat_id,
+            content=error_msg,
+            metadata=self._build_outbound_metadata(msg, task_id),
+        )
 
     def _extract_requested_delivery_mode(self, text: str) -> str | None:
         """Detect explicit user request for voice/image/sticker delivery."""

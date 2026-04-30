@@ -4,6 +4,24 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [0.1.19] - 2026-04-30
+
+### Added
+- Added deterministic Telegram PAP/selfie routing so explicit `pap`, `minta pap`, and selfie/photo requests execute the visual identity tool before normal LLM routing.
+- Added regression coverage for Codex image-capable OpenAI-compatible models: `cx/gpt-5.5`, `cx/gpt-5.4`, and `cx/gpt-5.3-codex`.
+
+### Changed
+- Updated visual identity documentation and roadmap wording to use current Codex image proxy models instead of stale `gpt-image-2` examples.
+- Synced Telegram bot command registration with the shared slash command router.
+
+### Fixed
+- Fixed stuck channel sessions by marking stale running checkpoints and making `/new` and `/reset` cancel active runtime checkpoints as well as archive chat history.
+- Fixed approval follow-ups such as `approve write_file` so they can continue a blocked task instead of being rejected by the busy-session guard.
+- Fixed Telegram slash command handling by awaiting the shared async dispatcher before normal message routing.
+- Fixed OpenAI-compatible image endpoint construction for `/v1`, `/api/v1`, full `/images/generations`, and trailing-slash base URLs.
+- Fixed Codex image payloads so `cx/*` and `codex/*` models use OpenAI Images `b64_json` plus `size` payloads instead of SDXL-style dimensions.
+- Fixed image API error reporting so provider response bodies are surfaced with secret redaction.
+
 ## [0.1.18] - 2026-04-30
 
 ### Fixed

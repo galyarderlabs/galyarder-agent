@@ -138,7 +138,7 @@ Goal: make the current owner setup boring and debuggable.
 
 - Keep workspace restriction enabled by default.
 - Keep `tools.allowedPaths` as the official way to trust owner media/project folders.
-- Keep OpenAI-compatible image providers simple, document `gpt-image-2` proxy configuration, and add focused tests for proxy response formats.
+- Keep OpenAI-compatible image providers simple, document the current Codex image proxy models, and add focused tests for proxy response formats.
 - Fix Google Workspace discovery so services can find `gws` and `gcloud` from the service environment.
 - Add easy log inspection from CLI and chat: recent gateway logs, channel logs, failed tool calls, and provider errors.
 - Add owner-local troubleshooting docs for PATH, systemd user services, sandbox behavior, and trusted media folders.
@@ -514,7 +514,7 @@ The highest-leverage implementation order:
 2. Add `session_search` and `/search` so the agent can recall prior work.
 3. Normalize slash commands and implement `/status`, `/logs`, `/new`, `/sessions`, `/approve`, and `/deny`.
 4. Add dangerous action approval state per session.
-5. Finish current visual/image-provider docs for OpenAI-compatible `gpt-image-2` proxy usage.
+5. Finish current visual/image-provider docs for OpenAI-compatible Codex image proxy usage.
 6. Harden WhatsApp media, sandbox path errors, and local file delivery.
 7. Add minimal built-in memory provider with context fencing.
 8. Add learning queue schema but keep all changes owner-reviewed.

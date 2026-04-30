@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +13,15 @@ from g_agent.utils.helpers import ensure_dir
 
 def _now_iso() -> str:
     return datetime.now().isoformat()
+
+
+def _parse_iso(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        return None
 
 
 def _compact_preview(text: str, limit: int = 1200) -> str:
@@ -25,9 +34,10 @@ def _compact_preview(text: str, limit: int = 1200) -> str:
 class TaskCheckpointStore:
     """Store task execution checkpoints in workspace/state/tasks."""
 
-    def __init__(self, workspace: Path):
+    def __init__(self, workspace: Path, *, stale_after: timedelta | None = None):
         self.workspace = workspace
         self.tasks_dir = ensure_dir(workspace / "state" / "tasks")
+        self.stale_after = stale_after if stale_after is not None else timedelta(hours=6)
 
     def _task_path(self, task_id: str) -> Path:
         return self.tasks_dir / f"{task_id}.json"
@@ -196,24 +206,66 @@ class TaskCheckpointStore:
             running.append(payload)
         return running
 
-    def cancel(self, task_id: str) -> bool:
-        """Mark a running task as cancelled."""
+    def _finish_running(self, task_id: str, *, status: str, event: str, detail: str) -> bool:
         path = self._task_path(task_id)
         payload = self._safe_read(path)
         if payload is None or payload.get("status") != "running":
             return False
         now = _now_iso()
-        payload["status"] = "cancelled"
+        payload["status"] = status
         payload["updated_at"] = now
         payload["finished_at"] = now
         payload.setdefault("events", []).append(
             {
                 "at": now,
-                "event": "cancel",
-                "detail": "Task cancelled by user via /stop command.",
+                "event": event,
+                "detail": detail,
             }
         )
         return self._safe_write(path, payload)
+
+    def cancel(self, task_id: str) -> bool:
+        """Mark a running task as cancelled."""
+        return self._finish_running(
+            task_id,
+            status="cancelled",
+            event="cancel",
+            detail="Task cancelled by user via /stop command.",
+        )
+
+    def mark_stale(self, task_id: str, reason: str = "Running checkpoint exceeded stale window.") -> bool:
+        """Mark a running task as stale so it no longer blocks the session."""
+        return self._finish_running(
+            task_id,
+            status="stale",
+            event="stale",
+            detail=_compact_preview(reason, limit=240),
+        )
+
+    def is_stale(self, payload: dict[str, Any]) -> bool:
+        """Return whether a running checkpoint is older than the stale window."""
+        if payload.get("status") != "running":
+            return False
+        updated_at = _parse_iso(payload.get("updated_at"))
+        created_at = _parse_iso(payload.get("created_at"))
+        reference_time = updated_at or created_at
+        if reference_time is None:
+            return False
+        return datetime.now() - reference_time > self.stale_after
+
+    def mark_stale_running_for_session(self, session_key: str) -> list[dict[str, Any]]:
+        """Mark stale running tasks for a session and return the updated payloads."""
+        stale_payloads = []
+        for payload in self.list_running(session_key):
+            if not self.is_stale(payload):
+                continue
+            task_id = str(payload.get("task_id") or "")
+            if not task_id:
+                continue
+            if self.mark_stale(task_id):
+                updated = self.get(task_id)
+                stale_payloads.append(updated or payload)
+        return stale_payloads
 
     def mark_resumed(self, task_id: str) -> bool:
         """Mark a running task as resumed."""

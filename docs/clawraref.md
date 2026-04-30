@@ -22,7 +22,7 @@ What remains useful from the old Clawra research:
 - Reference-photo, manual-description, and LoRA-trigger paths are different
   identity anchors with different consistency tradeoffs.
 - Image generation providers should stay OpenAI-compatible where possible, so a
-  local proxy can route to models such as `gpt-image-2`.
+  local proxy can route to currently configured image-capable models.
 
 Superseded assumptions:
 

@@ -273,8 +273,8 @@ The `visual` section enables AI-generated selfie photos with consistent appearan
     "imageGen": {
       "provider": "openai-compatible",
       "apiKey": "sk-local-xxx",
-      "apiBase": "http://127.0.0.1:8317/v1",
-      "model": "gpt-image-2",
+      "apiBase": "http://localhost:20128/v1",
+      "model": "cx/gpt-5.5",
       "timeout": 180
     }
   }
