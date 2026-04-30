@@ -16,6 +16,9 @@ class CaptureBus:
     async def publish_inbound(self, message: object) -> None:
         self.messages.append(message)
 
+    async def publish_event(self, event: object) -> None:
+        pass
+
 
 def _routine(**overrides: object) -> Routine:
     data: dict[str, object] = {

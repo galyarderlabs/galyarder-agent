@@ -37,9 +37,9 @@ intent.
 
 | Status | Reference value | Current G-Agent evidence | Remaining gap |
 | --- | --- | --- | --- |
-| Adopted first slice | SQLite sessions, FTS recall, command controls, approval commands, profile core, skill store, routines, toolsets, MCP stdio/SSE, shared runner, local execution, observability insights, skill candidate apply/rollback. | `session/sqlite_store.py`, `agent/tools/session_search.py`, `command/`, `character/`, `skills/`, `learning/`, `routines/`, `agent/tools/toolsets.py`, `mcp/manager.py`, `agent/runner.py`, `agent/environments.py`, `observability/insights.py`. | Backfill/import polish, persisted approvals, profile switching isolation, and streamable HTTP MCP remain. |
-| Partial | Channel reliability, multimodal handling, learning queue/reviewer, context compression, and routine execution. | `channels/manager.py`, channel tests, `learning/`, `context/engine.py`, `context/compressor.py`, `routines/scheduler.py`. | Smarter split preservation, non-skill learning apply flows, automatic compression integration, webhook/API routine triggers, and multi-skill routines are still open. |
-| Not shipped | First-party Web UI, WebSocket channel, OpenAI-compatible product API, Docker execution backend, prompt-injection scanner, third-party notices. | No `g_agent/api/`, no `channels/websocket.py`, no `webui/`, no Docker execution backend. | These remain future implementation work, not completed roadmap claims. |
+| Adopted first slice | SQLite sessions, FTS recall, command controls, approval commands, profile core, skill store, routines, toolsets, MCP stdio/SSE/streamable HTTP, shared runner, local execution, observability insights, skill candidate apply/rollback. | `session/sqlite_store.py`, `agent/tools/session_search.py`, `command/`, `character/`, `skills/`, `learning/`, `routines/`, `agent/tools/toolsets.py`, `mcp/manager.py`, `agent/runner.py`, `agent/environments.py`, `observability/insights.py`, `execution/docker.py`. | Backfill/import polish, persisted approvals, profile switching isolation, streamable HTTP MCP remain. Docker exists as transient scaffold, not production-grade stateful/hardened persistent backend. |
+| Partial | Channel reliability, multimodal handling, learning queue/reviewer, context compression, routine execution, API/WebSocket/Web UI. | `channels/manager.py`, channel tests, `learning/`, `context/engine.py`, `context/compressor.py`, `routines/scheduler.py`, `api/server.py`, `channels/websocket.py`, `webui/`. | Smarter split preservation, non-skill learning apply flows, automatic compression integration, webhook/API routine triggers, multi-skill routines, advanced Nanobot WebSocket features (token issuance endpoint, media signing, SSL/TLS, capability registry entry gap), Web UI test coverage. |
+| Shipped | Memory manager first slice, background learning reviewer with tightened heuristics, API canonical + compatibility aliases, Web UI React SPA source/build/static serving/bootstrap tests, WebSocket minimal aiohttp channel. | `memory/manager.py`, `learning/reviewer.py`, `api/server.py`, `api/openai_compat.py`, `channels/websocket.py`, `webui/`. | Memory write cadence, external provider config, non-skill apply flows, Web UI polish, WebSocket advanced features, multimodal API input. |
 
 ## G-Agent Baseline
 
@@ -112,9 +112,9 @@ Current G-Agent already has useful foundations:
 
 | Capability | Source | Evidence files | Decision | Fit for G-Agent | Implementation notes |
 | --- | --- | --- | --- | --- | --- |
-| WebSocket channel | Nanobot | `nanobot-ref/nanobot/channels/websocket.py`, `nanobot-ref/docs/websocket.md` | Adopt, not shipped | Foundation for first-party Web UI and real-time control. | No `channels/websocket.py` exists yet. Add token auth, session mapping, media envelopes, streaming deltas, lifecycle events. |
-| Web UI | Nanobot | `nanobot-ref/webui/`, `nanobot-ref/images/nanobot_webui.png` | Adapt, not shipped | Needed, but G-Agent UI should control character/memory/skills/routines, not just chat. | No first-party `webui/` exists yet. Build after backend state and commands are stable. |
-| OpenAI-compatible chat completions | Nanobot + Hermes | `nanobot-ref/nanobot/api/server.py`, `nanobot-ref/docs/openai-api.md`, `hermes-agent-ref/gateway/platforms/api_server.py` | Adopted first slice | Lets Open WebUI, LobeChat, LibreChat, and local tools use G-Agent. | `g_agent/api/server.py` exposes health/status/session endpoints, `/v1/models`, and non-streaming `/v1/chat/completions`. `/v1/responses`, streaming, media, and WebSocket remain later. |
+| WebSocket channel | Nanobot | `nanobot-ref/nanobot/channels/websocket.py`, `nanobot-ref/docs/websocket.md` | Adopted first slice | Foundation for first-party Web UI and real-time control. | `channels/websocket.py` exists as minimal aiohttp channel with local token auth and chat-id session mapping. Implemented, not Nanobot full surface. Advanced Nanobot features missing: token issuance endpoint, media signing, SSL/TLS, capability registry entry gap. |
+| Web UI | Nanobot | `nanobot-ref/webui/`, `nanobot-ref/images/nanobot_webui.png` | Adapted first slice | Needed, but G-Agent UI should control character/memory/skills/routines, not just chat. | `webui/` exists: React SPA source/build/static serving/bootstrap tests exist; implemented core, tests minimal. Some stale Nanobot naming artifacts. |
+| OpenAI-compatible chat completions | Nanobot + Hermes | `nanobot-ref/nanobot/api/server.py`, `nanobot-ref/docs/openai-api.md`, `hermes-agent-ref/gateway/platforms/api_server.py` | Adopted first slice | Lets Open WebUI, LobeChat, LibreChat, and local tools use G-Agent. | `g_agent/api/server.py` exposes health/status/session endpoints, `/v1/models`, and non-streaming/streaming `/v1/chat/completions`. API canonical + compatibility aliases tested: /api/health, /health, /api/status, /status, /api/v1/models, /v1/models, /api/v1/chat/completions, /v1/chat/completions. `/v1/responses`, multimodal input remain later. |
 | Stateful responses API | Hermes | `hermes-agent-ref/gateway/platforms/api_server.py` | Later | Good compatibility, but more complex than initial chat completions. | Defer until session store and chat completions are stable. |
 | API multimodal normalization | Nanobot + Hermes | `nanobot-ref/nanobot/api/server.py`, `hermes-agent-ref/gateway/platforms/api_server.py` | Adopt | Important for image input and visual workflows. | Support base64 data URLs, uploads, size limits, and explicit remote URL policy. |
 
@@ -133,7 +133,7 @@ Current G-Agent already has useful foundations:
 
 | Capability | Source | Evidence files | Decision | Fit for G-Agent | Implementation notes |
 | --- | --- | --- | --- | --- | --- |
-| MCP schema normalization and retry | Nanobot | `nanobot-ref/nanobot/agent/tools/mcp.py`, `nanobot-ref/tests/agent/test_mcp_connection.py`, `nanobot-ref/tests/agent/test_mcp_transient_retry.py` | Adopted first slice | G-Agent already wants app/tool integrations; MCP must be boring and safe. | `mcp/manager.py` supports stdio/SSE/streamable HTTP connection, schema normalization, timeout, transient retry, and clearer errors. Docker execution remains separate. |
+| MCP schema normalization and retry | Nanobot | `nanobot-ref/nanobot/agent/tools/mcp.py`, `nanobot-ref/tests/agent/test_mcp_connection.py`, `nanobot-ref/tests/agent/test_mcp_transient_retry.py` | Adopted first slice | G-Agent already wants app/tool integrations; MCP must be boring and safe. | `mcp/manager.py` supports stdio/SSE/streamable HTTP connection, schema normalization, timeout, transient retry, and clearer errors. MCP tool/resource timeouts, retry, cancellation handling, schema normalization source exist; missing prompts, enabled_tools filtering, typed config, parallel connection, timeout/cancellation/schema normalization tests not all present. Docker execution exists as transient scaffold, not production-grade stateful/hardened persistent backend. |
 | Toolsets/capability groups | Hermes | `hermes-agent-ref/toolsets.py` | Adopted first slice | Prevents every character/session from getting every tool. | `agent/tools/toolsets.py` defines safe/file/terminal/web/search/vision/image/messaging/memory/skills/routines/MCP/subagent groupings and dynamic MCP groups. Per-profile policy remains. |
 | File/shell tool UX | Nanobot + Hermes | `nanobot-ref/nanobot/agent/tools/filesystem.py`, `nanobot-ref/nanobot/agent/tools/shell.py`, `hermes-agent-ref/tools/terminal_tool.py` | Adapted first slice | Useful, but must respect G-Agent sandbox and allowed paths. | File/shell tools, local environment, roots, and approval hooks exist. More path UX, file-state reporting, and durable approval persistence remain. |
 | Notebook/scratch tools | Nanobot | `nanobot-ref/nanobot/agent/tools/notebook.py` | Later | Nice for complex tasks, not first priority. | Consider after session store/skills. |
@@ -146,7 +146,7 @@ Current G-Agent already has useful foundations:
 | Shared agent runner | Nanobot | `nanobot-ref/nanobot/agent/runner.py` | Adopted first slice | Separates tool loop from product/session/channel concerns. | `agent/runner.py` exists and is used by subagent execution. API/channel unification can build on it later. |
 | Subagent lifecycle | Nanobot + Hermes | `nanobot-ref/nanobot/agent/subagent.py`, `nanobot-ref/nanobot/agent/tools/spawn.py`, `hermes-agent-ref/tools/delegate_tool.py`, `hermes-agent-ref/tests/tools/test_delegate.py` | Adapted first slice | Useful for background work and research, but owner needs status and summaries. | Subagent spawn/run/cancel paths exist. Richer status events, artifacts, and completion summaries remain. |
 | Local execution default | Current G-Agent | `backend/agent/g_agent/` | Keep, implemented | Best for user's setup and privacy. | `agent/environments.py` includes local execution. Improve durable approvals and path policy next. |
-| Docker/SSH/remote backends | Hermes | `hermes-agent-ref/tools/environments/` | Later | Useful for always-on or risky work, not first core. | Start with local; add Docker sandbox next; SSH/VPS later. |
+| Docker/SSH/remote backends | Hermes | `hermes-agent-ref/tools/environments/` | Adopted transient scaffold | Useful for always-on or risky work, not first core. | `execution/docker.py` exists as transient/stateless container scaffold with validation for invalid backend/image, network allowlist (none/bridge), timeout, and structured unavailable/timeout errors. 23 focused tests pass. Not production-grade stateful/hardened persistent backend like Hermes reference. Start with local; add Docker sandbox next; SSH/VPS later. |
 | Modal/Daytona/Singularity | Hermes | `hermes-agent-ref/tools/environments/` | Later/drop from core | Interesting but too heavy for early G-Agent. | Keep as optional backend only if demand appears. |
 
 ### Context Compression And Prompt Assembly
@@ -222,19 +222,19 @@ Why third: this is the Hermes-style growth loop, but constrained for G-Agent saf
 
 1. Partially done: WhatsApp media/login/reconnect/security tests exist; shared media envelope and diagnostics remain.
 2. Partially done: Telegram/Discord channels and tests exist; richer media/session mapping remains.
-3. Not shipped: WebSocket channel and events.
-4. Not shipped: minimal OpenAI-compatible `/v1/models` and `/v1/chat/completions` product API.
-5. Not shipped: first-party Web UI around sessions, approvals, memory, skills, and character profiles.
+3. Shipped first slice: WebSocket channel exists as minimal aiohttp channel with local token auth and chat-id session mapping. Implemented, not Nanobot full surface. Advanced Nanobot features missing: token issuance endpoint, media signing, SSL/TLS, capability registry entry gap.
+4. Shipped first slice: minimal OpenAI-compatible `/v1/models` and `/v1/chat/completions` product API with canonical + compatibility aliases tested.
+5. Shipped first slice: first-party Web UI React SPA source/build/static serving/bootstrap tests exist; implemented core, tests minimal. Some stale Nanobot naming artifacts.
 
 Why fourth: once the backend has real state and controls, Web UI becomes useful instead of decorative.
 
 ### Milestone 5: Routines And Advanced Runtime
 
 1. Completed first slice: routine model/store/runner/scheduler and cron integration exist.
-2. Completed slice: script preprocessing injects bounded stdout context and records diagnostics.
+2. Completed slice: script preprocessing injects bounded stdout context and records diagnostics. Routine step metadata rendering fixed/tested. Busy protection default restored; explicit bypass for internal routine preserved.
 3. Still open: webhook/API triggers.
-4. Completed slice: toolsets and MCP stdio/SSE/streamable HTTP hardening exist.
-5. Still open: Docker sandbox, then SSH/VPS backend if needed.
+4. Completed slice: toolsets and MCP stdio/SSE/streamable HTTP hardening exist. MCP tool/resource timeouts, retry, cancellation handling, schema normalization source exist; missing prompts, enabled_tools filtering, typed config, parallel connection, timeout/cancellation/schema normalization tests not all present.
+5. Completed transient scaffold: Docker sandbox exists as transient/stateless container scaffold with validation tests (23 tests pass); not production-grade stateful/hardened persistent backend. SSH/VPS backend if needed later.
 
 Why fifth: routines are powerful only after approvals, memory, sessions, and tools are reliable.
 

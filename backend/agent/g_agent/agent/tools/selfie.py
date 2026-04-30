@@ -69,7 +69,8 @@ class SelfieTool(Tool):
         workspace: Path,
         llm_provider: LLMProvider,
     ):
-        self._config = config
+        self._global_config = config
+        self._profile_config: Any | None = None
         self._send_callback = send_callback
         self._workspace = workspace.expanduser().resolve()
         self._llm_provider = llm_provider
@@ -80,6 +81,30 @@ class SelfieTool(Tool):
         """Set current message routing context."""
         self._channel = channel
         self._chat_id = chat_id
+
+    def set_profile(self, profile: Any) -> None:
+        """Set active character profile for visual identity merging."""
+        self._profile_config = getattr(profile, "visual_identity", None)
+
+    @property
+    def _active_config(self) -> Any:
+        """Merge global config with profile-level overrides."""
+        if not self._profile_config:
+            return self._global_config
+
+        # Merge logic: profile takes precedence for description, trigger, images
+        merged = self._global_config.model_copy()
+
+        p = self._profile_config
+        if p.base_description:
+            merged.physical_description = p.base_description
+        if p.lora_trigger:
+            merged.image_gen.lora_trigger = p.lora_trigger
+        if p.reference_images:
+            # Use first profile reference image if global is empty or as override
+            merged.reference_image = p.reference_images[0]
+
+        return merged
 
     @property
     def name(self) -> str:
@@ -126,17 +151,18 @@ class SelfieTool(Tool):
         caption = (caption or "").strip()
         mode = (mode or "auto").strip().lower()
 
+        cfg = self._active_config
         # Guards
-        if not self._config.enabled:
+        if not cfg.enabled:
             return "Error: visual identity is not enabled in config."
-        if not self._config.image_gen.provider:
+        if not cfg.image_gen.provider:
             return "Error: no image generation provider configured."
 
         # Resolve identity anchor: Combine physical description with LoRA trigger if available
         current_hash = ""
-        if self._config.reference_image:
+        if cfg.reference_image:
             try:
-                img_path = Path(self._config.reference_image).expanduser().resolve()
+                img_path = Path(cfg.reference_image).expanduser().resolve()
                 if img_path.exists():
                     import hashlib
 
@@ -144,13 +170,13 @@ class SelfieTool(Tool):
             except Exception as e:
                 logger.warning(f"Failed to calculate image hash: {e}")
 
-        if current_hash and self._config.reference_image_hash != current_hash:
+        if current_hash and cfg.reference_image_hash != current_hash:
             logger.info("Reference image changed. Invalidating physical description cache.")
-            self._config.physical_description = ""
+            cfg.physical_description = ""
 
-        base_description = self._config.physical_description
+        base_description = cfg.physical_description
 
-        trigger = self._config.image_gen.lora_trigger
+        trigger = cfg.image_gen.lora_trigger
         if trigger:
             logger.debug(f"Using LoRA trigger alongside physical description: {trigger}")
             if base_description:
@@ -160,14 +186,14 @@ class SelfieTool(Tool):
         else:
             description = base_description
 
-        if not description and self._config.reference_image:
+        if not description and cfg.reference_image:
             try:
                 description = await extract_physical_description(
-                    self._config.reference_image,
+                    cfg.reference_image,
                     self._llm_provider,
                 )
-                self._config.physical_description = description
-                self._config.reference_image_hash = current_hash
+                cfg.physical_description = description
+                cfg.reference_image_hash = current_hash
                 self._persist_description(description, current_hash)
                 logger.info("Extracted physical description from reference image")
             except Exception as e:
@@ -186,8 +212,8 @@ class SelfieTool(Tool):
             mode = self._detect_mode(context)
 
         # Build prompt
-        template = self._config.prompt_templates.get(
-            mode, self._config.prompt_templates.get("direct", "")
+        template = cfg.prompt_templates.get(
+            mode, cfg.prompt_templates.get("direct", "")
         )
         prompt = template.format(description=description, context=context)
 
@@ -202,7 +228,7 @@ class SelfieTool(Tool):
         selfie_dir = self._workspace / "state" / "selfies"
         selfie_dir.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
-        ext = self._config.default_format
+        ext = cfg.default_format
         file_path = selfie_dir / f"selfie-{timestamp}.{ext}"
         file_path.write_bytes(image_bytes)
         resolved_path = str(file_path.resolve())
@@ -237,9 +263,10 @@ class SelfieTool(Tool):
 
     def _detect_mode(self, context: str) -> str:
         """Detect mirror vs direct mode from context keywords."""
+        cfg = self._active_config
         lowered = context.lower()
-        mirror_score = sum(1 for kw in self._config.mirror_keywords if kw in lowered)
-        direct_score = sum(1 for kw in self._config.direct_keywords if kw in lowered)
+        mirror_score = sum(1 for kw in cfg.mirror_keywords if kw in lowered)
+        direct_score = sum(1 for kw in cfg.direct_keywords if kw in lowered)
         if direct_score > mirror_score:
             return "direct"
         return "mirror"
@@ -258,21 +285,22 @@ class SelfieTool(Tool):
 
     async def _generate_image(self, prompt: str) -> bytes:
         """Route image generation to the configured provider."""
-        provider = self._config.image_gen.provider.strip().lower()
+        cfg = self._active_config
+        provider = cfg.image_gen.provider.strip().lower()
         if provider == "huggingface":
-            return await self._generate_huggingface(prompt)
+            return await self._generate_huggingface(prompt, cfg)
         if provider == "openai-compatible":
-            return await self._generate_openai_compatible(prompt)
+            return await self._generate_openai_compatible(prompt, cfg)
         if provider == "cloudflare":
-            return await self._generate_cloudflare(prompt)
+            return await self._generate_cloudflare(prompt, cfg)
         raise ValueError(f"Unsupported image generation provider: {provider}")
 
-    async def _generate_huggingface(self, prompt: str) -> bytes:
+    async def _generate_huggingface(self, prompt: str, cfg: Any) -> bytes:
         """Generate image via Hugging Face Inference API."""
-        model = self._config.image_gen.model or "stabilityai/stable-diffusion-xl-base-1.0"
+        model = cfg.image_gen.model or "stabilityai/stable-diffusion-xl-base-1.0"
         url = f"https://api-inference.huggingface.co/models/{model}"
-        headers = {"Authorization": f"Bearer {self._config.image_gen.api_key}"}
-        async with httpx.AsyncClient(timeout=self._config.image_gen.timeout) as client:
+        headers = {"Authorization": f"Bearer {cfg.image_gen.api_key}"}
+        async with httpx.AsyncClient(timeout=cfg.image_gen.timeout) as client:
             resp = await client.post(url, headers=headers, json={"inputs": prompt})
             resp.raise_for_status()
             content_type = resp.headers.get("content-type", "")
@@ -284,15 +312,15 @@ class SelfieTool(Tool):
                 raise RuntimeError(f"Unexpected HuggingFace response: {data}")
             return resp.content
 
-    async def _generate_openai_compatible(self, prompt: str) -> bytes:
+    async def _generate_openai_compatible(self, prompt: str, cfg: Any) -> bytes:
         """Generate image via an OpenAI-compatible image API."""
-        api_base = self._config.image_gen.api_base.rstrip("/")
+        api_base = cfg.image_gen.api_base.rstrip("/")
         if not api_base:
             raise ValueError("api_base is required for openai-compatible image generation.")
-        model = self._config.image_gen.model
+        model = cfg.image_gen.model
         url = f"{api_base}/images/generations"
-        headers = {"Authorization": f"Bearer {self._config.image_gen.api_key}"}
-        if model.startswith("gpt-image-"):
+        headers = {"Authorization": f"Bearer {cfg.image_gen.api_key}"}
+        if str(model).startswith("gpt-image-"):
             payload: dict[str, Any] = {
                 "prompt": prompt,
                 "response_format": "b64_json",
@@ -310,11 +338,11 @@ class SelfieTool(Tool):
             payload["model"] = model
 
         # Inject LoRA if configured
-        if self._config.image_gen.lora_url:
+        if cfg.image_gen.lora_url:
             payload["loras"] = [
                 {
-                    "url": self._config.image_gen.lora_url,
-                    "scale": self._config.image_gen.lora_scale,
+                    "url": cfg.image_gen.lora_url,
+                    "scale": cfg.image_gen.lora_scale,
                 }
             ]
 
@@ -322,7 +350,7 @@ class SelfieTool(Tool):
 
         logger.debug(f"Image gen payload: {json.dumps(payload)}")
 
-        async with httpx.AsyncClient(timeout=self._config.image_gen.timeout) as client:
+        async with httpx.AsyncClient(timeout=cfg.image_gen.timeout) as client:
             resp = await client.post(url, headers=headers, json=payload)
             resp.raise_for_status()
             data = resp.json()
@@ -356,15 +384,15 @@ class SelfieTool(Tool):
                     await asyncio.sleep(delay)
         raise RuntimeError(f"Failed to download image after {retries} attempts")
 
-    async def _generate_cloudflare(self, prompt: str) -> bytes:
+    async def _generate_cloudflare(self, prompt: str, cfg: Any) -> bytes:
         """Generate image via Cloudflare Workers AI."""
-        account_id = self._config.image_gen.account_id
+        account_id = cfg.image_gen.account_id
         if not account_id:
             raise ValueError("Cloudflare Workers AI requires account_id in image_gen config.")
-        model = self._config.image_gen.model or "@cf/black-forest-labs/flux-1-schnell"
+        model = cfg.image_gen.model or "@cf/black-forest-labs/flux-1-schnell"
         url = f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{model}"
-        headers = {"Authorization": f"Bearer {self._config.image_gen.api_key}"}
-        async with httpx.AsyncClient(timeout=self._config.image_gen.timeout) as client:
+        headers = {"Authorization": f"Bearer {cfg.image_gen.api_key}"}
+        async with httpx.AsyncClient(timeout=cfg.image_gen.timeout) as client:
             resp = await client.post(url, headers=headers, json={"prompt": prompt})
             resp.raise_for_status()
             return resp.content

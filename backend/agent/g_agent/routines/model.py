@@ -28,6 +28,17 @@ class RoutineScript(BaseModel):
     max_output_chars: int = Field(default=4000, gt=0, le=50000)
 
 
+class RoutineStep(BaseModel):
+    """A single step in a multi-skill routine workflow."""
+
+    id: str
+    name: str
+    content_prompt: str
+    allowed_tools: list[str] = Field(default_factory=list)
+    condition: str | None = None  # JEXL or simple python-like expression later
+    timeout_seconds: float = 60.0
+
+
 class Routine(BaseModel):
     """
     A reusable background workflow triggered by time or events.
@@ -48,7 +59,8 @@ class Routine(BaseModel):
     destination_chat_id: str
 
     # Execution
-    content_prompt: str  # The prompt or instruction to execute
+    content_prompt: str  # Initial prompt or instruction to execute
+    steps: list[RoutineStep] = Field(default_factory=list)
     allowed_tools: list[str] = Field(default_factory=list)
     approval_policy: Literal["always", "never", "risky_only"] = "risky_only"
     script: RoutineScript = Field(default_factory=RoutineScript)

@@ -17,6 +17,8 @@ class LearningReviewInput:
     session_key: str
     user_content: str
     assistant_content: str
+    channel: str = "cli"
+    chat_id: str = "direct"
     tool_calls: list[dict[str, str]] = field(default_factory=list)
 
 
@@ -35,31 +37,97 @@ class BackgroundLearningReviewer:
             self._tool_quirk_candidate(review),
             self._skill_candidate(review),
             self._routine_candidate(review),
+            self._profile_candidate(review),
+            self._relationship_candidate(review),
         ):
             if candidate:
                 candidates.append(candidate)
         return candidates
 
-    def _routine_candidate(self, review: LearningReviewInput) -> LearningCandidate | None:
+    def _profile_candidate(self, review: LearningReviewInput) -> LearningCandidate | None:
+        """Heuristic for identity/persona changes - requires explicit directive."""
+        user_text = review.user_content.strip().lower()
+        assistant_text = review.assistant_content.strip()
+
+        # Require explicit user directive for profile changes
+        explicit_triggers = (
+            "change your name to",
+            "call yourself",
+            "your new name is",
+            "rename yourself",
+            "ganti nama kamu jadi",
+            "namamu sekarang",
+        )
+        if not any(trigger in user_text for trigger in explicit_triggers):
+            return None
+
+        return self._candidate(
+            review,
+            kind="profile",
+            title="Review explicit identity update",
+            rationale="User explicitly requested agent name/identity change.",
+            content={"text": review.user_content, "assistant_acknowledgment": assistant_text, "source": "background_reviewer"},
+            diff_preview=f"User directive: {review.user_content}\nAgent acknowledgment: {assistant_text}",
+        )
+
+    def _relationship_candidate(self, review: LearningReviewInput) -> LearningCandidate | None:
+        """Heuristic for relationship model updates - requires explicit definition."""
         text = review.user_content.strip()
         lowered = text.lower()
-        triggers = ("setiap ", "every ", "rutin", "routine", "jadwal", "schedule", "nanti", "besok", "minggu depan")
-        if not text or not any(trigger in lowered for trigger in triggers):
+
+        # Require explicit relationship definition, not casual mentions
+        explicit_triggers = (
+            "you are my",
+            "kamu adalah",
+            "our relationship is",
+            "hubungan kita adalah",
+            "treat me as your",
+            "perlakukan saya sebagai",
+        )
+        if not any(trigger in lowered for trigger in explicit_triggers):
             return None
-        
-        # Simple check for scheduling intent
-        if not any(word in lowered for word in ("jam", "pukul", "at ", "o'clock", "am", "pm")):
-            # If no time mentioned, maybe not a routine yet, just a reminder.
-            # We'll be inclusive for now to gather evidence.
-            pass
+
+        # Filter out casual greetings and short phrases
+        if len(text.split()) < 4:
+            return None
+
+        return self._candidate(
+            review,
+            kind="relationship",
+            title="Review explicit relationship definition",
+            rationale="User explicitly defined their relationship with the agent.",
+            content={"text": text, "source": "background_reviewer"},
+            diff_preview=f"Proposed relationship definition:\n{text}",
+        )
+
+    def _routine_candidate(self, review: LearningReviewInput) -> LearningCandidate | None:
+        """Heuristic for routine tasks - requires explicit schedule + action."""
+        text = review.user_content.strip()
+        lowered = text.lower()
+
+        # Require explicit recurring schedule markers
+        schedule_triggers = ("every day", "every week", "every month", "setiap hari", "setiap minggu", "daily", "weekly")
+        has_schedule = any(trigger in lowered for trigger in schedule_triggers)
+
+        # Require time specification for routines (explicit markers only, avoid URL false positives)
+        time_markers = ("at ", "jam ", "pukul ", "o'clock", " am", " pm")
+        has_time = any(marker in lowered for marker in time_markers)
+
+        # Must have both schedule and time to be a routine candidate
+        if not (has_schedule and has_time):
+            return None
+
+        # Filter out questions and short phrases
+        if "?" in text or len(text.split()) < 5:
+            return None
 
         return self._candidate(
             review,
             kind="routine",
-            title="Review possible routine/background task",
-            rationale="User phrasing suggests a recurring task or future reminder.",
+            title="Review explicit routine with schedule",
+            rationale="User specified recurring schedule with time for a task.",
             content={"text": text, "source": "background_reviewer"},
-            diff_preview=f"Proposed routine candidate:\n{text}",
+            diff_preview=f"Proposed routine:\n{text}",
         )
 
     def enqueue_turn(self, review: LearningReviewInput) -> list[LearningCandidate]:
@@ -80,16 +148,36 @@ class BackgroundLearningReviewer:
         return added
 
     def _memory_candidate(self, review: LearningReviewInput) -> LearningCandidate | None:
+        """Heuristic for memory - requires explicit remember/preference directive."""
         text = review.user_content.strip()
         lowered = text.lower()
-        triggers = ("remember ", "ingat ", "prefer ", "preference", "biasanya", "selalu")
-        if not text or not any(trigger in lowered for trigger in triggers):
+
+        # Require explicit memory directives, not casual mentions
+        explicit_triggers = (
+            "remember that",
+            "remember this",
+            "ingat bahwa",
+            "ingat ini",
+            "my preference is",
+            "i prefer",
+            "preferensi saya",
+            "always use",
+            "selalu gunakan",
+            "never use",
+            "jangan pernah",
+        )
+        if not text or not any(trigger in lowered for trigger in explicit_triggers):
             return None
+
+        # Filter out questions and very short statements
+        if "?" in text or len(text.split()) < 5:
+            return None
+
         return self._candidate(
             review,
             kind="memory",
-            title="Review possible memory update",
-            rationale="User phrasing suggests a durable preference or fact.",
+            title="Review explicit memory directive",
+            rationale="User explicitly requested to remember a preference or fact.",
             content={"text": text, "source": "background_reviewer"},
             diff_preview=f"Proposed memory note:\n{text}",
         )
@@ -151,12 +239,18 @@ class BackgroundLearningReviewer:
         diff_preview: str,
     ) -> LearningCandidate:
         evidence_hash = self._evidence_hash(review, kind, diff_preview)
+        # Ensure channel/chat_id are captured for routine scaffolding
+        merged_content = {
+            **content,
+            "channel": review.channel,
+            "chat_id": review.chat_id,
+        }
         return LearningCandidate(
             id=f"review-{evidence_hash[:16]}",
             kind=kind,
             title=title,
             rationale=rationale,
-            content=content,
+            content=merged_content,
             diff_preview=diff_preview,
             source_session=review.session_key,
             metadata={"source": "background_reviewer", "evidence_hash": evidence_hash},

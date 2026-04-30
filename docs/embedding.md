@@ -18,7 +18,7 @@ print(result)
 from g_agent.agent import Agent
 
 agent = Agent()
-result = await agent.ask("Draft a short project update")
+result = await agent.chat("Draft a short project update")
 ```
 
 ## Custom provider and plugins
@@ -52,7 +52,7 @@ Use async context manager in async code:
 from g_agent.agent import Agent
 
 async with Agent() as agent:
-    result = await agent.ask("hello")
+    result = await agent.chat("hello")
 ```
 
 ## Run demo script
@@ -76,7 +76,8 @@ uv run --project /home/galyarder/projects/galyarder-agent/backend/agent \
 ## Notes
 
 - `ask_sync()` is for synchronous contexts only.
-- If you already run an event loop, use `await agent.ask(...)`.
+- If you already run an event loop, use `await agent.chat(...)`.
 - In async contexts, use `await agent.aclose()` or `async with Agent()`.
 - By default, the API loads config from `~/.g-agent/config.json`.
 - If provider/API key config is not ready, `Agent()` initialization can fail.
+- Phase 1 verified: `provider.ask` removed; title generation uses `provider.chat` best-effort.

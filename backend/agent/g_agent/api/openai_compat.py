@@ -44,6 +44,25 @@ def normalize_content(content: Any) -> str:
     return ""
 
 
+def extract_media(messages: list[Any]) -> list[str]:
+    """Extract media URLs (including base64 data URLs) from the last user message."""
+    for message in reversed(messages):
+        if not isinstance(message, dict) or message.get("role") != "user":
+            continue
+        content = message.get("content")
+        if isinstance(content, list):
+            media = []
+            for item in content:
+                if not isinstance(item, dict):
+                    continue
+                if item.get("type") == "image_url":
+                    url = item.get("image_url", {}).get("url")
+                    if isinstance(url, str):
+                        media.append(url)
+            return media
+    return []
+
+
 def chat_id_from_session_key(session_key: str) -> str:
     """Derive the API chat id used by the runtime from a session key."""
     return session_key.split(":", 1)[1] if ":" in session_key else session_key

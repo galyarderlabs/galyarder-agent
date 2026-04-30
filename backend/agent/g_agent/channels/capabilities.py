@@ -161,7 +161,15 @@ def split_text(text: str, max_chars: int | None) -> list[str]:
                 # Reopen code block in next chunk
                 current_chunk = "```" + code_block_lang + "\n" if in_code_block else ""
             
-            current_chunk += line
+            # If the line itself is too long, we hard wrap it
+            if len(line) > max_chars:
+                 sub_chunks = _smart_wrap(line, max_chars - reserved)
+                 for sc in sub_chunks:
+                     if in_code_block:
+                         sc = "```" + code_block_lang + "\n" + sc + "\n```"
+                     chunks.append(sc)
+            else:
+                current_chunk += line
         else:
             current_chunk += line
 
@@ -171,6 +179,43 @@ def split_text(text: str, max_chars: int | None) -> list[str]:
         chunks.append(current_chunk.rstrip())
 
     return chunks or [""]
+
+
+def _smart_wrap(text: str, max_chars: int) -> list[str]:
+    """Hard-wrap text but try to avoid splitting markdown links."""
+    if len(text) <= max_chars:
+        return [text]
+
+    chunks = []
+    while text:
+        if len(text) <= max_chars:
+            chunks.append(text)
+            break
+
+        # Try to find a good split point (space or newline)
+        split_point = text.rfind(" ", 0, max_chars)
+        if split_point == -1:
+            split_point = max_chars
+
+        # Check if we are inside a link [...]()
+        # This is a heuristic: if we see a '(' before a ')' and after a ']'
+        # we might be inside the URL part.
+        chunk = text[:split_point]
+        if "[" in chunk and "]" not in chunk:
+            # Inside the [text] part, try to split before '['
+            link_start = chunk.rfind("[")
+            if link_start > 0:
+                split_point = link_start
+        elif "](" in chunk and ")" not in chunk:
+            # Inside the (url) part, try to split before ']('
+            link_middle = chunk.rfind("](")
+            if link_middle > 0:
+                split_point = link_middle
+
+        chunks.append(text[:split_point].rstrip())
+        text = text[split_point:].lstrip()
+
+    return chunks
 
 
 def _hard_wrap(text: str, max_chars: int) -> list[str]:

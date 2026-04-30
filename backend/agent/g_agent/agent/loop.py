@@ -136,6 +136,7 @@ class AgentLoop:
         tts_voice: str = "id-ID-GadisNeural",
         mcp_config: dict[str, dict[str, Any]] | None = None,
         enable_learning_review: bool = False,
+        allow_remote_media: bool = False,
     ):
         from g_agent.config.schema import (
             BrowserToolsConfig,
@@ -191,13 +192,14 @@ class AgentLoop:
             max_html_chars=max(20000, int(self.browser_config.max_html_chars)),
         )
 
-        self.engine = DefaultContextEngine(workspace)
+        self.engine = DefaultContextEngine(workspace, allow_remote_media=allow_remote_media)
         self.context = self.engine.builder
         self.sessions = SessionManager(workspace)
         self.approvals = ApprovalStateStore(workspace)
         self.characters = CharacterStore(workspace)
         self.active_profile = self.characters.get_default()
         self.runtime = TaskCheckpointStore(workspace)
+        self._runtime_owner = f"loop-{id(self)}"
         self.metrics = MetricsStore(workspace / "state" / "metrics" / "events.jsonl")
         self._learning_review_tasks: set[asyncio.Task[None]] = set()
         self._learning_reviewer = None
@@ -271,6 +273,8 @@ class AgentLoop:
                 restrict_to_workspace=self.restrict_to_workspace,
                 path_append=self.exec_config.path_append,
                 allowed_dirs=allowed_dirs,
+                backend=self.exec_config.backend,
+                docker_image=self.exec_config.docker_image,
             )
         )
 
@@ -464,7 +468,7 @@ class AgentLoop:
                     cancelled += 1
             # Cancel subagents
             if self.subagents:
-                cancelled += self.subagents.cancel_all_for_origin(msg.channel, msg.chat_id)
+                cancelled += await self.subagents.cancel_all_for_origin(msg.channel, msg.chat_id)
             ack = (
                 f"⏹ Cancelled {cancelled} running task(s)."
                 if cancelled
@@ -473,6 +477,20 @@ class AgentLoop:
             return OutboundMessage(channel=msg.channel, chat_id=msg.chat_id, content=ack)
 
         previous_running = self.runtime.latest_running_for_session(msg.session_key)
+        previous_task_id = str(previous_running.get("task_id", "")) if previous_running else ""
+        resume_intent = trimmed in {"continue", "resume", "lanjut", "lanjutkan"}
+        if previous_running and not resume_intent and not msg.metadata.get("bypass_busy"):
+            logger.warning(f"Session {msg.session_key} is busy, ignoring message: {msg.content[:50]}")
+            # Optional: send a 'busy' notice to the user
+            # but usually better to just ignore or queue.
+            # For now, we'll return a system-level notice.
+            return OutboundMessage(
+                channel=msg.channel,
+                chat_id=msg.chat_id,
+                content="⏳ *Sabar ya*, aku masih memproses pesan sebelumnya...",
+                metadata={"is_busy_notice": True}
+            )
+
         task_id = self.runtime.start(
             kind="inbound_message",
             session_key=msg.session_key,
@@ -483,6 +501,7 @@ class AgentLoop:
             metadata={
                 "media_count": len(msg.media),
                 "has_metadata": bool(msg.metadata),
+                "runtime_owner": self._runtime_owner,
             },
         )
 
@@ -530,6 +549,15 @@ class AgentLoop:
             session = self.sessions.get_or_create(msg.session_key)
             self.runtime.append_event(task_id, "session_loaded", msg.session_key)
 
+            # Resolve active profile for this session
+            active_profile = self.active_profile
+            profile_id = session.metadata.get("current_profile_id")
+            if profile_id:
+                p = self.characters.get(profile_id)
+                if p:
+                    active_profile = p
+                    logger.info(f"Using session-specific profile: {p.name} ({p.id})")
+
             if msg.channel in ("telegram", "whatsapp"):
                 try:
                     await self.bus.publish_outbound(
@@ -559,7 +587,8 @@ class AgentLoop:
             selfie_tool = self.tools.get("selfie")
             if selfie_tool:
                 selfie_tool.set_context(msg.channel, msg.chat_id)
-
+                if hasattr(selfie_tool, "set_profile"):
+                    selfie_tool.set_profile(active_profile)
             effective_tools = self._get_effective_tools(msg)
 
             # Build initial messages (use get_history for LLM-formatted messages)
@@ -571,7 +600,7 @@ class AgentLoop:
                 channel=msg.channel,
                 chat_id=msg.chat_id,
                 tool_names=effective_tools,
-                profile=self.active_profile,
+                profile=active_profile,
                 llm_provider=self.provider,
             )
 
@@ -606,7 +635,8 @@ class AgentLoop:
                     metadata=msg.metadata if msg.metadata else None,
                     channel=msg.channel,
                     chat_id=msg.chat_id,
-                    tool_names=self.tools.tool_names,
+                    tool_names=effective_tools,
+                    profile=active_profile,
                     llm_provider=self.provider,
                 )
 
@@ -887,10 +917,13 @@ class AgentLoop:
                 session.add_message("assistant", log_content, **assistant_kwargs)
                 self.sessions.save(session)
                 self._maybe_write_session_summary(session)
+                asyncio.create_task(self._maybe_update_session_title(session))
                 self._schedule_learning_review(
                     session_key=session.key,
                     user_content=clean_user_content,
                     assistant_content=log_content,
+                    channel=msg.channel,
+                    chat_id=msg.chat_id,
                     tool_calls=tool_call_metadata,
                 )
                 asyncio.create_task(
@@ -917,6 +950,20 @@ class AgentLoop:
                 return None
             # Final sanitization — MUST be last step before sending
             final_content = self._sanitize_persona_style(final_content)
+            # Standardized completion event for routines
+            if msg.metadata and msg.metadata.get("routine_id"):
+                await self.bus.publish_event(
+                    LifecycleEvent(
+                        type="agent:routine:completed",
+                        chat_id=msg.chat_id,
+                        data={
+                            "routine_id": msg.metadata.get("routine_id"),
+                            "run_id": msg.metadata.get("run_id"),
+                            "status": "ok",
+                        },
+                    )
+                )
+
             return OutboundMessage(
                 channel=msg.channel,
                 chat_id=msg.chat_id,
@@ -927,6 +974,18 @@ class AgentLoop:
                 metadata=self._build_outbound_metadata(msg, task_id),
             )
         except Exception as e:
+            if msg.metadata and msg.metadata.get("routine_id"):
+                await self.bus.publish_event(
+                    LifecycleEvent(
+                        type="agent:routine:failed",
+                        chat_id=msg.chat_id,
+                        data={
+                            "routine_id": msg.metadata.get("routine_id"),
+                            "run_id": msg.metadata.get("run_id"),
+                            "error": str(e),
+                        },
+                    )
+                )
             self.runtime.fail(task_id, str(e))
             raise
 
@@ -964,6 +1023,8 @@ class AgentLoop:
         session_key: str,
         user_content: str,
         assistant_content: str,
+        channel: str = "cli",
+        chat_id: str = "direct",
         tool_calls: list[dict[str, str]],
     ) -> None:
         """Schedule non-blocking owner-reviewed learning candidate generation."""
@@ -976,6 +1037,8 @@ class AgentLoop:
             session_key=session_key,
             user_content=user_content,
             assistant_content=assistant_content,
+            channel=channel,
+            chat_id=chat_id,
             tool_calls=tool_calls,
         )
 
@@ -1031,6 +1094,14 @@ class AgentLoop:
         session_key = f"{origin_channel}:{origin_chat_id}"
         session = self.sessions.get_or_create(session_key)
 
+        # Resolve active profile for this session
+        active_profile = self.active_profile
+        profile_id = session.metadata.get("current_profile_id")
+        if profile_id:
+            p = self.characters.get(profile_id)
+            if p:
+                active_profile = p
+
         # Update tool contexts
         message_tool = self.tools.get("message")
         if isinstance(message_tool, MessageTool):
@@ -1047,6 +1118,8 @@ class AgentLoop:
         selfie_tool = self.tools.get("selfie")
         if selfie_tool:
             selfie_tool.set_context(origin_channel, origin_chat_id)
+            if hasattr(selfie_tool, "set_profile"):
+                selfie_tool.set_profile(active_profile)
 
         effective_tools = self._get_effective_tools(msg)
 
@@ -1058,7 +1131,7 @@ class AgentLoop:
             channel=origin_channel,
             chat_id=origin_chat_id,
             tool_names=effective_tools,
-            profile=self.active_profile,
+            profile=active_profile,
             llm_provider=self.provider,
         )
 
@@ -1134,6 +1207,7 @@ class AgentLoop:
         channel: str = "cli",
         chat_id: str = "direct",
         sender_id: str = "user",
+        media: list[str] | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> str:
         """
@@ -1145,17 +1219,29 @@ class AgentLoop:
             channel: Source channel (for context).
             chat_id: Source chat ID (for context).
             sender_id: Sender identifier used for policy checks.
+            media: Optional list of media file paths.
             metadata: Optional channel metadata/attachments envelope.
+                     To bypass busy-session protection, explicitly pass
+                     {"bypass_busy": True} in metadata.
 
         Returns:
             The agent's response.
         """
+        # If session_key is provided with :, split it to set channel/chat_id
+        if session_key and ":" in session_key:
+            channel, chat_id = session_key.split(":", 1)
+
+        merged_metadata = metadata or {}
+        # Do NOT bypass busy by default - require explicit opt-in
+        # (Routine runner sets bypass_busy=True explicitly)
+
         msg = InboundMessage(
             channel=channel,
             sender_id=sender_id,
             chat_id=chat_id,
             content=content,
-            metadata=metadata or {},
+            media=media or [],
+            metadata=merged_metadata,
         )
 
         response = await self._process_message(msg)
@@ -2408,6 +2494,42 @@ class AgentLoop:
         except Exception as e:
             logger.debug(f"Reflection pass skipped: {e}")
             return draft
+
+    async def _maybe_update_session_title(self, session: Session) -> None:
+        """Heuristically update session title if it is still generic."""
+        # 1. Check if we already have a meaningful title
+        current_title = session.metadata.get("title", "")
+        # If title is long enough and not just the first message snippet, we're good
+        if current_title and len(current_title) > 20:
+             return
+
+        # 2. Only summarize if we have enough context (at least 3 user turns)
+        user_msgs = [m for m in session.messages if m.get("role") == "user"]
+        if len(user_msgs) < 3:
+            return
+
+        # 3. Request summary from LLM using provider.chat (not .ask)
+        prompt = (
+            "Summarize the following chat into a short, descriptive session title (max 40 chars). "
+            "Respond ONLY with the title text.\n\n"
+        )
+        for m in session.messages[-10:]:
+            role = m["role"].upper()
+            content = str(m.get("content", ""))[:200]
+            prompt += f"{role}: {content}\n"
+
+        try:
+            # Use provider.chat with minimal messages
+            messages = [{"role": "user", "content": prompt}]
+            resp = await self.provider.chat(messages, model=self.model)
+            title = resp.content.strip().strip('"').strip("'").strip("*")
+            if title and len(title) <= 40:
+                logger.debug(f"Generated session title: {title}")
+                session.metadata["title"] = title
+                # Save without overwriting existing metadata
+                self.sessions.save(session)
+        except Exception as e:
+            logger.debug(f"Failed to generate session title: {e}")
 
     def _maybe_write_session_summary(self, session: Session) -> None:
         """Periodically write compact session summaries to memory."""

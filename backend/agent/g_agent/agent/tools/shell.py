@@ -8,10 +8,16 @@ from typing import Any
 
 from g_agent.agent.tools.base import Tool
 from g_agent.execution.local import LocalEnvironment
+from g_agent.execution.docker import DockerEnvironment
 
 
 class ExecTool(Tool):
-    """Tool to execute shell commands using stateful local environment."""
+    """Tool to execute shell commands using local or transient Docker execution.
+
+    Backend modes:
+    - local: Stateful session with persistent env vars and cwd tracking
+    - docker: Transient container execution (experimental, no session state)
+    """
 
     def __init__(
         self,
@@ -22,6 +28,8 @@ class ExecTool(Tool):
         restrict_to_workspace: bool = False,
         path_append: list[str] | None = None,
         allowed_dirs: list[str | Path] | None = None,
+        backend: str = "local",
+        docker_image: str = "python:3.12-slim",
     ):
         self.timeout = timeout
         self.working_dir = working_dir or os.getcwd()
@@ -41,14 +49,29 @@ class ExecTool(Tool):
         self.path_append = path_append or []
         self.allowed_dirs = [Path(path).expanduser().resolve() for path in allowed_dirs or []]
 
-        # Initialize the stateful environment
-        env = os.environ.copy()
-        if self.path_append:
-            custom_paths = os.pathsep.join(self.path_append)
-            old_path = env.get("PATH", "")
-            env["PATH"] = f"{old_path}{os.pathsep}{custom_paths}" if old_path else custom_paths
+        # Normalize and validate backend
+        normalized_backend = backend.strip().lower()
+        if normalized_backend not in ("local", "docker"):
+            raise ValueError(
+                f"Invalid execution backend: {backend!r}. Must be 'local' or 'docker'."
+            )
+        self.backend = normalized_backend
 
-        self.env = LocalEnvironment(cwd=self.working_dir, timeout=self.timeout, env=env)
+        if self.backend == "docker":
+            self.env = DockerEnvironment(
+                image=docker_image,
+                workspace_mount=Path(self.working_dir) if restrict_to_workspace else None,
+                timeout=timeout,
+            )
+        else:
+            # Initialize the stateful environment
+            env = os.environ.copy()
+            if self.path_append:
+                custom_paths = os.pathsep.join(self.path_append)
+                old_path = env.get("PATH", "")
+                env["PATH"] = f"{old_path}{os.pathsep}{custom_paths}" if old_path else custom_paths
+
+            self.env = LocalEnvironment(cwd=self.working_dir, timeout=self.timeout, env=env)
 
     @property
     def name(self) -> str:
@@ -56,6 +79,12 @@ class ExecTool(Tool):
 
     @property
     def description(self) -> str:
+        if self.backend == "docker":
+            return (
+                "Execute a shell command in an ephemeral Docker container. "
+                "Each call spawns a fresh container with no persistent state. "
+                "Environment variables and working directory are NOT preserved across calls."
+            )
         return "Execute a shell command and return its output. Session state (env vars, cwd) is preserved across calls."
 
     @property

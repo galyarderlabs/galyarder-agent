@@ -1,4 +1,3 @@
-import pytest
 from g_agent.channels.capabilities import split_text
 
 def test_split_text_preserves_code_blocks():

@@ -21,7 +21,7 @@ class SkillManageTool(Tool):
         "properties": {
             "action": {
                 "type": "string",
-                "enum": ["list", "view", "create_draft", "patch_draft", "deactivate"],
+                "enum": ["list", "view", "create_draft", "patch_draft", "activate_draft", "delete_draft", "deactivate"],
                 "description": "Action to perform",
             },
             "name": {"type": "string", "description": "Skill name (folder name)"},
@@ -111,6 +111,21 @@ class SkillManageTool(Tool):
             return f"Validation failed for draft patch '{name}':\n" + "\n".join(
                 f"- {e}" for e in errors
             )
+
+        if action == "activate_draft":
+            if not name:
+                return "Error: 'name' is required for 'activate_draft'."
+            ok, errors = self.manager.activate_skill(name)
+            if ok:
+                return f"Success: Skill '{name}' activated."
+            return f"Activation failed for '{name}':\n" + "\n".join(f"- {e}" for e in errors)
+
+        if action == "delete_draft":
+            if not name:
+                return "Error: 'name' is required for 'delete_draft'."
+            if self.manager.delete_draft(name):
+                return f"Success: Draft skill '{name}' deleted."
+            return f"Error: Could not delete draft skill '{name}'."
 
         if action == "deactivate":
             if not name:

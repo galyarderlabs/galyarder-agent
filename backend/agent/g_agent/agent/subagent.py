@@ -13,7 +13,7 @@ from g_agent.agent.tools.filesystem import ListDirTool, ReadFileTool, WriteFileT
 from g_agent.agent.tools.registry import ToolRegistry
 from g_agent.agent.tools.shell import ExecTool
 from g_agent.agent.tools.web import WebFetchTool, WebSearchTool
-from g_agent.bus.events import InboundMessage
+from g_agent.bus.events import InboundMessage, LifecycleEvent
 from g_agent.bus.queue import MessageBus
 from g_agent.providers.base import LLMProvider
 
@@ -94,6 +94,20 @@ class SubagentManager:
         bg_task.add_done_callback(_cleanup)
 
         logger.info(f"Spawned subagent [{task_id}]: {display_label}")
+
+        # Publish event
+        await self.bus.publish_event(
+            LifecycleEvent(
+                type="agent:subagent:spawned",
+                chat_id=origin_chat_id,
+                data={
+                    "task_id": task_id,
+                    "label": display_label,
+                    "channel": origin_channel,
+                }
+            )
+        )
+
         return f"Subagent [{display_label}] started (id: {task_id}). I'll notify you when it completes."
 
     async def _run_subagent(
@@ -127,16 +141,36 @@ class SubagentManager:
             tools.register(WebSearchTool(api_key=self.brave_api_key))
             tools.register(WebFetchTool())
 
+            from g_agent.utils.redaction import redact_secrets
+
             # Build messages with subagent-specific prompt
             system_prompt = self._build_subagent_prompt(task)
             messages: list[dict[str, Any]] = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": task},
+                {"role": "system", "content": redact_secrets(system_prompt)},
+                {"role": "user", "content": redact_secrets(task)},
             ]
+
+            async def on_step(data: dict[str, Any]) -> None:
+                await self.bus.publish_event(
+                    LifecycleEvent(
+                        type="agent:subagent:step",
+                        chat_id=origin["chat_id"],
+                        data={
+                            "task_id": task_id,
+                            "label": label,
+                            "channel": origin["channel"],
+                            **data,
+                        },
+                    )
+                )
 
             runner = AgentRunner(self.provider)
             spec = AgentRunSpec(
-                initial_messages=messages, tools=tools, model=self.model, max_iterations=15
+                initial_messages=messages,
+                tools=tools,
+                model=self.model,
+                max_iterations=15,
+                on_step=on_step,
             )
 
             result = await runner.run(spec)
@@ -149,11 +183,35 @@ class SubagentManager:
                 final_result = "Task completed but no final response was generated."
 
             logger.info(f"Subagent [{task_id}] completed successfully")
+            await self.bus.publish_event(
+                LifecycleEvent(
+                    type="agent:subagent:completed",
+                    chat_id=origin["chat_id"],
+                    data={
+                        "task_id": task_id,
+                        "label": label,
+                        "status": "ok",
+                        "channel": origin["channel"],
+                    },
+                )
+            )
             await self._announce_result(task_id, label, task, final_result, origin, "ok")
 
         except Exception as e:
             error_msg = f"Error: {str(e)}"
             logger.error(f"Subagent [{task_id}] failed: {e}")
+            await self.bus.publish_event(
+                LifecycleEvent(
+                    type="agent:subagent:failed",
+                    chat_id=origin["chat_id"],
+                    data={
+                        "task_id": task_id,
+                        "label": label,
+                        "error": str(e),
+                        "channel": origin["channel"],
+                    },
+                )
+            )
             await self._announce_result(task_id, label, task, error_msg, origin, "error")
 
     async def _announce_result(
@@ -235,7 +293,7 @@ When you have completed the task, provide a clear summary of your findings or ac
         """Return the number of currently running subagents."""
         return len(self._running_tasks)
 
-    def cancel_all_for_origin(self, channel: str, chat_id: str) -> int:
+    async def cancel_all_for_origin(self, channel: str, chat_id: str) -> int:
         """Cancel all subagents that originated from the given channel and chat_id."""
         cancelled = 0
         to_cancel = []
@@ -249,6 +307,16 @@ When you have completed the task, provide a clear summary of your findings or ac
                 task.cancel()
                 cancelled += 1
                 logger.info(f"Cancelled subagent [{task_id}] for {channel}:{chat_id}")
+                await self.bus.publish_event(
+                    LifecycleEvent(
+                        type="agent:subagent:cancelled",
+                        chat_id=chat_id,
+                        data={
+                            "task_id": task_id,
+                            "channel": channel,
+                        },
+                    )
+                )
 
         return cancelled
 

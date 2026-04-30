@@ -807,6 +807,8 @@ def gateway(
         visual_config=config.visual,
         tts_voice=config.tools.tts_voice,
         mcp_config=config.mcp_servers,
+        enable_learning_review=True,
+        allow_remote_media=config.tools.allow_remote_media,
     )
 
     data_dir = get_data_dir()
@@ -1115,6 +1117,7 @@ def agent(
         plugins=plugins,
         visual_config=config.visual,
         mcp_config=config.mcp_servers,
+        allow_remote_media=config.tools.allow_remote_media,
     )
 
     async def _process_cli_input(text: str) -> str:
@@ -2479,6 +2482,7 @@ def digest(
         plugins=plugins,
         visual_config=config.visual,
         mcp_config=config.mcp_servers,
+        allow_remote_media=config.tools.allow_remote_media,
     )
 
     async def run_digest() -> str:

@@ -129,6 +129,53 @@ class SessionManager:
             self._cache[key] = session
             return session
 
+    def fork(self, parent_key: str, new_key: str, title: str | None = None) -> Session:
+        """
+        Create a new session forked from an existing one.
+
+        Args:
+            parent_key: Key of the parent session.
+            new_key: Key for the new session.
+            title: Optional title for the new session.
+
+        Returns:
+            The new session.
+        """
+        parent = self.get_or_create(parent_key)
+        if not parent.id:
+            # Ensure parent has an ID in SQLite
+            self.save(parent)
+
+        channel, chat_id = new_key.split(":", 1) if ":" in new_key else ("cli", new_key)
+
+        with self._get_lock(new_key):
+            sqlite_session = self.sqlite_store.fork_session(
+                parent_id=parent.id,
+                key=new_key,
+                channel=channel,
+                chat_id=chat_id,
+                title=title,
+                character_id=parent.metadata.get("current_profile_id"),
+                metadata=parent.metadata.copy(),
+            )
+
+            # Create the session object
+            session = Session(
+                key=new_key,
+                id=sqlite_session["id"],
+                metadata=parent.metadata.copy(),
+            )
+            if title:
+                session.metadata["title"] = title
+
+            # Copy messages (deep copy to avoid shared references)
+            session.messages = [m.copy() for m in parent.messages]
+
+            # Save to disk as well
+            self.save(session)
+            self._cache[new_key] = session
+            return session
+
     def _load(self, key: str) -> Session | None:
         """Load a session from disk."""
         path = self._get_session_path(key)
@@ -190,7 +237,7 @@ class SessionManager:
 
             sqlite_session = self.sqlite_store.get_or_create_session(session.key)
             session.id = sqlite_session["id"]
-            self.sqlite_store.replace_messages(session.id, session.messages)
+            self.sqlite_store.replace_messages(session.id, session.messages, metadata=session.metadata)
 
             self._cache[session.key] = session
 

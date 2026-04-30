@@ -381,9 +381,23 @@ class SessionSQLiteStore:
 
         return self._execute_write(_do)
 
-    def replace_messages(self, session_id: str, messages: list[dict[str, Any]]) -> None:
-        """Replace all messages for a session with the provided history."""
+    def replace_messages(self, session_id: str, messages: list[dict[str, Any]], metadata: dict[str, Any] | None = None) -> None:
+        """Replace all messages for a session with the provided history.
+
+        If metadata is None, preserves existing session metadata.
+        If metadata is a dict (including empty dict), replaces session metadata.
+        """
         now = time.time()
+        # Preserve existing metadata when None is passed
+        if metadata is None:
+            with self._lock:
+                cursor = self._conn.execute(
+                    "SELECT metadata_json FROM sessions WHERE id = ?", (session_id,)
+                )
+                row = cursor.fetchone()
+                metadata_json_val = row["metadata_json"] if row else None
+        else:
+            metadata_json_val = json.dumps(metadata)
 
         def _do(conn: sqlite3.Connection) -> None:
             conn.execute("DELETE FROM media_refs WHERE session_id = ?", (session_id,))
@@ -397,8 +411,8 @@ class SessionSQLiteStore:
                 msg_output_tokens = int(msg.get("output_tokens") or 0)
                 input_tokens += msg_input_tokens
                 output_tokens += msg_output_tokens
-                metadata = msg.get("metadata")
-                metadata_json = json.dumps(metadata) if metadata else None
+                msg_metadata = msg.get("metadata")
+                msg_metadata_json = json.dumps(msg_metadata) if msg_metadata else None
                 created_at = float(msg.get("raw_timestamp") or now)
                 cursor = conn.execute(
                     """INSERT INTO messages (
@@ -416,7 +430,7 @@ class SessionSQLiteStore:
                         created_at,
                         msg_input_tokens,
                         msg_output_tokens,
-                        metadata_json,
+                        msg_metadata_json,
                     ),
                 )
                 message_id = int(cursor.lastrowid)
@@ -436,7 +450,6 @@ class SessionSQLiteStore:
                             (session_id, message_id, "media", path, sha256, created_at),
                         )
 
-                msg_metadata = msg.get("metadata")
                 tool_calls = (
                     msg_metadata.get("tool_calls") if isinstance(msg_metadata, dict) else None
                 )
@@ -474,9 +487,10 @@ class SessionSQLiteStore:
                        input_tokens = ?,
                        output_tokens = ?,
                        title = COALESCE(NULLIF(title, ''), ?),
+                       metadata_json = ?,
                        updated_at = ?
                    WHERE id = ?""",
-                (len(messages), session_id, input_tokens, output_tokens, title, now, session_id),
+                (len(messages), session_id, input_tokens, output_tokens, title, metadata_json_val, now, session_id),
             )
 
         self._execute_write(_do)
@@ -606,6 +620,58 @@ class SessionSQLiteStore:
             )
             row = cursor.fetchone()
             return dict(row) if row else None
+
+    def fork_session(
+        self,
+        parent_id: str,
+        key: str,
+        channel: str,
+        chat_id: str,
+        user_id: str | None = None,
+        title: str | None = None,
+        character_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Create a new session linked to a parent session."""
+
+        def _do(conn: sqlite3.Connection) -> dict[str, Any]:
+            import uuid
+
+            session_id = str(uuid.uuid4())
+            now = time.time()
+            metadata_json = json.dumps(metadata) if metadata else None
+
+            conn.execute(
+                """INSERT INTO sessions (
+                       id, key, channel, chat_id, user_id, title,
+                       character_id, parent_session_id, created_at, updated_at, metadata_json
+                   )
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    session_id,
+                    key,
+                    channel,
+                    chat_id,
+                    user_id,
+                    title,
+                    character_id,
+                    parent_id,
+                    now,
+                    now,
+                    metadata_json,
+                ),
+            )
+            return {
+                "id": session_id,
+                "key": key,
+                "channel": channel,
+                "chat_id": chat_id,
+                "created_at": now,
+                "updated_at": now,
+                "parent_session_id": parent_id,
+            }
+
+        return self._execute_write(_do)
 
     def delete_session(self, session_id: str) -> bool:
         """Delete a session and its associated data."""

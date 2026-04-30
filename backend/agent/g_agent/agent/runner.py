@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 from loguru import logger
 
@@ -22,6 +22,7 @@ class AgentRunSpec:
     max_iterations: int
     temperature: float | None = None
     max_tokens: int | None = None
+    on_step: Callable[[dict[str, Any]], Awaitable[None]] | None = None
 
 
 @dataclass(slots=True)
@@ -67,22 +68,33 @@ class AgentRunner:
                 stop_reason = "error"
                 break
 
+            # Add assistant message with tool calls
+            tool_call_dicts = []
+            if response.has_tool_calls:
+                tool_call_dicts = [
+                    {
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {
+                            "name": tc.name,
+                            "arguments": json.dumps(tc.arguments),
+                        },
+                    }
+                    for tc in response.tool_calls
+                ]
+
+            if spec.on_step:
+                await spec.on_step(
+                    {
+                        "iteration": iteration,
+                        "content": response.content,
+                        "tool_calls": tool_call_dicts,
+                    }
+                )
+
             if not response.has_tool_calls:
                 final_content = response.content
                 break
-
-            # Add assistant message with tool calls
-            tool_call_dicts = [
-                {
-                    "id": tc.id,
-                    "type": "function",
-                    "function": {
-                        "name": tc.name,
-                        "arguments": json.dumps(tc.arguments),
-                    },
-                }
-                for tc in response.tool_calls
-            ]
 
             messages.append(
                 {

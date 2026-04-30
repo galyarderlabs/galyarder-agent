@@ -7,7 +7,7 @@ import html
 import os
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 from telegram import Update
@@ -115,6 +115,7 @@ class TelegramChannel(BaseChannel):
         brave_api_key: str = "",
         cron_service: CronService | None = None,
         tool_names: list[str] | None = None,
+        live_manager: Any = None,
     ):
         super().__init__(config, bus)
         self.config: TelegramConfig = config
@@ -132,6 +133,7 @@ class TelegramChannel(BaseChannel):
                 cron_service=cron_service,
                 tool_names=tool_names or [],
                 version=os.environ.get("G_AGENT_VERSION", "dev"),
+                live_manager=live_manager,
             )
 
     async def start(self) -> None:

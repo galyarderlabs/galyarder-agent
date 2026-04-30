@@ -32,13 +32,39 @@ class SkillValidator:
 
         # Check for unauthorized subdirectories
         for item in skill_dir.iterdir():
-            if item.is_dir() and item.name not in self.ALLOWED_SUBDIRS:
-                errors.append(f"Unauthorized subdirectory: {item.name}")
+            if item.is_dir():
+                if item.name not in self.ALLOWED_SUBDIRS:
+                    errors.append(f"Unauthorized subdirectory: {item.name}")
+                elif item.name == "scripts":
+                    errors.extend(self.validate_scripts(item))
 
         return len(errors) == 0, errors
 
+    def validate_scripts(self, scripts_dir: Path) -> List[str]:
+        """Simple security scan for scripts."""
+        errors = []
+        # Dangerous patterns to look for in scripts
+        dangerous_patterns = [
+            (r"rm\s+-rf\s+/", "Recursive root deletion"),
+            (r"curl\s+.*\b\|\s*bash", "Direct curl-to-bash execution"),
+            (r"wget\s+.*\b\|\s*bash", "Direct wget-to-bash execution"),
+            (r"sudo\s+", "Sudo usage (not allowed in skills)"),
+            (r"chmod\s+777", "Insecure permissions"),
+        ]
+
+        for script_file in scripts_dir.glob("*"):
+            if script_file.is_file():
+                try:
+                    content = script_file.read_text(encoding="utf-8")
+                    for pattern, desc in dangerous_patterns:
+                        if re.search(pattern, content):
+                            errors.append(f"Security risk in script {script_file.name}: {desc}")
+                except Exception:
+                    pass
+        return errors
+
     def validate_skill_md(self, file_path: Path) -> Tuple[bool, List[str]]:
-        """Validate SKILL.md content (frontmatter, size)."""
+        """Validate SKILL.md content (frontmatter, size, injection)."""
         errors = []
 
         # Size check
@@ -54,6 +80,10 @@ class SkillValidator:
         # Content check
         try:
             content = file_path.read_text(encoding="utf-8")
+
+            # Simple injection check for hidden characters or suspicious sequences
+            if "\u200b" in content or "\u200c" in content:
+                errors.append("Suspicious hidden characters detected in SKILL.md.")
 
             # Extract frontmatter
             fm_match = re.match(r"^---\s*\n(.*?)\n---\s*\n", content, re.DOTALL)

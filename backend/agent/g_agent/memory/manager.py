@@ -4,9 +4,6 @@ from typing import Any
 
 from loguru import logger
 from g_agent.memory.types import MemoryFragment, MemoryProvider
-from g_agent.memory.builtin import BuiltinMemoryProvider
-
-
 class MemoryManager:
     """Manages multiple memory providers and coordinates recall/sync."""
 
@@ -15,6 +12,7 @@ class MemoryManager:
         self.providers: dict[str, MemoryProvider] = {}
         
         # Register builtin provider by default
+        from g_agent.memory.builtin import BuiltinMemoryProvider
         self.register_provider(BuiltinMemoryProvider(workspace))
 
     def register_provider(self, provider: MemoryProvider) -> None:
@@ -52,6 +50,21 @@ class MemoryManager:
         """Sync a turn to all providers in parallel."""
         tasks = [p.sync_turn(user_content, assistant_content, session_id) for p in self.providers.values()]
         await asyncio.gather(*tasks, return_exceptions=True)
+
+    def append_today(self, text: str) -> None:
+        """Proxy to builtin provider's append_today."""
+        builtin = self.providers.get("builtin")
+        from g_agent.memory.builtin import BuiltinMemoryProvider
+        if isinstance(builtin, BuiltinMemoryProvider):
+            builtin.store.append_today(text)
+
+    def append_session_summary(self, session_key: str, summary: str) -> bool:
+        """Proxy to builtin provider's append_session_summary."""
+        builtin = self.providers.get("builtin")
+        from g_agent.memory.builtin import BuiltinMemoryProvider
+        if isinstance(builtin, BuiltinMemoryProvider):
+            return builtin.store.append_session_summary(session_key, summary)
+        return False
 
     def get_system_prompt_blocks(self) -> list[str]:
         """Collect prompt blocks from all providers."""

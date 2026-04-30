@@ -1,4 +1,3 @@
-import pytest
 from g_agent.channels.telegram import TelegramChannel
 from g_agent.config.schema import TelegramConfig
 from unittest.mock import MagicMock

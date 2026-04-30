@@ -300,6 +300,15 @@ class ExecToolConfig(BaseModel):
     """Shell exec tool configuration."""
 
     timeout: int = 60
+    backend: str = Field(
+        default="local",
+        pattern="^(local|docker)$",
+    )  # local | docker
+    docker_image: str = Field(
+        default="python:3.12-slim",
+        min_length=1,
+        pattern=r"^[a-z0-9][a-z0-9._/-]*(?::[a-z0-9._-]+)?$",
+    )
     path_append: list[str] = Field(
         default_factory=list
     )  # Append directories to PATH (e.g. /opt/homebrew/bin)
@@ -410,6 +419,7 @@ class ToolsConfig(BaseModel):
     )
     tts_voice: str = "id-ID-GadisNeural"  # edge-tts voice name
     approval_mode: str = "off"  # off|confirm
+    allow_remote_media: bool = False  # If true, allow remote URLs in multimodal input
 
 
 class Config(BaseSettings):

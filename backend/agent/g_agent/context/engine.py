@@ -13,12 +13,13 @@ class ContextEngine(ABC):
         """Short identifier for the engine."""
 
     @abstractmethod
-    def build_system_prompt(
+    async def build_system_prompt(
         self,
         skill_names: Optional[List[str]] = None,
         current_message: Optional[str] = None,
         tool_names: Optional[List[str]] = None,
         profile: Optional[Any] = None,
+        metadata: Optional[dict] = None,
     ) -> str:
         """Build the system prompt."""
 

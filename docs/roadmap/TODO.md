@@ -38,12 +38,19 @@ runner structure, and operational hardening.
 - [x] Shared channel contracts exist for capability flags, media envelopes, and
   delivery result/error types.
 - [x] First-party product API server exists under `g_agent/api/`.
-- [ ] No WebSocket channel exists at `channels/websocket.py`.
-- [ ] No first-party `webui/` exists.
-- [x] Formal MemoryManager first slice exists under `g_agent/memory/`.
-- [x] Background learning reviewer first slice exists.
+- [x] WebSocket channel exists at `channels/websocket.py` as minimal aiohttp
+  channel, not Nanobot full surface. Advanced Nanobot features missing: token
+  issuance endpoint, media signing, SSL/TLS, capability registry entry gap.
+- [x] First-party `webui/` exists: React SPA source/build/static serving/bootstrap
+  tests exist; implemented core, tests minimal. Some stale Nanobot naming artifacts.
+- [x] Formal MemoryManager first slice exists under `g_agent/memory/` with provider
+  registration/order/failure isolation/fenced output tests. Production-grade
+  Hermes parity not proven.
+- [x] Background learning reviewer first slice exists with tightened heuristics.
 - [x] Streamable HTTP MCP transport exists in `mcp/manager.py`.
-- [ ] No Docker execution backend exists.
+- [x] Docker execution backend exists as transient/stateless container scaffold
+  with validation tests (23 tests pass); not production-grade stateful/hardened
+  persistent backend.
 
 ## Execution Order
 
@@ -260,7 +267,12 @@ Verification target:
 
 ## v0.5: Web UI And OpenAI-Compatible API
 
-Status: partial; minimal API shipped, WebSocket/Web UI/media/streaming remain.
+Status: partial; minimal API shipped with canonical + compatibility aliases
+tested, WebSocket exists as minimal aiohttp channel (not Nanobot full surface),
+Web UI React SPA source/build/static serving/bootstrap tests exist (core
+implemented, tests minimal, some stale Nanobot naming artifacts). Advanced
+Nanobot features missing: token issuance endpoint, media signing, SSL/TLS,
+capability registry entry gap.
 
 - [x] `GatewayConfig` exists in `config/schema.py`.
 - [x] `Agent`, `AgentLoop`, `MessageBus`, `ChannelManager`, and
@@ -295,11 +307,15 @@ Status: partial; minimal API shipped, WebSocket/Web UI/media/streaming remain.
 - [x] Add non-streaming OpenAI-compatible chat response.
 - [x] Add streaming/SSE chat response.
 - [x] Normalize text input.
+- [x] API canonical + compatibility aliases tested: /api/health, /health,
+  /api/status, /status, /api/v1/models, /v1/models, /api/v1/chat/completions,
+  /v1/chat/completions.
 - [ ] Normalize image input.
 - [ ] Normalize base64 data URLs.
 - [ ] Add remote URL policy for multimodal input.
 - [ ] Add `POST /v1/responses` later.
-- [x] Add `channels/websocket.py`.
+- [x] Add `channels/websocket.py` as minimal aiohttp channel (not Nanobot full
+  surface).
 - [x] Add WebSocket token auth.
 - [x] Add WebSocket session mapping.
 - [ ] Add streaming deltas.
@@ -309,7 +325,10 @@ Status: partial; minimal API shipped, WebSocket/Web UI/media/streaming remain.
 - [x] Add learning-candidate events.
 - [x] Add media-upload events.
 - [x] Add channel-status events.
-- [x] Add `webui/`.
+- [ ] Advanced Nanobot features missing: token issuance endpoint, media signing,
+  SSL/TLS, capability registry entry gap.
+- [x] Add `webui/`: React SPA source/build/static serving/bootstrap tests exist;
+  implemented core, tests minimal. Some stale Nanobot naming artifacts.
 - [x] Build session sidebar.
 - [x] Build chat thread.
 - [x] Build image lightbox.
@@ -376,36 +395,39 @@ Verification target:
 
 ## v0.7: Memory Manager And Owner Model
 
-Status: not shipped; highest priority after v0.4.
+Status: first slice shipped with provider registration/order/failure
+isolation/fenced output tests. Production-grade Hermes parity not proven; write
+cadence and external provider config remain.
 
 - [x] `MemoryStore` exists in `agent/memory.py`.
 - [x] Markdown memory files exist.
 - [x] `FACTS.md` exists.
 - [x] `remember`, `recall`, and `update_profile` use current memory store.
 - [x] `ContextBuilder` retrieves relevant memory before prompt assembly.
-- [ ] Add `g_agent/memory/`.
-- [ ] Add `memory/types.py`.
-- [ ] Add `MemoryProvider` interface.
-- [ ] Add provider `name`.
-- [ ] Add provider `system_prompt_block()`.
-- [ ] Add provider `prefetch(query, session_id="")`.
-- [ ] Add provider `sync_turn(user_content, assistant_content, session_id="")`.
-- [ ] Add provider `get_tool_schemas()`.
-- [ ] Add provider `handle_tool_call(...)`.
-- [ ] Add `memory/builtin.py`.
-- [ ] Wrap existing `MemoryStore` as `BuiltinMemoryProvider`.
-- [ ] Keep markdown files readable and writable.
-- [ ] Keep current recall behavior stable.
-- [ ] Add `memory/context.py`.
-- [ ] Add context fencing helpers.
-- [ ] Use explicit `<memory-context>` markers or equivalent.
-- [ ] Strip nested memory tags from provider output.
-- [ ] Add injection-pattern stripping for recalled memory blocks.
-- [ ] Add `memory/manager.py`.
-- [ ] Register builtin provider by default.
-- [ ] Allow at most one external provider.
-- [ ] Reject second external provider.
-- [ ] Make provider failure non-fatal when builtin still works.
+- [x] Add `g_agent/memory/`.
+- [x] Add `memory/types.py`.
+- [x] Add `MemoryProvider` interface.
+- [x] Add provider `name`.
+- [x] Add provider `system_prompt_block()`.
+- [x] Add provider `prefetch(query, session_id="")`.
+- [x] Add provider `sync_turn(user_content, assistant_content, session_id="")`.
+- [x] Add provider `get_tool_schemas()`.
+- [x] Add provider `handle_tool_call(...)`.
+- [x] Add `memory/builtin.py`.
+- [x] Wrap existing `MemoryStore` as `BuiltinMemoryProvider`.
+- [x] Keep markdown files readable and writable.
+- [x] Keep current recall behavior stable.
+- [x] Add `memory/context.py`.
+- [x] Add context fencing helpers.
+- [x] Use explicit `<memory-context>` markers or equivalent.
+- [x] Strip nested memory tags from provider output.
+- [x] Add injection-pattern stripping for recalled memory blocks.
+- [x] Add `memory/manager.py`.
+- [x] Register builtin provider by default.
+- [x] Allow at most one external provider.
+- [x] Reject second external provider.
+- [x] Make provider failure non-fatal when builtin still works.
+- [x] Provider registration/order/failure isolation/fenced output tests exist.
 - [ ] Add manager-level pre-turn recall.
 - [ ] Add manager-level post-turn sync hook.
 - [ ] Add write cadence config.
@@ -440,7 +462,9 @@ Verification target:
 
 ## v0.8: Owner-Reviewed Learning Loop
 
-Status: partial; background reviewer missing.
+Status: partial; background reviewer first slice shipped with tightened
+heuristics (profile/relationship/routine/tool_quirk apply manual_review_required;
+explicit memory apply works; weak memory manual_review_required; 11 tests pass).
 
 - [x] `LearningCandidate` model exists.
 - [x] `LearningQueue` persists candidates in SQLite.
@@ -454,10 +478,13 @@ Status: partial; background reviewer missing.
 - [x] Queue persists `diff_preview`.
 - [x] Queue persists `applied_at`.
 - [x] Queue persists rollback metadata.
-- [ ] Add `learning/reviewer.py`.
-- [ ] Add background review hook after response delivery.
-- [ ] Ensure review never blocks the main response.
-- [ ] Add reviewer config and cadence.
+- [x] Add `learning/reviewer.py`.
+- [x] Add background review hook after response delivery.
+- [x] Ensure review never blocks the main response.
+- [x] Add reviewer config and cadence.
+- [x] Learning heuristics tightened: profile/relationship/routine/tool_quirk apply
+  manual_review_required; explicit memory apply works; weak memory
+  manual_review_required; 11 tests pass.
 - [ ] Add memory review cadence.
 - [ ] Add skill review cadence.
 - [ ] Add routine review cadence.
@@ -564,7 +591,9 @@ Verification target:
 
 ## v0.10: Context Engine And Compression
 
-Status: partial; automatic integration missing.
+Status: partial; first-slice compression implemented (summarize middle, fallback,
+prune tool outputs) but lacks dedicated advanced tests/token budgets/iterative
+structured compression. Automatic integration missing.
 
 - [x] `ContextEngine` interface exists.
 - [x] `DefaultContextEngine` adapter exists.
@@ -572,6 +601,8 @@ Status: partial; automatic integration missing.
 - [x] `ContextCompressor` exists.
 - [x] Initial summarization exists.
 - [x] Initial tool pruning exists.
+- [x] Fallback model behavior for compression failures exists.
+- [ ] Dedicated advanced tests/token budgets/iterative structured compression.
 - [ ] Add automated compression trigger in `AgentLoop`.
 - [ ] Define token/message thresholds.
 - [ ] Protect recent tail.
@@ -620,6 +651,8 @@ Status: partial; trigger/workflow depth missing.
 - [x] Bound script output size.
 - [x] Apply approval policy to script routines by blocking scripts when
   `approval_policy=never`.
+- [x] Routine step metadata rendering fixed/tested.
+- [x] Busy protection default restored; explicit bypass for internal routine preserved.
 - [ ] Add multi-skill workflow model.
 - [ ] Add routine step list.
 - [ ] Add step-level allowed tools.
@@ -647,7 +680,12 @@ Verification target:
 
 ## v0.12: Toolsets, MCP, And Execution Backends
 
-Status: partial; Docker execution backend missing.
+Status: partial; Docker execution backend exists as transient/stateless container
+scaffold with validation tests (23 tests pass); not production-grade
+stateful/hardened persistent backend. MCP tool/resource timeouts, retry,
+cancellation handling, schema normalization source exist; missing prompts,
+enabled_tools filtering, typed config, parallel connection,
+timeout/cancellation/schema normalization tests not all present.
 
 - [x] `ToolsetResolver` exists.
 - [x] Per-message tool filtering exists in `AgentLoop`.
@@ -670,15 +708,16 @@ Status: partial; Docker execution backend missing.
 - [ ] Add subagent cancellation events.
 - [ ] Add subagent completion summaries routed to origin channel.
 - [ ] Add subagent artifact summary model.
-- [ ] Add Docker execution backend.
-- [ ] Add Docker availability check.
-- [ ] Add Docker image config.
-- [ ] Add Docker workspace mount policy.
-- [ ] Add Docker allowed-path policy.
-- [ ] Add Docker network policy.
-- [ ] Add Docker timeout policy.
-- [ ] Add Docker cleanup policy.
-- [ ] Add Docker tests with skip when Docker unavailable.
+- [x] Add Docker execution backend as transient/stateless container scaffold.
+- [x] Add Docker availability check.
+- [x] Add Docker image config.
+- [x] Add Docker workspace mount policy.
+- [x] Add Docker allowed-path policy.
+- [x] Add Docker network policy.
+- [x] Add Docker timeout policy.
+- [x] Add Docker cleanup policy.
+- [x] Add Docker tests with skip when Docker unavailable (23 focused tests pass).
+- [ ] Production-grade stateful/hardened persistent backend remains later work.
 - [ ] Add SSH/VPS backend later only after Docker/local are stable.
 - [ ] Keep Modal/Daytona/Singularity out of core.
 - [ ] Update MCP docs.

@@ -28,6 +28,8 @@ class FakeAgent:
         session_key: str = "embed:default",
         channel: str = "embed",
         chat_id: str = "embed",
+        media: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> str:
         self.calls.append(
             {
@@ -35,6 +37,8 @@ class FakeAgent:
                 "session_key": session_key,
                 "channel": channel,
                 "chat_id": chat_id,
+                "media": media,
+                "metadata": metadata,
             }
         )
         return "api-ok"
@@ -74,23 +78,62 @@ description: Test skill for API learning apply coverage.
 async def test_api_health_status_and_models(tmp_path: Path, monkeypatch) -> None:
     client = await _client(tmp_path, monkeypatch)
     try:
-        health = await client.get("/health")
+        health = await client.get("/api/health")
         assert health.status == 200
         assert await health.json() == {"status": "ok"}
 
-        status = await client.get("/status")
+        status = await client.get("/api/status")
         assert status.status == 200
         status_payload = await status.json()
         assert status_payload["status"] == "ok"
         assert status_payload["model"] == "test-model"
 
-        models = await client.get("/v1/models")
+        models = await client.get("/api/v1/models")
         assert models.status == 200
         model_payload = await models.json()
         assert [item["id"] for item in model_payload["data"]] == [
             "test-model",
             "fallback-model",
         ]
+    finally:
+        await client.close()
+
+
+async def test_api_compatibility_routes(tmp_path: Path, monkeypatch) -> None:
+    """Test OpenAI-compatible routes without /api prefix."""
+    fake_agent = FakeAgent()
+    client = await _client(tmp_path, monkeypatch, agent=fake_agent)
+    try:
+        # /health compatibility
+        health = await client.get("/health")
+        assert health.status == 200
+        assert await health.json() == {"status": "ok"}
+
+        # /status compatibility
+        status = await client.get("/status")
+        assert status.status == 200
+        status_payload = await status.json()
+        assert status_payload["status"] == "ok"
+
+        # /v1/models compatibility
+        models = await client.get("/v1/models")
+        assert models.status == 200
+        model_payload = await models.json()
+        assert model_payload["object"] == "list"
+        assert len(model_payload["data"]) == 2
+
+        # /v1/chat/completions compatibility
+        chat = await client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "test-model",
+                "messages": [{"role": "user", "content": "test"}],
+            },
+        )
+        assert chat.status == 200
+        chat_payload = await chat.json()
+        assert chat_payload["object"] == "chat.completion"
+        assert fake_agent.calls[0]["content"] == "test"
     finally:
         await client.close()
 
@@ -103,12 +146,12 @@ async def test_api_lists_sessions_and_fetches_history(tmp_path: Path, monkeypatc
         manager.sqlite_store.append_message(session["id"], "user", "hello")
         manager.sqlite_store.append_message(session["id"], "assistant", "world")
 
-        listed = await client.get("/sessions?limit=5")
+        listed = await client.get("/api/sessions?limit=5")
         assert listed.status == 200
         listed_payload = await listed.json()
-        assert listed_payload["data"][0]["key"] == "api:chat-1"
+        assert listed_payload["sessions"][0]["key"] == "api:chat-1"
 
-        detail = await client.get(f"/sessions/{session['id']}")
+        detail = await client.get(f"/api/sessions/{session['id']}")
         assert detail.status == 200
         detail_payload = await detail.json()
         assert detail_payload["session"]["id"] == session["id"]
@@ -131,7 +174,7 @@ async def test_api_media_upload_stores_file_and_session_ref(tmp_path: Path, monk
             content_type="image/png",
         )
 
-        response = await client.post("/media", data=data)
+        response = await client.post("/api/media", data=data)
 
         assert response.status == 201
         payload = await response.json()
@@ -169,7 +212,7 @@ async def test_api_media_upload_stores_file_and_session_ref(tmp_path: Path, monk
 async def test_api_media_upload_requires_multipart_file(tmp_path: Path, monkeypatch) -> None:
     client = await _client(tmp_path, monkeypatch)
     try:
-        response = await client.post("/media", json={"session_key": "api:media-room"})
+        response = await client.post("/api/media", json={"session_key": "api:media-room"})
 
         assert response.status == 400
         payload = await response.json()
@@ -181,13 +224,21 @@ async def test_api_media_upload_requires_multipart_file(tmp_path: Path, monkeypa
 async def test_api_auth_token_protects_non_health_routes(tmp_path: Path, monkeypatch) -> None:
     client = await _client(tmp_path, monkeypatch, token="secret")
     try:
-        health = await client.get("/health")
+        # Health and status should be accessible without auth
+        health = await client.get("/api/health")
         assert health.status == 200
 
-        unauthorized = await client.get("/status")
+        status = await client.get("/api/status")
+        assert status.status == 200
+
+        models = await client.get("/api/v1/models")
+        assert models.status == 200
+
+        # Other routes should require auth
+        unauthorized = await client.get("/api/sessions")
         assert unauthorized.status == 401
 
-        authorized = await client.get("/status", headers={"Authorization": "Bearer secret"})
+        authorized = await client.get("/api/sessions", headers={"Authorization": "Bearer secret"})
         assert authorized.status == 200
     finally:
         await client.close()
@@ -198,7 +249,7 @@ async def test_openai_chat_completion_uses_agent(tmp_path: Path, monkeypatch) ->
     client = await _client(tmp_path, monkeypatch, agent=fake_agent)
     try:
         response = await client.post(
-            "/v1/chat/completions",
+            "/api/v1/chat/completions",
             json={
                 "model": "test-model",
                 "session_key": "api:room-1",
@@ -218,8 +269,11 @@ async def test_openai_chat_completion_uses_agent(tmp_path: Path, monkeypatch) ->
                 "session_key": "api:room-1",
                 "channel": "api",
                 "chat_id": "room-1",
+                "media": [],
+                "metadata": None,
             }
         ]
+
     finally:
         await client.close()
 
@@ -229,7 +283,7 @@ async def test_openai_chat_completion_streams_sse(tmp_path: Path, monkeypatch) -
     client = await _client(tmp_path, monkeypatch, agent=fake_agent)
     try:
         response = await client.post(
-            "/v1/chat/completions",
+            "/api/v1/chat/completions",
             json={
                 "model": "test-model",
                 "stream": True,
@@ -260,12 +314,12 @@ async def test_api_lists_and_denies_approvals(tmp_path: Path, monkeypatch) -> No
             tool_args={"command": "uptime"},
         )
 
-        listed = await client.get("/approvals?session_key=api:room-1")
+        listed = await client.get("/api/approvals?session_key=api:room-1")
         assert listed.status == 200
         listed_payload = await listed.json()
-        assert listed_payload["data"][0]["id"] == record.id
+        assert listed_payload["approvals"][0]["id"] == record.id
 
-        denied = await client.post(f"/approvals/{record.id}/deny")
+        denied = await client.post(f"/api/approvals/{record.id}/deny")
         assert denied.status == 200
         denied_payload = await denied.json()
         assert denied_payload["data"]["status"] == "denied"
@@ -283,7 +337,7 @@ async def test_api_approves_approval_as_session_allowlist(tmp_path: Path, monkey
             tool_args={"command": "uptime"},
         )
 
-        approved = await client.post(f"/approvals/{record.id}/approve", json={"scope": "session"})
+        approved = await client.post(f"/api/approvals/{record.id}/approve", json={"scope": "session"})
 
         assert approved.status == 200
         payload = await approved.json()
@@ -308,17 +362,17 @@ async def test_api_learning_list_detail_and_status_update(tmp_path: Path, monkey
         )
         assert queue.add(candidate)
 
-        listed = await client.get("/learning")
+        listed = await client.get("/api/learning")
         assert listed.status == 200
         listed_payload = await listed.json()
-        assert listed_payload["data"][0]["id"] == "cand-1"
+        assert listed_payload["candidates"][0]["id"] == "cand-1"
 
-        detail = await client.get("/learning/cand-1")
+        detail = await client.get("/api/learning/cand-1")
         assert detail.status == 200
         detail_payload = await detail.json()
         assert detail_payload["data"]["content"]["text"] == "Owner prefers concise updates."
 
-        approved = await client.post("/learning/cand-1/approve")
+        approved = await client.post("/api/learning/cand-1/approve")
         assert approved.status == 200
         approved_payload = await approved.json()
         assert approved_payload["data"]["status"] == "approved"
@@ -341,7 +395,7 @@ async def test_api_learning_edit_candidate(tmp_path: Path, monkeypatch) -> None:
         )
 
         edited = await client.post(
-            "/learning/cand-edit/edit",
+            "/api/learning/cand-edit/edit",
             json={"content": {"tool": "exec", "note": "new"}, "diff_preview": "old -> new"},
         )
 
@@ -367,7 +421,7 @@ async def test_api_learning_apply_skill_candidate(tmp_path: Path, monkeypatch) -
             )
         )
 
-        applied = await client.post("/learning/cand-apply/apply")
+        applied = await client.post("/api/learning/cand-apply/apply")
 
         assert applied.status == 200
         payload = await applied.json()
@@ -379,7 +433,7 @@ async def test_api_learning_apply_skill_candidate(tmp_path: Path, monkeypatch) -
         await client.close()
 
 
-async def test_api_learning_apply_rejects_non_skill_candidate(
+async def test_api_learning_apply_rejects_invalid_content(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -388,33 +442,32 @@ async def test_api_learning_apply_rejects_non_skill_candidate(
         queue: LearningQueue = client.app[LEARNING_KEY]
         assert queue.add(
             LearningCandidate(
-                id="cand-memory",
+                id="cand-invalid",
                 kind="memory",
-                title="Remember preference",
-                rationale="Owner stated a durable preference.",
-                content={"text": "Owner prefers direct updates."},
+                title="Empty memory",
+                rationale="Should fail apply.",
+                content={},  # Missing 'text'
             )
         )
 
-        rejected = await client.post("/learning/cand-memory/apply")
+        rejected = await client.post("/api/learning/cand-invalid/apply")
 
         assert rejected.status == 400
         payload = await rejected.json()
-        assert payload["error"]["code"] == "unsupported_kind"
+        assert payload["error"]["code"] == "invalid_content"
     finally:
         await client.close()
-
 
 async def test_api_profiles_list_and_detail(tmp_path: Path, monkeypatch) -> None:
     client = await _client(tmp_path, monkeypatch)
     try:
-        listed = await client.get("/profiles")
+        listed = await client.get("/api/profiles")
         assert listed.status == 200
         payload = await listed.json()
-        ids = {item["id"] for item in payload["data"]}
+        ids = {item["id"] for item in payload["profiles"]}
         assert {"owner", "guest"} <= ids
 
-        detail = await client.get("/profiles/owner")
+        detail = await client.get("/api/profiles/owner")
         assert detail.status == 200
         detail_payload = await detail.json()
         assert detail_payload["data"]["id"] == "owner"

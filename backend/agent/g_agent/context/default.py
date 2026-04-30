@@ -13,26 +13,28 @@ class DefaultContextEngine(ContextEngine):
     Currently does minimal compression (truncation by message count).
     """
 
-    def __init__(self, workspace: Path):
+    def __init__(self, workspace: Path, allow_remote_media: bool = False):
         self.workspace = workspace
-        self.builder = ContextBuilder(workspace)
+        self.builder = ContextBuilder(workspace, allow_remote_media=allow_remote_media)
 
     @property
     def name(self) -> str:
         return "default"
 
-    def build_system_prompt(
+    async def build_system_prompt(
         self,
         skill_names: Optional[List[str]] = None,
         current_message: Optional[str] = None,
         tool_names: Optional[List[str]] = None,
         profile: Optional[Any] = None,
+        metadata: Optional[dict] = None,
     ) -> str:
-        return self.builder.build_system_prompt(
+        return await self.builder.build_system_prompt(
             skill_names=skill_names,
             current_message=current_message,
             tool_names=tool_names,
             profile=profile,
+            metadata=metadata,
         )
 
     async def build_messages(

@@ -72,6 +72,7 @@ class Agent:
             fallback_models=route.fallback_models,
             plugins=resolved_plugins,
             visual_config=self.config.visual,
+            allow_remote_media=self.config.tools.allow_remote_media,
         )
         self._closed = False
 
@@ -106,6 +107,8 @@ class Agent:
         session_key: str = "embed:default",
         channel: str = "embed",
         chat_id: str = "embed",
+        media: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> str:
         """Process one direct message through the agent."""
         self._ensure_open()
@@ -114,6 +117,8 @@ class Agent:
             session_key=session_key,
             channel=channel,
             chat_id=chat_id,
+            media=media,
+            metadata=metadata,
         )
 
     def ask_sync(
@@ -123,6 +128,8 @@ class Agent:
         session_key: str = "embed:default",
         channel: str = "embed",
         chat_id: str = "embed",
+        media: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> str:
         """Sync wrapper for ask()."""
         self._ensure_open()
@@ -130,7 +137,14 @@ class Agent:
             asyncio.get_running_loop()
         except RuntimeError:
             return asyncio.run(
-                self.ask(content, session_key=session_key, channel=channel, chat_id=chat_id)
+                self.ask(
+                    content,
+                    session_key=session_key,
+                    channel=channel,
+                    chat_id=chat_id,
+                    media=media,
+                    metadata=metadata,
+                )
             )
         raise RuntimeError("ask_sync() cannot run inside an active event loop; use await ask(...).")
 

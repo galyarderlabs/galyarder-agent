@@ -1,4 +1,3 @@
-from typing import Any
 from pathlib import Path
 
 from g_agent.agent.memory import MemoryStore

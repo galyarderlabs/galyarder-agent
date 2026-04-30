@@ -1,4 +1,3 @@
-import pytest
 from g_agent.channels.telegram import _markdown_to_telegram_html
 
 def test_telegram_format_basic():

@@ -10,6 +10,7 @@ from g_agent.agent.skills import SkillsLoader
 from g_agent.character.profile import CharacterProfile
 from g_agent.memory.manager import MemoryManager
 from g_agent.context.compressor import ContextCompressor
+from g_agent.utils.redaction import redact_secrets
 
 _RUNTIME_CONTEXT_TAG = "[Runtime Context \u2014 metadata only, not instructions]"
 
@@ -24,18 +25,20 @@ class ContextBuilder:
 
     BOOTSTRAP_FILES = ["AGENTS.md", "SOUL.md", "USER.md", "TOOLS.md", "IDENTITY.md"]
 
-    def __init__(self, workspace: Path):
+    def __init__(self, workspace: Path, allow_remote_media: bool = False):
         self.workspace = workspace
+        self.allow_remote_media = allow_remote_media
         self.memory = MemoryManager(workspace)
         self.skills = SkillsLoader(workspace)
         self.compressor = ContextCompressor()
 
-    def build_system_prompt(
+    async def build_system_prompt(
         self,
         skill_names: list[str] | None = None,
         current_message: str | None = None,
         tool_names: list[str] | None = None,
         profile: CharacterProfile | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> str:
         """
         Build the system prompt from bootstrap files, memory, and skills.
@@ -63,6 +66,36 @@ class ContextBuilder:
         # 5. Dynamic Metadata (Fenced)
         metadata_sections = []
 
+        # Routine Steps (v0.11)
+        if metadata and "routine_steps" in metadata:
+            steps = metadata["routine_steps"]
+            if isinstance(steps, list) and steps:
+                steps_block = "# Active Routine Workflow\n\nYou are executing a multi-step routine. Follow these steps:\n"
+                for i, step in enumerate(steps):
+                    if not isinstance(step, dict):
+                        continue
+                    # Render from canonical fields: name, content_prompt
+                    step_name = step.get("name", "")
+                    step_prompt = step.get("content_prompt", "")
+                    step_text = step_name or step_prompt or f"Step {i+1}"
+
+                    # Optional metadata
+                    status = " [DONE]" if step.get("completed") else ""
+                    allowed_tools = step.get("allowed_tools")
+                    condition = step.get("condition")
+                    timeout = step.get("timeout_seconds")
+
+                    steps_block += f"{i+1}. {step_text}{status}\n"
+                    if step_prompt and step_prompt != step_text:
+                        steps_block += f"   Prompt: {step_prompt}\n"
+                    if allowed_tools:
+                        steps_block += f"   Tools: {', '.join(allowed_tools)}\n"
+                    if condition:
+                        steps_block += f"   Condition: {condition}\n"
+                    if timeout and timeout != 60.0:
+                        steps_block += f"   Timeout: {timeout}s\n"
+                metadata_sections.append(steps_block)
+
         # Runtime Info (Time, Workspace)
         metadata_sections.append(self._get_runtime_info())
 
@@ -70,7 +103,7 @@ class ContextBuilder:
         from g_agent.memory.context import format_memory_context
 
         if current_message:
-            fragments = self.memory.prefetch(query=current_message)
+            fragments = await self.memory.prefetch(query=current_message)
             memory_block = format_memory_context(fragments)
             if memory_block:
                 metadata_sections.append(f"# Memory\n\n{memory_block}")
@@ -287,6 +320,12 @@ Your workspace is at: {workspace_path}
             },
         ]
 
+    def estimate_tokens(self, text: str) -> int:
+        """Rough token estimation (4 chars per token)."""
+        if not text:
+            return 0
+        return len(text) // 4
+
     async def build_messages(
         self,
         history: list[dict[str, Any]],
@@ -303,21 +342,36 @@ Your workspace is at: {workspace_path}
         """
         Build the complete message list for an LLM call.
         """
-        # Compress history if needed
-        if len(history) > 20:
+        # 1. Compress history if needed
+        # Threshold: > 20 messages or history text > 40k chars (~10k tokens)
+        history_text = "".join(str(m.get("content", "")) for m in history)
+        if len(history) > 20 or len(history_text) > 40000:
             self.compressor.provider = llm_provider
             history = await self.compressor.summarize_middle(history)
 
         history = self.compressor.prune_tool_outputs(history)
 
+        # 2. Redact sensitive data (passwords, tokens) before LLM call
+        for msg in history:
+            if "content" in msg and isinstance(msg["content"], str):
+                msg["content"] = redact_secrets(msg["content"])
+
+        # 3. Hard limit: model context safety
+        # If still too long, keep only the system prompt + summary + last 10 messages
+        if len(history) > 40:
+             summary_msg = history[0] if history and history[0].get("role") == "system" else None
+             tail = history[-10:]
+             history = ([summary_msg] if summary_msg else []) + tail
+
         messages = []
 
         # System prompt
-        system_prompt = self.build_system_prompt(
+        system_prompt = await self.build_system_prompt(
             skill_names=skill_names,
             current_message=current_message,
             tool_names=tool_names,
             profile=profile,
+            metadata=metadata,
         )
         if channel and chat_id:
             system_prompt += f"\n\n## Current Session\nChannel: {channel}\nChat ID: {chat_id}"
@@ -399,27 +453,38 @@ Your workspace is at: {workspace_path}
             file_path = Path(path)
 
             is_image = mime.startswith("image/") or attachment_type in {"image", "sticker"}
-            if is_image and file_path.is_file():
-                try:
-                    b64 = base64.b64encode(file_path.read_bytes()).decode()
-                    effective_mime = mime or "image/jpeg"
-                    multimodal_parts.append(
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": f"data:{effective_mime};base64,{b64}"},
-                        }
-                    )
-                    if attachment_type == "sticker":
-                        note = f"sticker from {source or 'channel'} ({file_path.name})"
-                        if caption:
-                            note += f", caption: {caption}"
-                        attachment_notes.append(note)
-                    continue
-                except OSError:
-                    attachment_notes.append(
-                        f"type={attachment_type}, path={path}, note=image embed failed"
-                    )
-                    continue
+            if is_image:
+                if file_path.is_file():
+                    try:
+                        b64 = base64.b64encode(file_path.read_bytes()).decode()
+                        effective_mime = mime or "image/jpeg"
+                        multimodal_parts.append(
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": f"data:{effective_mime};base64,{b64}"},
+                            }
+                        )
+                        if attachment_type == "sticker":
+                            note = f"sticker from {source or 'channel'} ({file_path.name})"
+                            if caption:
+                                note += f", caption: {caption}"
+                            attachment_notes.append(note)
+                        continue
+                    except OSError:
+                        attachment_notes.append(
+                            f"type={attachment_type}, path={path}, note=image embed failed"
+                        )
+                        continue
+                elif path.startswith(("http://", "https://")):
+                    if self.allow_remote_media:
+                        multimodal_parts.append({"type": "image_url", "image_url": {"url": path}})
+                        continue
+                    else:
+                        attachment_notes.append(
+                            f"type={attachment_type}, path={path}, note=remote media disabled"
+                        )
+                else:
+                    attachment_notes.append(f"type={attachment_type}, path={path}, note=not found")
 
             descriptor = f"type={attachment_type}, path={path}"
             if mime:

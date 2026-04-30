@@ -498,13 +498,12 @@ def test_agent_loop_auto_sends_voice_on_telegram_without_message_tool(
     result = asyncio.run(
         loop.process_direct(
             content="say something about me use voice",
-            session_key="telegram:auto-voice",
+            session_key="telegram:12345",
             channel="telegram",
             chat_id="12345",
             sender_id="6218572023|galyarderlabs",
         )
     )
-
     assert result == ""
     visible_captured = [m for m in captured if m.metadata.get("action") != "typing"]
     assert len(visible_captured) == 1
@@ -556,13 +555,12 @@ def test_agent_loop_auto_sends_voice_for_natural_voice_phrase(
                 "now, tell me about urself use a voice tool, "
                 "when I say use voice just use a tool for voice don't ask again"
             ),
-            session_key="telegram:auto-voice-natural",
+            session_key="telegram:12345",
             channel="telegram",
             chat_id="12345",
             sender_id="6218572023|galyarderlabs",
         )
     )
-
     assert result == ""
     visible_captured = [m for m in captured if m.metadata.get("action") != "typing"]
     assert len(visible_captured) == 1

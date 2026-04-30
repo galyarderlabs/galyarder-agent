@@ -8,6 +8,7 @@
 - Discord
 - Email
 - Slack (Socket Mode)
+- WebSocket (minimal aiohttp channel for Web UI and API clients)
 
 Additional adapters should live as plugins or future-hardening work, not as core runtime promises.
 
@@ -173,3 +174,27 @@ Use:
 ```bash
 journalctl --user -u g-agent-gateway.service -u g-agent-wa-bridge.service -n 120 --no-pager
 ```
+
+## WebSocket
+
+WebSocket channel exists as minimal aiohttp channel with local token auth and
+chat-id session mapping. Implemented for Web UI and API clients, not Nanobot
+full surface. Advanced Nanobot features missing: token issuance endpoint, media
+signing, SSL/TLS, capability registry entry gap.
+
+Configuration:
+
+```json
+{
+  "gateway": {
+    "enabled": true,
+    "host": "127.0.0.1",
+    "port": 8080,
+    "apiToken": "your-secret-token"
+  }
+}
+```
+
+WebSocket endpoint: `ws://127.0.0.1:8080/ws`
+
+Authentication: Send `Authorization: Bearer your-secret-token` header on connection.

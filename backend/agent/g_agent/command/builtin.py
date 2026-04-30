@@ -2,12 +2,14 @@
 
 import html
 import json
-import re
 import time
 from typing import Any
 
+from loguru import logger
+
 from g_agent.command.context import CommandContext
 from g_agent.session.manager import SessionManager
+from g_agent.utils.redaction import redact_secrets
 
 
 def _fmt_time(ts: float) -> str:
@@ -16,15 +18,7 @@ def _fmt_time(ts: float) -> str:
 
 def _redact(text: str) -> str:
     """Redact obvious secret-like values before showing logs in chat."""
-    redacted = text or ""
-    redacted = re.sub(
-        r"(?i)\b(api[_-]?key|token|secret|password|passwd|authorization)\s*[:=]\s*['\"]?[^'\"\s]+",
-        lambda m: f"{m.group(1)}=<redacted>",
-        redacted,
-    )
-    redacted = re.sub(r"(?i)\bbearer\s+[a-z0-9._~+/=-]{12,}", "Bearer <redacted>", redacted)
-    redacted = re.sub(r"\bsk-[a-zA-Z0-9]{16,}", "sk-<redacted>", redacted)
-    return redacted
+    return redact_secrets(text)
 
 
 async def cmd_status(ctx: CommandContext) -> str:
@@ -38,10 +32,7 @@ async def cmd_status(ctx: CommandContext) -> str:
 
     # Channel capability contract
     try:
-        from g_agent.channels.manager import ChannelManager
-        cm = ChannelManager(ctx.config, None) # Transient manager to check status
-        # Better: if we had access to the live manager, but we don't here.
-        # We'll use the capabilities helper for now as a fallback.
+        # Use the capabilities helper as a lightweight status fallback.
         from g_agent.channels.capabilities import capabilities_for_channel
 
         caps = capabilities_for_channel(ctx.channel)
@@ -147,6 +138,50 @@ async def cmd_history(ctx: CommandContext) -> str:
 async def cmd_sessions(ctx: CommandContext) -> str:
     """List recent sessions."""
     sessions = SessionManager(ctx.workspace)
+    args = ctx.args.strip().split()
+
+    if args and args[0] == "backfill":
+        dry_run = "--dry-run" in ctx.args
+        session_files = list((ctx.workspace / "state" / "sessions").glob("*.jsonl"))
+        if not session_files:
+            return "📂 No .jsonl session files found to backfill."
+
+        added = 0
+        total = len(session_files)
+        for path in session_files:
+            session_key = path.stem
+            # Check if exists
+            with sessions.sqlite_store._lock:
+                cur = sessions.sqlite_store._conn.execute(
+                    "SELECT id FROM sessions WHERE key = ?", (session_key,)
+                )
+                row = cur.fetchone()
+                if row:
+                    session_id = row[0]
+                else:
+                    # Create skeleton session if it doesn't exist
+                    session_id = None
+
+            if not dry_run:
+                try:
+                    msgs = sessions._safe_read_jsonl(path)
+                    if msgs:
+                        # Use get_or_create to ensure session exists in SQLite
+                        sess_record = sessions.sqlite_store.get_or_create_session(session_key)
+                        sessions.sqlite_store.replace_messages(sess_record["id"], msgs)
+                        added += 1
+                except Exception as e:
+                    logger.error(f"Backfill failed for {session_key}: {e}")
+                    continue
+            else:
+                # Dry run
+                if session_id is None:
+                    added += 1
+
+        if dry_run:
+            return f"🔍 <b>Backfill (Dry Run)</b>: Found {added} sessions not yet in database (out of {total})."
+        return f"✅ <b>Backfill Complete</b>: Imported {added} new sessions into database."
+
     rows = sessions.sqlite_store.list_sessions(limit=10)
 
     if not rows:
@@ -233,9 +268,12 @@ async def cmd_profile(ctx: CommandContext) -> str:
         if not p:
             return f"❌ Profile <code>{profile_id}</code> not found."
 
-        # Note: Actual switching needs to be handled by the loop/gateway
-        # For now we just confirm it exists. In a real scenario, we'd
-        # update a 'current_profile' setting in config.
+        from g_agent.session.manager import SessionManager
+        sessions = SessionManager(ctx.workspace)
+        session = sessions.get_or_create(ctx.session_key)
+        session.metadata["current_profile_id"] = p.id
+        sessions.save(session)
+
         return f"✅ Profile set to <b>{p.name}</b> (<code>{p.id}</code>).\n<i>Note: New settings will apply to the next message.</i>"
 
     # View current (this is tricky without loop reference in ctx,
@@ -282,7 +320,7 @@ async def cmd_learn(ctx: CommandContext) -> str:
             candidates = [c for c in candidates if c.kind == type_filter]
 
         if not candidates:
-            return f"🧠 <b>Learning Queue</b> has no matching candidates."
+            return "🧠 <b>Learning Queue</b> has no matching candidates."
 
         lines = [f"🧠 <b>Learning Queue ({len(candidates)} items)</b>\n"]
         for c in candidates:

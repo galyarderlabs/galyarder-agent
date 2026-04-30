@@ -167,6 +167,17 @@ class SkillManager:
         except Exception:
             return False
 
+    def delete_draft(self, name: str) -> bool:
+        """Delete a skill draft."""
+        draft_path = self.store.get_skill_path(name, location="draft")
+        if not draft_path:
+            return False
+        try:
+            shutil.rmtree(draft_path)
+            return True
+        except Exception:
+            return False
+
     def list_all(self, include_drafts: bool = True) -> dict[str, list[str]]:
         """Proxy to store.list_all."""
         return self.store.list_all(include_drafts=include_drafts)
