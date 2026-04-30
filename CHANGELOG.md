@@ -4,6 +4,11 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [0.1.17] - 2026-04-30
+
+### Fixed
+- Fixed CI and release dependency resolution by aligning package metadata with LiteLLM's pinned `httpx` and `python-dotenv` requirements, so `pip install -e ".[dev]"` succeeds in GitHub Actions.
+
 ## [0.1.16] - 2026-04-30
 
 ### Added
