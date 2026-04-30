@@ -1,6 +1,6 @@
 [project]
 name = "galyarder-agent"
-version = "0.1.17"
+version = "0.1.18"
 description = "Local-first runtime for agentic digital identity and character workflows."
 requires-python = ">=3.11"
 license = {text = "MIT"}

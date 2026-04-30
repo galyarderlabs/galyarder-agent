@@ -4,6 +4,11 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [0.1.18] - 2026-04-30
+
+### Fixed
+- Fixed CI backend Web UI test portability by isolating the static index fixture from untracked local build artifacts, so fresh GitHub Actions checkouts can run the full backend suite deterministically.
+
 ## [0.1.17] - 2026-04-30
 
 ### Fixed
