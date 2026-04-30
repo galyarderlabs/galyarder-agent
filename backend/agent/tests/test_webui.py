@@ -1,13 +1,25 @@
-import pytest
 from pathlib import Path
+
+import pytest
 from aiohttp.test_utils import TestClient, TestServer
-from g_agent.api.server import create_app
+
+from g_agent.api import server as api_server
 from g_agent.config.loader import load_config
 
-async def _client(tmp_path: Path, monkeypatch) -> TestClient:
+
+async def _client(tmp_path: Path, monkeypatch, *, with_webui: bool = False) -> TestClient:
     monkeypatch.setenv("G_AGENT_DATA_DIR", str(tmp_path / "data"))
+    if with_webui:
+        webui_dir = tmp_path / "g_agent" / "webui" / "dist"
+        assets_dir = webui_dir / "assets"
+        assets_dir.mkdir(parents=True)
+        (webui_dir / "index.html").write_text(
+            '<html><body><div id="root"></div><script src="/assets/app.js"></script></body></html>',
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(api_server, "__file__", str(tmp_path / "g_agent" / "api" / "server.py"))
     config = load_config()
-    app = create_app(config=config)
+    app = api_server.create_app(config=config)
     server = TestServer(app)
     client = TestClient(server)
     await client.start_server()
@@ -15,7 +27,7 @@ async def _client(tmp_path: Path, monkeypatch) -> TestClient:
 
 @pytest.mark.asyncio
 async def test_webui_index(tmp_path: Path, monkeypatch):
-    client = await _client(tmp_path, monkeypatch)
+    client = await _client(tmp_path, monkeypatch, with_webui=True)
     try:
         # Check index.html is served at root
         resp = await client.get('/')
