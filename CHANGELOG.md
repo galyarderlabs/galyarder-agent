@@ -4,6 +4,11 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [0.1.21] - 2026-05-01
+
+### Fixed
+- Fixed Indonesian prohibition variants such as `gaboleh kirim pap`, `ga boleh kirim selfie`, and `jgn kirim pap` so they are treated as blocked visual requests instead of deterministic selfie requests.
+
 ## [0.1.20] - 2026-05-01
 
 ### Added
