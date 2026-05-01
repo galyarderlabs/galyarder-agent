@@ -1890,13 +1890,13 @@ class AgentLoop:
         request_modifiers = self._normalized_config_terms(
             getattr(self.visual_config, "request_modifiers", [])
         )
+        negative_terms = self._normalized_config_terms(
+            getattr(self.visual_config, "negative_request_terms", [])
+        )
         negative_phrases = self._normalized_config_terms(
             getattr(self.visual_config, "negative_request_phrases", [])
         )
         if not request_keywords:
-            return None
-
-        if any(phrase in normalized for phrase in negative_phrases):
             return None
 
         keyword_pattern = "|".join(self._term_pattern(term) for term in request_keywords)
@@ -1917,18 +1917,22 @@ class AgentLoop:
 
         verb_pattern = "|".join(self._term_pattern(term) for term in request_verbs)
         modifier_pattern = "|".join(self._term_pattern(term) for term in request_modifiers)
-        request_patterns = []
-        if verb_pattern:
-            request_patterns.append(rf"\b(?:{verb_pattern})\b(?:\W+\w+){{0,4}}?\W+\b(?:{keyword_pattern})\b")
-        if modifier_pattern:
-            request_patterns.extend(
-                [
-                    rf"\b(?:{keyword_pattern})\b(?:\W+\w+){{0,4}}?\W+\b(?:{modifier_pattern})\b",
-                    rf"\b(?:{modifier_pattern})\b(?:\W+\w+){{0,4}}?\W+\b(?:{keyword_pattern})\b",
-                ]
-            )
+        negative_pattern = "|".join(self._term_pattern(term) for term in negative_terms)
+        if self._has_negative_visual_intent(
+            normalized,
+            keyword_pattern=keyword_pattern,
+            verb_pattern=verb_pattern,
+            negative_pattern=negative_pattern,
+            negative_phrases=negative_phrases,
+        ):
+            return None
 
-        if not any(re.search(pattern, normalized) for pattern in request_patterns):
+        if not self._has_positive_visual_intent(
+            normalized,
+            keyword_pattern=keyword_pattern,
+            verb_pattern=verb_pattern,
+            modifier_pattern=modifier_pattern,
+        ):
             return None
 
         removable_terms = request_keywords + request_verbs + request_modifiers
@@ -1943,6 +1947,57 @@ class AgentLoop:
             context = "casual candid selfie, responding to the user"
 
         return {"context": context, "caption": "nih pap aku.", "mode": "auto"}
+
+    def _has_negative_visual_intent(
+        self,
+        text: str,
+        *,
+        keyword_pattern: str,
+        verb_pattern: str,
+        negative_pattern: str,
+        negative_phrases: list[str],
+    ) -> bool:
+        """Return whether the visual request is negated, blocked, or a complaint."""
+        if any(phrase in text for phrase in negative_phrases):
+            return True
+        if not negative_pattern:
+            return False
+
+        gap = r"(?:\W+\w+){0,6}?\W+"
+        patterns = [
+            rf"\b(?:{negative_pattern})\b{gap}\b(?:{keyword_pattern})\b",
+            rf"\b(?:{keyword_pattern})\b{gap}\b(?:{negative_pattern})\b",
+        ]
+        if verb_pattern:
+            patterns.extend(
+                [
+                    rf"\b(?:{negative_pattern})\b{gap}\b(?:{verb_pattern})\b{gap}\b(?:{keyword_pattern})\b",
+                    rf"\b(?:{negative_pattern})\b{gap}\b(?:{keyword_pattern})\b{gap}\b(?:{verb_pattern})\b",
+                    rf"\b(?:{verb_pattern})\b{gap}\b(?:{negative_pattern})\b{gap}\b(?:{keyword_pattern})\b",
+                ]
+            )
+        return any(re.search(pattern, text) for pattern in patterns)
+
+    def _has_positive_visual_intent(
+        self,
+        text: str,
+        *,
+        keyword_pattern: str,
+        verb_pattern: str,
+        modifier_pattern: str,
+    ) -> bool:
+        """Return whether the text explicitly asks for a visual identity image."""
+        request_patterns = []
+        if verb_pattern:
+            request_patterns.append(rf"\b(?:{verb_pattern})\b(?:\W+\w+){{0,4}}?\W+\b(?:{keyword_pattern})\b")
+        if modifier_pattern:
+            request_patterns.extend(
+                [
+                    rf"\b(?:{keyword_pattern})\b(?:\W+\w+){{0,4}}?\W+\b(?:{modifier_pattern})\b",
+                    rf"\b(?:{modifier_pattern})\b(?:\W+\w+){{0,4}}?\W+\b(?:{keyword_pattern})\b",
+                ]
+            )
+        return any(re.search(pattern, text) for pattern in request_patterns)
 
     def _normalized_config_terms(self, terms: list[str]) -> list[str]:
         """Normalize configured selfie request terms for case-insensitive matching."""

@@ -179,6 +179,14 @@ def test_extract_selfie_request_detects_pap():
     assert loop._extract_selfie_request("kenapa malah kirim selfie") is None
     assert loop._extract_selfie_request("ga minta pap") is None
     assert loop._extract_selfie_request("nggak minta foto") is None
+    assert loop._extract_selfie_request("oke gabakal minta pap akunya") is None
+    assert loop._extract_selfie_request("gak bakal minta selfie dulu") is None
+    assert loop._extract_selfie_request("jangan kirim pap ya") is None
+    assert loop._extract_selfie_request("stop sending photos") is None
+    assert loop._extract_selfie_request("do not send me a selfie") is None
+    assert loop._extract_selfie_request("not gonna ask for your picture") is None
+    assert loop._extract_selfie_request("won't request a photo") is None
+    assert loop._extract_selfie_request("no selfie please") is None
 
     # Negative cases - unrelated messages
     assert loop._extract_selfie_request("ngadatnya kenapa") is None
@@ -209,6 +217,7 @@ def test_extract_selfie_request_uses_visual_config_terms():
             request_keywords=["snapshot"],
             request_verbs=["beam"],
             request_modifiers=["pls"],
+            negative_request_terms=["never"],
             negative_request_phrases=["never beam"],
         ),
     )
