@@ -5,6 +5,8 @@ import base64
 import json
 from pathlib import Path
 
+import httpx
+
 from g_agent.agent.tools.selfie import SelfieTool, extract_physical_description
 from g_agent.bus.events import OutboundMessage
 from g_agent.config.loader import convert_keys, convert_to_camel
@@ -386,6 +388,39 @@ def test_provider_error_handling(tmp_path, monkeypatch):
     result = asyncio.run(tool.execute(context="at the gym"))
 
     assert "Error: image generation failed" in result
+
+
+def test_image_generation_empty_exception_uses_exception_class_name(tmp_path, monkeypatch):
+    """Blank provider exceptions should still produce actionable error details."""
+
+    class _TimeoutClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            pass
+
+        async def post(self, url, **kw):
+            raise httpx.TimeoutException("")
+
+    monkeypatch.setattr(
+        "g_agent.agent.tools.selfie.httpx.AsyncClient",
+        lambda **kw: _TimeoutClient(),
+    )
+
+    config = _make_config(
+        image_gen=ImageGenProviderConfig(
+            provider="openai-compatible",
+            api_key="sk-test",
+            api_base="http://127.0.0.1:20128/v1",
+            model="cx/gpt-5.5",
+        ),
+    )
+    tool, _ = _make_tool(config=config, tmp_path=tmp_path)
+    result = asyncio.run(tool.execute(context="studio photo"))
+
+    assert result == "Error: image generation failed: TimeoutException"
+
 
 
 def test_openai_compatible_http_error_includes_provider_body(tmp_path, monkeypatch):

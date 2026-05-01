@@ -483,9 +483,9 @@ class AgentLoop:
             )
         previous_running = self.runtime.latest_running_for_session(msg.session_key)
         previous_task_id = str(previous_running.get("task_id", "")) if previous_running else ""
-        approved_tools, approve_all = self._extract_approval_intent(trimmed)
+        approved_tools, approve_all, approve_first = self._extract_approval_intent(trimmed)
         resume_intent = trimmed in {"continue", "resume", "lanjut", "lanjutkan"}
-        approval_intent = approve_all or bool(approved_tools)
+        approval_intent = approve_all or approve_first or bool(approved_tools)
         if (
             previous_running
             and not resume_intent
@@ -601,7 +601,6 @@ class AgentLoop:
                 selfie_tool.set_context(msg.channel, msg.chat_id)
                 if hasattr(selfie_tool, "set_profile"):
                     selfie_tool.set_profile(active_profile)
-            effective_tools = self._get_effective_tools(msg)
 
             # Deterministic selfie/PAP routing: execute immediately if detected
             selfie_request = self._extract_selfie_request(msg.content)
@@ -613,6 +612,12 @@ class AgentLoop:
                 if selfie_result is None:
                     return None
                 return selfie_result
+
+            # Get effective tools, excluding selfie from LLM tool list
+            # (selfie is only available via deterministic routing above)
+            effective_tools = self._get_effective_tools(msg)
+            if "selfie" in effective_tools:
+                effective_tools = [t for t in effective_tools if t != "selfie"]
 
             # Build initial messages (use get_history for LLM-formatted messages)
             messages = await self.context.build_messages(
@@ -640,9 +645,40 @@ class AgentLoop:
                 session=session,
                 approved_tools=approved_tools,
                 approve_all=approve_all,
+                approve_first=approve_first,
                 channel=msg.channel,
                 sender_id=msg.sender_id,
             )
+            if pending_replay_context and self._is_approval_only_message(trimmed):
+                final_content = f"✅ Approval executed.\n{pending_replay_context}"
+                session.add_message("user", msg.content)
+                session.add_message("assistant", final_content)
+                self.sessions.save(session)
+                if previous_running and previous_task_id:
+                    self.runtime.complete(
+                        previous_task_id,
+                        final_content,
+                        metadata={"resolved_by_approval": True},
+                    )
+                self.runtime.complete(
+                    task_id,
+                    final_content,
+                    metadata={
+                        "approval_replay": True,
+                        "approved_tools": sorted(approved_tools),
+                        "approve_all": approve_all,
+                        "approve_first": approve_first,
+                    },
+                )
+                return OutboundMessage(
+                    channel=msg.channel,
+                    chat_id=msg.chat_id,
+                    content=final_content,
+                    reply_to=str(msg.metadata.get("message_id"))
+                    if msg.metadata and msg.metadata.get("message_id")
+                    else None,
+                    metadata=self._build_outbound_metadata(msg, task_id),
+                )
             if pending_replay_context:
                 effective_content = (
                     f"{effective_content}\n\n"
@@ -705,11 +741,27 @@ class AgentLoop:
 
                     # Execute tools
                     selfie_delivered = False
+                    allowed_tool_names = set(effective_tools)
                     for tool_call in response.tool_calls:
                         args_str = json.dumps(tool_call.arguments)
+                        if tool_call.name not in allowed_tool_names:
+                            logger.warning(f"Ignoring disallowed tool call: {tool_call.name}")
+                            self.runtime.append_event(
+                                task_id,
+                                "tool_call_blocked",
+                                tool_call.name,
+                            )
+                            messages = self.context.add_tool_result(
+                                messages,
+                                tool_call.id,
+                                tool_call.name,
+                                f"Tool '{tool_call.name}' is not available for this request.",
+                            )
+                            continue
+
                         logger.debug(f"Executing tool: {tool_call.name} with arguments: {args_str}")
                         self.runtime.append_event(task_id, "tool_call", tool_call.name)
-                        
+
                         try:
                             asyncio.create_task(
                                 self.bus.publish_event(
@@ -1792,93 +1844,124 @@ class AgentLoop:
             logger.debug(f"Voice content recovery skipped: {e}")
             return None
 
-    def _extract_approval_intent(self, text: str) -> tuple[set[str], bool]:
+    def _extract_approval_intent(self, text: str) -> tuple[set[str], bool, bool]:
         """Parse explicit approval flags from user text."""
         content = (text or "").strip().lower()
         if not content:
-            return set(), False
-        if re.search(r"\bapprove\s*[:=]?\s*all\b", content):
-            return set(), True
+            return set(), False, False
+        normalized = content.lstrip("/").strip()
+        if re.fullmatch(r"approve", normalized):
+            return set(), False, True
+        if re.search(r"\bapprove\s*[:=]?\s*all\b", normalized):
+            return set(), True, False
 
-        match = re.search(r"\bapprove\s*[:=]?\s*([a-z0-9_\-, ]+)", content)
+        match = re.search(r"\bapprove\s*[:=]?\s*([a-z0-9_\-, ]+)", normalized)
         if not match:
-            return set(), False
+            return set(), False, False
 
         raw = match.group(1)
         chunks = re.split(r"[,\s]+", raw)
         skip = {"tool", "tools", "and", "please", "pls"}
         names = {item.strip() for item in chunks if item.strip() and item.strip() not in skip}
-        return names, False
+        return names, False, False
+
+    def _is_approval_only_message(self, text: str) -> bool:
+        """Return whether the message is only an approval command."""
+        content = (text or "").strip().lower().lstrip("/").strip()
+        if not content:
+            return False
+        return bool(re.fullmatch(r"approve(?:\s+(?:all|[a-z0-9_\-, ]+))?", content))
 
     def _extract_selfie_request(self, text: str) -> dict[str, str] | None:
-        """Detect explicit selfie/PAP request with context extraction.
-
-        Returns dict with 'context' and 'caption' if detected, None otherwise.
-        """
+        """Detect an explicit visual-identity request from configured triggers."""
         content = (text or "").strip()
         if not content:
             return None
 
-        # Normalize repeated punctuation and case for matching
-        normalized = re.sub(r'([!?.])\1+', r'\1', content.lower())
+        normalized = re.sub(r"([!?.])\1+", r"\1", content.lower())
+        normalized = re.sub(r"\s+", " ", normalized).strip()
 
-        # False positive filters - avoid matching these words
+        request_keywords = self._normalized_config_terms(
+            getattr(self.visual_config, "request_keywords", [])
+        )
+        request_verbs = self._normalized_config_terms(
+            getattr(self.visual_config, "request_verbs", [])
+        )
+        request_modifiers = self._normalized_config_terms(
+            getattr(self.visual_config, "request_modifiers", [])
+        )
+        negative_phrases = self._normalized_config_terms(
+            getattr(self.visual_config, "negative_request_phrases", [])
+        )
+        if not request_keywords:
+            return None
+
+        if any(phrase in normalized for phrase in negative_phrases):
+            return None
+
+        keyword_pattern = "|".join(self._term_pattern(term) for term in request_keywords)
+        if not re.search(rf"\b(?:{keyword_pattern})\b", normalized):
+            return None
+
+        # Avoid common accidental matches for short visual slang unless config overrides them.
         false_positives = (
-            r'\bpaper\b', r'\bpaprika\b', r'\bpapua\b',
-            r'\bpap\s+smear\b', r'\bpapa\b', r'\bmama\b'
+            r"\bpaper\b",
+            r"\bpaprika\b",
+            r"\bpapua\b",
+            r"\bpap\s+smear\b",
+            r"\bpapa\b",
+            r"\bmama\b",
         )
         if any(re.search(pattern, normalized) for pattern in false_positives):
             return None
 
-        # Explicit selfie/PAP patterns
-        selfie_patterns = (
-            # Indonesian PAP slang (most common)
-            r'\bpap+\b',  # pap, pappp, etc
-            r'\bminta\s+pap\b',
-            r'\bkirim\s+pap\b',
-            r'\bpap\s+(dong|deh|kamu|lu|lo|aku|gue)\b',
-            r'\b(kamu|lu|lo)\s+pap\b',
-            # Explicit selfie requests
-            r'\bselfie\b',
-            r'\bselfie\s+(dong|deh|kamu|lu|lo)\b',
-            r'\bminta\s+selfie\b',
-            r'\bkirim\s+selfie\b',
-            # Photo requests with personal pronouns
-            r'\bfoto\s+(kamu|lu|lo)\b',
-            r'\b(kamu|lu|lo)\s+foto\b',
-            r'\bminta\s+foto\s+(kamu|lu|lo)\b',
-        )
+        verb_pattern = "|".join(self._term_pattern(term) for term in request_verbs)
+        modifier_pattern = "|".join(self._term_pattern(term) for term in request_modifiers)
+        request_patterns = []
+        if verb_pattern:
+            request_patterns.append(rf"\b(?:{verb_pattern})\b(?:\W+\w+){{0,4}}?\W+\b(?:{keyword_pattern})\b")
+        if modifier_pattern:
+            request_patterns.extend(
+                [
+                    rf"\b(?:{keyword_pattern})\b(?:\W+\w+){{0,4}}?\W+\b(?:{modifier_pattern})\b",
+                    rf"\b(?:{modifier_pattern})\b(?:\W+\w+){{0,4}}?\W+\b(?:{keyword_pattern})\b",
+                ]
+            )
 
-        matched = False
-        for pattern in selfie_patterns:
-            if re.search(pattern, normalized):
-                matched = True
-                break
-
-        if not matched:
+        if not any(re.search(pattern, normalized) for pattern in request_patterns):
             return None
 
-        # Extract context from the message (what they're asking about)
-        # Remove the trigger words to get context
-        context_text = re.sub(
-            r'\b(pap+|selfie|foto|minta|kirim|dong|deh|kamu|lu|lo|aku|gue|!|\?|\.)\b',
-            ' ',
-            normalized,
-            flags=re.IGNORECASE
-        ).strip()
+        removable_terms = request_keywords + request_verbs + request_modifiers
+        remove_pattern = "|".join(self._term_pattern(term) for term in removable_terms)
+        context_text = re.sub(rf"\b(?:{remove_pattern})\b", " ", normalized, flags=re.IGNORECASE)
+        context_text = re.sub(r"[!?.]", " ", context_text)
+        context_text = re.sub(r"\s+", " ", context_text).strip()
 
-        # Clean up extra whitespace
-        context_text = re.sub(r'\s+', ' ', context_text).strip()
-
-        # Build context and caption
         if context_text and len(context_text) > 3:
             context = f"casual candid selfie, {context_text}"
         else:
             context = "casual candid selfie, responding to the user"
 
-        caption = "nih pap aku."
+        return {"context": context, "caption": "nih pap aku.", "mode": "auto"}
 
-        return {"context": context, "caption": caption, "mode": "auto"}
+    def _normalized_config_terms(self, terms: list[str]) -> list[str]:
+        """Normalize configured selfie request terms for case-insensitive matching."""
+        seen: set[str] = set()
+        normalized_terms: list[str] = []
+        for raw in terms or []:
+            term = re.sub(r"\s+", " ", str(raw).strip().lower())
+            if term and term not in seen:
+                seen.add(term)
+                normalized_terms.append(term)
+        return normalized_terms
+
+    def _term_pattern(self, term: str) -> str:
+        """Build a regex fragment for a configured term."""
+        escaped = re.escape(term)
+        if term == "pap":
+            return r"pap+"
+        return escaped
+
 
     async def _handle_deterministic_selfie(
         self,
@@ -2576,6 +2659,7 @@ class AgentLoop:
         session: Any,
         approved_tools: set[str],
         approve_all: bool,
+        approve_first: bool,
         channel: str,
         sender_id: str,
     ) -> str:
@@ -2587,11 +2671,12 @@ class AgentLoop:
         pending: list[dict[str, Any]] = session.metadata.get("pending_approvals", [])
         if not pending:
             return ""
-        if not approve_all and not approved_tools:
+        if not approve_all and not approve_first and not approved_tools:
             return ""
 
         replayed: list[str] = []
         remaining: list[dict[str, Any]] = []
+        first_pending_id = id(pending[0]) if pending else 0
 
         for entry in pending:
             t_name = entry.get("tool_name", "")
@@ -2599,7 +2684,8 @@ class AgentLoop:
             if not isinstance(t_args, dict):
                 t_args = {}
 
-            if approve_all or t_name in approved_tools:
+            should_replay = approve_all or t_name in approved_tools or (approve_first and id(entry) == first_pending_id)
+            if should_replay:
                 logger.info(f"Replaying pending tool call: {t_name}")
                 try:
                     result = await self.tools.execute(t_name, t_args)
@@ -2608,7 +2694,11 @@ class AgentLoop:
                         self.approvals.update_status(
                             str(entry["id"]),
                             "executed",
-                            decision="approve_all" if approve_all else f"approve {t_name}",
+                            decision="approve_all"
+                            if approve_all
+                            else "approve_first"
+                            if approve_first
+                            else f"approve {t_name}",
                         )
                 except Exception as exc:
                     replayed.append(f"- {t_name}: Error: {exc}")

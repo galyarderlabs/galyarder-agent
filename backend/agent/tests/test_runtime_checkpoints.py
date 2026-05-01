@@ -8,6 +8,7 @@ import pytest
 from g_agent.agent.loop import AgentLoop
 from g_agent.agent.runtime import TaskCheckpointStore
 from g_agent.bus.queue import MessageBus
+from g_agent.config.schema import VisualIdentityConfig
 from g_agent.providers.base import LLMProvider, LLMResponse, ToolCallRequest
 
 
@@ -154,22 +155,68 @@ def test_extract_selfie_request_detects_pap():
         model="dummy-model",
     )
 
-    # Positive cases
-    assert loop._extract_selfie_request("pap") is not None
-    assert loop._extract_selfie_request("PAP!!!!") is not None
-    assert loop._extract_selfie_request("pappppppp") is not None
+    # Positive cases - explicit requests from configured multilingual defaults
+    assert loop._extract_selfie_request("pap dong") is not None
+    assert loop._extract_selfie_request("PAP DONG!!!!") is not None
+    assert loop._extract_selfie_request("pappppppp dong") is not None
     assert loop._extract_selfie_request("minta pap") is not None
     assert loop._extract_selfie_request("pap kamu lagi ngapain") is not None
     assert loop._extract_selfie_request("selfie dong") is not None
     assert loop._extract_selfie_request("foto kamu") is not None
     assert loop._extract_selfie_request("kirim selfie") is not None
+    assert loop._extract_selfie_request("kamu pap") is not None
+    assert loop._extract_selfie_request("minta foto kamu") is not None
+    assert loop._extract_selfie_request("send selfie please") is not None
+    assert loop._extract_selfie_request("show me your photo") is not None
+    assert loop._extract_selfie_request("take a picture of you") is not None
+    assert loop._extract_selfie_request("selfie please") is not None
 
-    # Negative cases (false positives)
+    # Negative cases - complaints and denials
+    assert loop._extract_selfie_request("aku ga minta selfie kok") is None
+    assert loop._extract_selfie_request("ga ada yang minta") is None
+    assert loop._extract_selfie_request("siapa yang minta") is None
+    assert loop._extract_selfie_request("apa itu kok malah kirim selfie") is None
+    assert loop._extract_selfie_request("kenapa malah kirim selfie") is None
+    assert loop._extract_selfie_request("ga minta pap") is None
+    assert loop._extract_selfie_request("nggak minta foto") is None
+
+    # Negative cases - unrelated messages
+    assert loop._extract_selfie_request("ngadatnya kenapa") is None
+    assert loop._extract_selfie_request("apa kabar") is None
+    assert loop._extract_selfie_request("hello world") is None
+
+    # Negative cases - false positives
     assert loop._extract_selfie_request("paper") is None
     assert loop._extract_selfie_request("paprika") is None
     assert loop._extract_selfie_request("papua") is None
     assert loop._extract_selfie_request("pap smear") is None
-    assert loop._extract_selfie_request("hello world") is None
+    assert loop._extract_selfie_request("papa mama") is None
+
+    # Negative cases - bare words without request context
+    assert loop._extract_selfie_request("pap") is None
+    assert loop._extract_selfie_request("selfie") is None
+
+
+def test_extract_selfie_request_uses_visual_config_terms():
+    """Selfie request detection should follow configured terms, not fixed language lists."""
+    provider = DummyProvider()
+    loop = AgentLoop(
+        bus=MessageBus(),
+        provider=provider,
+        workspace=Path("/tmp"),
+        model="dummy-model",
+        visual_config=VisualIdentityConfig(
+            request_keywords=["snapshot"],
+            request_verbs=["beam"],
+            request_modifiers=["pls"],
+            negative_request_phrases=["never beam"],
+        ),
+    )
+
+    assert loop._extract_selfie_request("beam snapshot pls") is not None
+    assert loop._extract_selfie_request("snapshot pls") is not None
+    assert loop._extract_selfie_request("send selfie please") is None
+    assert loop._extract_selfie_request("never beam snapshot pls") is None
 
 
 def test_deterministic_selfie_disabled_completes_checkpoint(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -221,7 +268,7 @@ def test_deterministic_selfie_with_tool_registered(tmp_path: Path, monkeypatch: 
 
     result = asyncio.run(
         loop.process_direct(
-            content="PAP!!!!",
+            content="PAP DONG!!!!",
             session_key="telegram:selfie_test",
             channel="telegram",
             chat_id="selfie_test",
@@ -243,6 +290,59 @@ def test_deterministic_selfie_with_tool_registered(tmp_path: Path, monkeypatch: 
             "mode": "auto",
         }
     ]
+
+
+def test_llm_selfie_tool_call_is_blocked_without_explicit_request(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Model-emitted selfie calls must not run on ordinary messages."""
+    monkeypatch.setenv("G_AGENT_DATA_DIR", str(tmp_path / "data"))
+    provider = DummyProvider(
+        responses=[
+            LLMResponse(
+                content="",
+                tool_calls=[
+                    ToolCallRequest(
+                        id="call_selfie",
+                        name="selfie",
+                        arguments={"context": "random", "caption": "nih pap aku."},
+                    )
+                ],
+            ),
+            LLMResponse(content="ngadatnya karena request sebelumnya timeout."),
+        ]
+    )
+    loop = AgentLoop(
+        bus=MessageBus(),
+        provider=provider,
+        workspace=tmp_path,
+        model="dummy-model",
+        max_iterations=3,
+        enable_reflection=False,
+        approval_mode="off",
+    )
+    fake_selfie = FakeSelfieTool(result="Selfie photo has been delivered to telegram:123")
+    loop.tools.register(fake_selfie)
+
+    result = asyncio.run(
+        loop.process_direct(
+            content="ngadatnya kenapa",
+            session_key="telegram:selfie_blocked",
+            channel="telegram",
+            chat_id="selfie_blocked",
+        )
+    )
+
+    assert result == "ngadatnya karena request sebelumnya timeout."
+    assert fake_selfie.calls == []
+    checkpoints = _load_checkpoint_files(tmp_path / "state" / "tasks")
+    assert len(checkpoints) == 1
+    checkpoint = checkpoints[0]
+    assert checkpoint["status"] == "ok"
+    blocked_events = [e for e in checkpoint["events"] if e["event"] == "tool_call_blocked"]
+    assert len(blocked_events) == 1
+    assert blocked_events[0]["detail"] == "selfie"
+    assert checkpoint["metadata"].get("tool_calls") == 0
 
 
 def test_deterministic_selfie_error_completes_checkpoint(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -1264,13 +1364,10 @@ def test_agent_loop_replays_pending_approval_on_followup_message(
     assert pending[0]["tool_name"] == "exec"
     assert pending[0]["tool_args"] == {"command": "free -h && uptime"}
 
-    # Second message — user approves
+    # Second message — user approves. Approval-only messages should execute
+    # the pending tool directly instead of sending another LLM request.
     second_pass_provider = DummyProvider(
-        responses=[
-            LLMResponse(
-                content="RAM: 12GB/16GB used. CPU load: 0.5. Sistem kamu aman.",
-            ),
-        ]
+        responses=[LLMResponse(content="should not be used")]
     )
     loop.provider = second_pass_provider
     loop.models = ["dummy-model"]
@@ -1302,5 +1399,9 @@ def test_agent_loop_replays_pending_approval_on_followup_message(
     remaining = session.metadata.get("pending_approvals", [])
     assert remaining == [], f"Expected empty pending, got {remaining}"
 
-    # LLM should have received the exec results and responded with system info
-    assert "aman" in result2.lower() or "ram" in result2.lower()
+    # Approval-only follow-up returns the tool replay result directly.
+    assert "Approval executed" in result2
+    assert "exec" in result2
+    assert "Mem:" in result2
+    assert "Load average" in result2
+    assert "should not be used" not in result2

@@ -121,10 +121,68 @@ async def test_approval_intent_bypasses_busy_guard_for_pending_tool(
 
     assert resp is not None
     assert "Sabar ya" not in resp.content
-    assert "dijalankan" in resp.content
+    assert "Approval executed" in resp.content
+    assert "write_file" in resp.content
+    assert "File written successfully" in resp.content
     session = loop.sessions.get_or_create("whatsapp:thread-approval")
     assert session.metadata.get("pending_approvals") == []
     assert loop.runtime.latest_running_for_session("whatsapp:thread-approval") is None
+
+    await loop.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_slash_approve_replays_first_pending_tool_without_llm(
+    tmp_path: Path, monkeypatch
+):
+    """Bare /approve should execute the oldest pending approval directly."""
+    monkeypatch.setenv("G_AGENT_DATA_DIR", str(tmp_path / "data"))
+    bus = MessageBus()
+    loop = AgentLoop(
+        bus=bus,
+        provider=DummyProvider(responses=[LLMResponse(content="should not be used")]),
+        workspace=tmp_path,
+        enable_reflection=False,
+        approval_mode="confirm",
+        risky_tools=["docs_append_text"],
+    )
+    session = loop.sessions.get_or_create("telegram:thread-approval")
+    loop._store_pending_approval(
+        session,
+        "docs_append_text",
+        {"document_id": "catatan_keiya", "text": "ok"},
+    )
+    loop.runtime.start(
+        kind="inbound_message",
+        session_key="telegram:thread-approval",
+        channel="telegram",
+        chat_id="thread-approval",
+        sender_id="user",
+        input_text="pending docs write",
+    )
+
+    async def _fake_execute(name, args):
+        assert name == "docs_append_text"
+        return "Document updated"
+
+    loop.tools.execute = _fake_execute
+
+    msg = InboundMessage(
+        channel="telegram",
+        chat_id="thread-approval",
+        sender_id="user",
+        content="/approve",
+    )
+    resp = await loop._process_message(msg)
+
+    assert resp is not None
+    assert "Approval executed" in resp.content
+    assert "docs_append_text" in resp.content
+    assert "Document updated" in resp.content
+    assert "should not be used" not in resp.content
+    session = loop.sessions.get_or_create("telegram:thread-approval")
+    assert session.metadata.get("pending_approvals") == []
+    assert loop.runtime.latest_running_for_session("telegram:thread-approval") is None
 
     await loop.shutdown()
 

@@ -4,6 +4,23 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [0.1.20] - 2026-05-01
+
+### Added
+- Added configurable visual request triggers via `visual.requestKeywords`, `visual.requestVerbs`, `visual.requestModifiers`, and `visual.negativeRequestPhrases`.
+- Added regression coverage for `/approve`, context compression fallback, Codex image payloads, and selfie false-positive blocking.
+
+### Changed
+- Restricted the `selfie` tool to deterministic visual-request routing so normal LLM turns cannot call it on unrelated messages.
+- Updated visual request detection to use multilingual config-backed trigger terms instead of fixed Indonesian-only patterns.
+
+### Fixed
+- Fixed bare `/approve` so it replays the oldest pending approval directly instead of falling through to normal LLM routing.
+- Fixed context compression to use the provider `chat()` interface and preserve a reference-only fallback summary when summarization fails.
+- Fixed blank image-generation exceptions so timeout-style failures report the exception class name.
+- Fixed negative PAP/selfie complaints such as `kei aku ga minta pap ya`, `ga ada yang minta`, and `who asked` so they do not trigger deterministic selfie delivery.
+- Fixed disallowed model-emitted tool calls so hidden or stale `selfie` calls are blocked even if a provider returns them.
+
 ## [0.1.19] - 2026-04-30
 
 ### Added

@@ -386,6 +386,83 @@ class VisualIdentityConfig(BaseModel):
             "kamar",
         ]
     )
+    request_keywords: list[str] = Field(
+        default_factory=lambda: [
+            "pap",
+            "selfie",
+            "photo",
+            "picture",
+            "pic",
+            "foto",
+            "portrait",
+        ]
+    )
+    request_verbs: list[str] = Field(
+        default_factory=lambda: [
+            "send",
+            "show",
+            "take",
+            "snap",
+            "share",
+            "give",
+            "generate",
+            "make",
+            "create",
+            "minta",
+            "kirim",
+            "kasih",
+            "lihat",
+            "liatin",
+            "tunjukin",
+        ]
+    )
+    request_modifiers: list[str] = Field(
+        default_factory=lambda: [
+            "please",
+            "pls",
+            "plz",
+            "dong",
+            "deh",
+            "now",
+            "again",
+            "lagi",
+            "me",
+            "you",
+            "your",
+            "ur",
+            "kamu",
+            "aku",
+            "gue",
+            "gua",
+            "lu",
+            "lo",
+        ]
+    )
+    negative_request_phrases: list[str] = Field(
+        default_factory=lambda: [
+            "ga minta",
+            "gak minta",
+            "nggak minta",
+            "enggak minta",
+            "tidak minta",
+            "bukan minta",
+            "ga ada yang minta",
+            "gak ada yang minta",
+            "siapa yang minta",
+            "apa itu kok",
+            "kenapa malah",
+            "kenapa kok",
+            "jangan kirim",
+            "don't send",
+            "do not send",
+            "didn't ask",
+            "did not ask",
+            "not asking",
+            "nobody asked",
+            "who asked",
+            "why did you send",
+        ]
+    )
 
 
 class PluginsConfig(BaseModel):

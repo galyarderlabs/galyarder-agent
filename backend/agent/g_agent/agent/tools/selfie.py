@@ -222,8 +222,9 @@ class SelfieTool(Tool):
         try:
             image_bytes = await self._generate_image(prompt)
         except Exception as e:
-            logger.error(f"Selfie image generation failed: {e}")
-            return f"Error: image generation failed: {e}"
+            detail = str(e).strip() or e.__class__.__name__
+            logger.error(f"Selfie image generation failed: {detail}")
+            return f"Error: image generation failed: {detail}"
 
         # Save to workspace
         selfie_dir = self._workspace / "state" / "selfies"

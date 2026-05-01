@@ -57,22 +57,26 @@ class ContextCompressor:
             return head + [summary_msg] + tail
 
         try:
-            # Use a quick call to summarize
-            # Note: In a real implementation, we might use a smaller/cheaper model
-            summary = await self.provider.generate(
-                messages=[{"role": "user", "content": prompt}], max_tokens=500
+            response = await self.provider.chat(
+                messages=[{"role": "user", "content": prompt}],
+                tools=None,
+                max_tokens=500,
+                temperature=0.2,
             )
+            summary = (response.content or "").strip()
+            if not summary:
+                summary = self.build_reference_summary(middle, max_chars=2000)
 
             summary_msg = {
                 "role": "system",
-                "content": f"[Conversation Summary: {summary.strip()}]",
+                "content": f"[Conversation Summary: {summary}]",
             }
 
             return head + [summary_msg] + tail
         except Exception as e:
-            logger.error(f"Context summarization failed: {e}")
-            # Fallback to simple truncation
-            return head + tail
+            logger.warning(f"Context summarization fell back to reference summary: {e}")
+            summary = self.build_reference_summary(middle, max_chars=2000)
+            return head + [{"role": "system", "content": f"[Conversation Summary: {summary}]"}] + tail
 
     def prune_tool_outputs(
         self, messages: list[dict[str, Any]], max_chars: int = 2000
