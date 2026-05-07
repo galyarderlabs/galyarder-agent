@@ -2,14 +2,6 @@
 
 > For AI coding agents operating in this repository. Not for the runtime agent (see `backend/agent/workspace/AGENTS.md`).
 
-## Product Context
-
-Galyarder Agent is the Continuity Layer of the Galyarder Labs ecosystem: a persistent digital entity and agentic character runtime for memory, identity, values, voice, visual presence, scheduled jobs, channel presence, and continuity records.
-
-Do not confuse **Galyarder Agent** with Ledger **G-Agents**. G-Agents are role-based operational workforce agents inside Galyarder Ledger. Galyarder Agent is a continuity-layer runtime for persistent digital identity.
-
-Do not reduce this product to a chatbot. Chat is only one channel surface.
-
 ## Repository Layout
 
 - `backend/agent/` — Python runtime (`g_agent` package). **Most code lives here.**
@@ -140,15 +132,6 @@ def test_security_audit_secure_baseline(tmp_path: Path):
 - **Visual/Selfie**: `SelfieTool` (`agent/tools/selfie.py`) generates selfies via text-to-image providers. Feature-gated by `visual.enabled`. Lazy-imported in `_register_default_tools()` to avoid loading when disabled. Identity anchor: LoRA trigger word (preferred, ~90-95% consistency) or vision-extracted `physicalDescription` (legacy, ~70-80%).
 - **Config**: Single Pydantic `Config` from `~/.g-agent/config.json`. Override via `G_AGENT_DATA_DIR`. Sections: `agents`, `channels`, `providers`, `tools`, `visual`, `google`, `integrations`.
 
-## Brand And Product Rules
-
-- Lead with continuity, memory, identity, local control, channel presence, agentic character depth, and useful execution.
-- Preserve the project’s internal value: local-first runtime, explicit boundaries, durable memory, visual identity, voice, tools, routines, and channel presence.
-- Do not imply the entity replaces the human.
-- Do not frame the product as a generic assistant, chatbot persona, or toy companion.
-- Do not invent shipped status for Web UI, API, Docker, or future runtime capabilities; keep direction/status tied to `ROADMAP.md` and implementation.
-- Major claims must connect to behavior: local profile files, memory records, channel adapters, scheduled jobs, tool policies, approval modes, or tests.
-
 ## Things to Avoid
 
 - `typing.Optional`, `typing.List`, `typing.Dict` → use `X | None`, `list`, `dict`.
@@ -157,12 +140,3 @@ def test_security_audit_secure_baseline(tmp_path: Path):
 - Editing `workspace/AGENTS.md` (runtime agent instructions, not dev guidelines).
 - Committing secrets/tokens. Config lives in `~/.g-agent/config.json` at runtime.
 - Mixing package managers. Bridge = `npm`. Python = `uv`/`pip`.
-
-<!-- This section is maintained by the coding agent via lore (https://github.com/BYK/loreai) -->
-## Long-term Knowledge
-
-### Architecture
-
-<!-- lore:019dee2c-d95f-7e2c-a78e-85e30300eef2 -->
-* **Repo relies on global Pi setup**: Repo intentionally has no project-local \`.pi\` settings/extensions/prompts/skills; Pi behavior comes from \`~/.pi/agent\` plus repo \`AGENTS.md\`. Debug agent/model/skill/MCP behavior in global settings/extensions first; disabled skill slash commands only hides \`/skill:\*\`, it doesn’t prevent skill loading. Add \`.pi/\` overrides only for repo-specific behavior and avoid committing them accidentally.
-<!-- End lore-managed section -->

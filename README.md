@@ -2,7 +2,7 @@
   <img src="docs/assets/header.webp" alt="Galyarder Agent header" width="900">
 
   ---
-  <p><b>Build persistent digital entities from a life, a mission, a relationship, or an imagined person. Preserve what matters, give it memory, identity, voice, visual presence, and continuity across WhatsApp, Telegram, Discord, Email, and CLI.</b></p>
+  <p><b>Build agentic digital characters from a life, a mission, a relationship, or an imagined person. Preserve what matters, give it memory and presence, and let it live across WhatsApp, Telegram, Discord, Email, and CLI.</b></p>
   <p>
     <img src="https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white" alt="Python 3.11+">
     <img src="https://img.shields.io/badge/CLI-g--agent-6f42c1" alt="g-agent CLI">
@@ -22,12 +22,12 @@
 
 ## What Is g-agent?
 
-`g-agent` is an open-source runtime for persistent digital identity and agentic character systems.
+`g-agent` is an open-source runtime for agentic digital identity.
 
-It lets you build digital entities that carry memory, personality, values, voice,
-visual identity, tools, and a relationship model. The entity can be yourself,
-someone you love, a companion, an operator, an idol, a fictional persona, or the
-best version of the person you are trying to become.
+It lets you build agentic digital characters that carry memory, personality,
+values, voice, visual identity, tools, and a relationship model. The character
+can be yourself, someone you love, a companion, an operator, an idol, a fictional
+persona, or the best version of the person you are trying to become.
 
 The same character can talk through WhatsApp, Telegram, Discord, Email,
 or CLI; read the workspace you allow; work with Gmail/Calendar through `gws`;
@@ -50,7 +50,9 @@ given a living form.
 
 `g-agent` exists to make that form programmable.
 
-The goal is continuity with presence: a digital identity for your legacy, your work, your relationships, your imagination, or a person you want to preserve, become, or create.
+The goal is agentic yourself: a digital identity for your legacy, your work,
+your relationships, your imagination, or a person you want to preserve, become,
+or create.
 
 ---
 
@@ -71,7 +73,7 @@ If your character cannot run reliably on your own machine, it is not really your
 
 ## What You Can Build
 
-- **Persistent self / agentic yourself**: a digital identity that carries your memory, values, voice, projects, and working style.
+- **Agentic yourself**: a digital identity that carries your memory, values, voice, projects, and working style.
 - **Digital legacy**: a preserved self, mission, relationship, or worldview that can keep continuity over time.
 - **Companion character**: a bounded relationship-style persona with memory, voice notes, visual identity, and emotional context.
 - **Personal operator**: an always-on character for inbox, calendar, files, recurring jobs, and workflow packs.
@@ -153,9 +155,9 @@ Read [Security](docs/security.md) and [Configuration](docs/configuration.md) bef
 
 ---
 
-## Product Direction
+## Roadmap
 
-The next product direction is persistent entity depth:
+The next product direction is agentic character depth:
 
 - SQLite session store and searchable recall: first slice shipped.
 - Shared command controls for history, sessions, logs, approve, and deny: core shipped.
