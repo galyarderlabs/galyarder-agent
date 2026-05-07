@@ -2,6 +2,11 @@
 
 > For AI coding agents operating in this repository. Not for the runtime agent (see `backend/agent/workspace/AGENTS.md`).
 
+## Brand / Design Context
+
+- `BRAND.md` and `DESIGN.md` are the Galyarder Agent product-specific brand/design guides.
+- `docs/galyarder-labs/` is the local copy of the Galyarder Labs canonical brand/design/agent docs for repository-local agent context.
+
 ## Repository Layout
 
 - `docs/galyarder-labs/` — local copy of the Galyarder Labs canonical brand/design/agent docs for repository-local agent context.
