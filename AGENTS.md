@@ -4,6 +4,7 @@
 
 ## Repository Layout
 
+- `docs/galyarder-labs/` — local copy of the Galyarder Labs canonical brand/design/agent docs for repository-local agent context.
 - `backend/agent/` — Python runtime (`g_agent` package). **Most code lives here.**
 - `backend/agent/bridge/` — Node.js/TypeScript WhatsApp bridge (`package-lock.json` → use `npm`). Rarely touched.
 - `docs/` — MkDocs documentation site source.
