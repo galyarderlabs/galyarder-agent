@@ -2,7 +2,7 @@
   <img src="docs/assets/header.webp" alt="Galyarder Agent header" width="900">
 
   ---
-  <p><b>Build agentic digital characters from a life, a mission, a relationship, or an imagined person. Preserve what matters, give it memory and presence, and let it live across WhatsApp, Telegram, Discord, Email, and CLI.</b></p>
+  <p><b>Build your agentic company and autonomous workforce. Give your operations persistent memory, presence, and execution systems across WhatsApp, Telegram, Discord, Email, and CLI.</b></p>
   <p>
     <img src="https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white" alt="Python 3.11+">
     <img src="https://img.shields.io/badge/CLI-g--agent-6f42c1" alt="g-agent CLI">
@@ -11,7 +11,7 @@
   </p>
   <p>
     <img src="https://img.shields.io/badge/Presence-WhatsApp%20%7C%20Telegram%20%7C%20Discord%20%7C%20Email-10b981" alt="Presence channels">
-    <img src="https://img.shields.io/badge/Identity-Memory%20%2B%20Visuals%20%2B%20Tools-8b5cf6" alt="Identity">
+    <img src="https://img.shields.io/badge/Identity-Memory%20%2B%20Ledger%20%2B%20Tools-8b5cf6" alt="Identity">
     <img src="https://img.shields.io/badge/Model%20Routing-Direct%20%7C%20Proxy%20%7C%20Local%20%7C%20Fallback-0ea5e9" alt="Model Routing">
     <img src="https://img.shields.io/badge/Runtime-Local--first%20%2B%20Self--hosted-f59e0b" alt="Local-first self-hosted runtime">
     <img src="https://img.shields.io/badge/Safety-restrictToWorkspace%20%2B%20tool%20policy-ef4444" alt="Safety">
@@ -22,75 +22,59 @@
 
 ## What Is g-agent?
 
-`g-agent` is an open-source runtime for agentic digital identity.
+`g-agent` is an open-source runtime for building your agentic company and autonomous workforce.
 
-It lets you build agentic digital characters that carry memory, personality,
-values, voice, visual identity, tools, and a relationship model. The character
-can be yourself, someone you love, a companion, an operator, an idol, a fictional
-persona, or the best version of the person you are trying to become.
+It lets you deploy agentic systems and digital entities that carry persistent memory, domain expertise, custom tools, and execution models. These agents can act as your autonomous departments—managing financial operations, customer interactions, document processing, workflows, and communication channels under your direction.
 
-The same character can talk through WhatsApp, Telegram, Discord, Email,
-or CLI; read the workspace you allow; work with Gmail/Calendar through `gws`;
-generate selfies or mirror photos; and automate repeatable workflows without
-giving up local control.
+The same agent can correspond through WhatsApp, Telegram, Discord, Email, or CLI; process within the local workspace you allow; work with Gmail/Calendar through `gws`; and automate repeatable business workflows without giving up local control.
 
 ---
 
 ## Why This Project Exists
 
-Most AI products are still framed as disposable text boxes, productivity
-wrappers, or invisible automation daemons.
+Most AI products are still framed as disposable chat boxes, generic productivity wrappers, or isolated automation tools.
 
 That is too small.
 
-Humans are not permanent. The body ages. Time runs down. People disappear. But
-character, values, memory, love, unfinished missions, taste, rituals, dreams,
-and the way someone sees the world can keep moving if they are remembered and
-given a living form.
+A single builder, developer, creator, or small team should have the execution power of an entire corporation. Yet, custom workflows, persistent memory, action ledgers, and multi-channel orchestration remain complex to set up and run privately.
 
-`g-agent` exists to make that form programmable.
+`g-agent` exists to make autonomous business execution programmable, private, and persistent.
 
-The goal is agentic yourself: a digital identity for your legacy, your work,
-your relationships, your imagination, or a person you want to preserve, become,
-or create.
+The goal is the agentic company: a self-hosted workforce that executes your goals, manages your state, coordinates workflows, and interacts across the channels you choose, while keeping you in full sovereignty.
 
 ---
 
 ## Philosophy
 
-- **Identity first**: memory, voice, visuals, values, and tools should feel like one coherent person-shaped system.
-- **Legacy over sessions**: the important context should not reset just because a chat ended.
-- **Presence over prompts**: the character should live where life already happens: WhatsApp, Telegram, Discord, Email, and CLI.
-- **Understanding over obedience**: the character should learn the user deeply enough to help them become more themselves, not only follow commands.
-- **Embodiment over text-only bots**: visual identity, selfies, mirror photos, voice, and media are part of the character.
-- **Useful over performative**: the character still needs to execute real work.
-- **Private over cloud-lock**: local memory, local control, explicit policy.
-- **Controlled over magical**: allowlists, approvals, scoped tools, and visible memory.
+- **Execution first**: persistent memory, custom tools, and communication channels should form a unified, reliable workflow.
+- **Persistence over sessions**: your company state, ledgers, and records should endure across chats and restarts.
+- **Presence over text boxes**: agents should operate directly where your business communicates—WhatsApp, Telegram, Discord, Email, and CLI.
+- **Sovereignty over cloud-lock**: local memory, local configuration, and explicit policy controls.
+- **Control over automation magic**: explicit permission gates, approvals, allowlists, and auditable action logs.
+- **Proof over spectacle**: every agent action must connect to actual code execution, file changes, database commits, or network requests.
 
-If your character cannot run reliably on your own machine, it is not really yours.
+If your autonomous workforce cannot run reliably on your local machine, it is not truly yours.
 
 ---
 
 ## What You Can Build
 
-- **Agentic yourself**: a digital identity that carries your memory, values, voice, projects, and working style.
-- **Digital legacy**: a preserved self, mission, relationship, or worldview that can keep continuity over time.
-- **Companion character**: a bounded relationship-style persona with memory, voice notes, visual identity, and emotional context.
-- **Personal operator**: an always-on character for inbox, calendar, files, recurring jobs, and workflow packs.
-- **Fictional persona**: a designed character with its own face, voice, backstory, tools, and channel presence.
+- **Autonomous Departments**: specialized agent entities representing Finance, Devops, Content/Growth, or Customer Support, working in parallel.
+- **Personal Operator**: an always-on system managing your email inbox, calendar, files, scheduled crons, and custom workflow pipelines.
+- **Agentic Company Core**: a unified local command layer coordinating tools like Google Workspace (gws), Slack, and Discord.
+- **Digital Mirror**: a persistent reflection of your professional goals, coding standards, and decision protocols that operates autonomously when you are offline.
 
 ---
 
 ## What It Does Today
 
-- Persistent character identity through local workspace files and memory.
-- WhatsApp, Telegram, Discord, Email, and CLI channel surfaces.
-- Contextual selfie and mirror-photo generation through the `selfie` tool.
-- Google Workspace access through the local `gws` CLI.
-- Local tools for files, shell, schedules, media, and workflow packs.
-- LiteLLM model routing through direct providers or OpenAI-compatible proxies.
-- Durable memory across sessions (`MEMORY.md`, `PROFILE.md`, `PROJECTS.md`, `LESSONS.md`).
-- Scheduled jobs, proactive reminders, multimodal replies, and systemd user services.
+- Persistent company identity and goals through local workspace files and SQLite.
+- WhatsApp, Telegram, Discord, Email, and CLI channel interfaces.
+- Google Workspace integration through the local `gws` CLI.
+- Secure local tools for file editing, shell executions, task schedules, and custom workflow tools.
+- Multi-model routing through direct providers, local inference, or OpenAI-compatible proxies.
+- Durable agent memory across sessions (`MEMORY.md`, `PROFILE.md`, `PROJECTS.md`, `LESSONS.md`).
+- Scheduled jobs, cron triggers, event listeners, and user-level systemd daemons.
 
 For the full setup guide, use the docs site: https://galyarderlabs.github.io/galyarder-agent/
 
@@ -145,7 +129,7 @@ Runtime pieces:
 
 `g-agent` is designed for personal, local-first operation with explicit boundaries.
 
-- `channels.*.allowFrom` controls who can talk to the character.
+- `channels.*.allowFrom` controls who can talk to the character/agent.
 - `tools.restrictToWorkspace` keeps file/shell access inside the configured workspace.
 - `tools.allowedPaths` can add trusted media or project folders without disabling the sandbox.
 - approval mode can require confirmation for risky tool execution.
@@ -157,7 +141,7 @@ Read [Security](docs/security.md) and [Configuration](docs/configuration.md) bef
 
 ## Roadmap
 
-The next product direction is agentic character depth:
+The next product direction is agentic company depth:
 
 - SQLite session store and searchable recall: first slice shipped.
 - Shared command controls for history, sessions, logs, approve, and deny: core shipped.
@@ -187,7 +171,7 @@ Focused contributions are welcome:
 - safety and approval hardening
 - channel reliability
 - memory and session search
-- visual identity and media workflows
+- tools and workflow integration
 - docs clarity
 
 Please read [Contributing](docs/contributing.md) before opening a PR.
