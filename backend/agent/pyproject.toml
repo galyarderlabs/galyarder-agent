@@ -31,7 +31,7 @@ dependencies = [
     "python-telegram-bot>=21.0",
     "prompt_toolkit>=3.0.0",
     "edge-tts>=6.1.0",
-    "mcp>=1.2.0",
+    "mcp>=1.28.1",
     "aiohttp>=3.13.5",
     "python-dotenv==1.0.1",
 ]
