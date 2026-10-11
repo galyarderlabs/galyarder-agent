@@ -1,0 +1,29 @@
+# NOTICE
+
+G-Agent (galyarder-agent)
+Copyright (c) 2025-2026 Galyarder Labs
+
+---
+
+## Third-party components
+
+This product includes software developed by third parties.
+
+### nanobot
+
+- Source: https://github.com/HKUDS/nanobot
+- Copyright (c) 2025-present Xubin Ren and the nanobot contributors
+- License: MIT
+- Usage: G-Agent started from an early copy of nanobot and has since been
+  substantially rewritten. The Web UI, WebSocket/API layer, channel
+  reliability, MCP, runner, and test patterns were adapted from it.
+
+### hermes-agent
+
+- Source: https://github.com/NousResearch/hermes-agent
+- Copyright (c) 2025 Nous Research
+- License: MIT
+- Usage: session search, the memory manager, the learning loop, skills,
+  approvals, context compression, and routines were adapted from it.
+
+The MIT License text is reproduced in `LICENSE`.
