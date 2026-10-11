@@ -2,7 +2,7 @@
   <img src="docs/assets/header.webp" alt="Galyarder Agent header" width="900">
 
   ---
-  <p><b>Build your agentic company and autonomous workforce. Give your operations persistent memory, presence, and execution systems across WhatsApp, Telegram, Discord, Email, and CLI.</b></p>
+  <p><b>A local-first agent runtime with persistent memory, channel presence, and tool access across WhatsApp, Telegram, Discord, Email, and CLI.</b></p>
   <p>
     <img src="https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white" alt="Python 3.11+">
     <img src="https://img.shields.io/badge/CLI-g--agent-6f42c1" alt="g-agent CLI">
@@ -22,9 +22,9 @@
 
 ## What Is g-agent?
 
-`g-agent` is an open-source runtime for building your agentic company and autonomous workforce.
+`g-agent` is an open-source, local-first agent runtime.
 
-It lets you deploy agentic systems and digital entities that carry persistent memory, domain expertise, custom tools, and execution models. These agents can act as your autonomous departments—managing financial operations, customer interactions, document processing, workflows, and communication channels under your direction.
+It lets you run agents that carry persistent memory, domain expertise, custom tools, and execution models. These agents can run as departments—managing financial operations, customer interactions, document processing, workflows, and communication channels under your direction.
 
 The same agent can correspond through WhatsApp, Telegram, Discord, Email, or CLI; process within the local workspace you allow; work with Gmail/Calendar through `gws`; and automate repeatable business workflows without giving up local control.
 
@@ -38,9 +38,9 @@ That is too small.
 
 A single builder, developer, creator, or small team should have the execution power of an entire corporation. Yet, custom workflows, persistent memory, action ledgers, and multi-channel orchestration remain complex to set up and run privately.
 
-`g-agent` exists to make autonomous business execution programmable, private, and persistent.
+`g-agent` exists to make agent execution programmable, private, and persistent.
 
-The goal is the agentic company: a self-hosted workforce that executes your goals, manages your state, coordinates workflows, and interacts across the channels you choose, while keeping you in full sovereignty.
+The goal is a self-hosted workforce that executes your goals, manages your state, coordinates workflows, and interacts across the channels you choose, with local control.
 
 ---
 
@@ -49,20 +49,20 @@ The goal is the agentic company: a self-hosted workforce that executes your goal
 - **Execution first**: persistent memory, custom tools, and communication channels should form a unified, reliable workflow.
 - **Persistence over sessions**: your company state, ledgers, and records should endure across chats and restarts.
 - **Presence over text boxes**: agents should operate directly where your business communicates—WhatsApp, Telegram, Discord, Email, and CLI.
-- **Sovereignty over cloud-lock**: local memory, local configuration, and explicit policy controls.
+- **Local control over cloud lock-in**: local memory, local configuration, and explicit policy controls.
 - **Control over automation magic**: explicit permission gates, approvals, allowlists, and auditable action logs.
 - **Proof over spectacle**: every agent action must connect to actual code execution, file changes, database commits, or network requests.
 
-If your autonomous workforce cannot run reliably on your local machine, it is not truly yours.
+If your agents cannot run reliably on your local machine, they are not truly yours.
 
 ---
 
 ## What You Can Build
 
-- **Autonomous Departments**: specialized agent entities representing Finance, Devops, Content/Growth, or Customer Support, working in parallel.
+- **Departments**: specialized agent entities representing Finance, Devops, Content/Growth, or Customer Support, working in parallel.
 - **Personal Operator**: an always-on system managing your email inbox, calendar, files, scheduled crons, and custom workflow pipelines.
-- **Agentic Company Core**: a unified local command layer coordinating tools like Google Workspace (gws), Slack, and Discord.
-- **Digital Mirror**: a persistent reflection of your professional goals, coding standards, and decision protocols that operates autonomously when you are offline.
+- **Local command layer**: a unified command surface coordinating tools like Google Workspace (gws), Slack, and Discord.
+- **Digital Mirror**: a persistent reflection of your professional goals, coding standards, and decision protocols that keeps working when you are offline.
 
 ---
 
@@ -141,7 +141,7 @@ Read [Security](docs/security.md) and [Configuration](docs/configuration.md) bef
 
 ## Roadmap
 
-The next product direction is agentic company depth:
+The next product direction is runtime depth:
 
 - SQLite session store and searchable recall: first slice shipped.
 - Shared command controls for history, sessions, logs, approve, and deny: core shipped.
