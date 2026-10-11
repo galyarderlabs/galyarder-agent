@@ -153,14 +153,20 @@ See [ROADMAP.md](ROADMAP.md).
 
 ---
 
-## Reference Research
+## Lineage and attribution
 
-The project is currently using Nanobot and Hermes Agent as references, not upstreams to merge wholesale.
+This project started from an early copy of [nanobot](https://github.com/HKUDS/nanobot)
+and [hermes-agent](https://github.com/NousResearch/hermes-agent), both MIT licensed,
+and has since been substantially rewritten and extended. Both upstreams are
+acknowledged as lineage rather than as ongoing merge sources:
 
-- `nanobot-ref/` informs Web UI, WebSocket/API, channel reliability, MCP, runner, and test patterns.
-- `hermes-agent-ref/` informs session search, memory manager, learning loop, skills, approvals, context compression, and routines.
+- nanobot informs the Web UI, WebSocket/API layer, channel reliability, MCP, runner, and test patterns.
+- hermes-agent informs session search, the memory manager, the learning loop, skills, approvals, context compression, and routines.
 
-See [Hermes And Nanobot Reference Audit](docs/reports/hermes-nanobot-reference-audit.md).
+Both upstream copyright notices are retained in [`LICENSE`](LICENSE).
+
+See [Hermes And Nanobot Reference Audit](docs/reports/hermes-nanobot-reference-audit.md) for the
+file-level comparison that was performed.
 
 ---
 
