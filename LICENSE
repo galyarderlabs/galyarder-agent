@@ -1,16 +1,8 @@
 MIT License
 
 Copyright (c) 2025-2026 Galyarder Labs (modifications)
-
-This product is a modified derivative of the following MIT-licensed projects:
-
-  nanobot
-  Copyright (c) 2025-present Xubin Ren and the nanobot contributors
-  https://github.com/HKUDS/nanobot
-
-  hermes-agent
-  Copyright (c) 2025 Nous Research
-  https://github.com/NousResearch/hermes-agent
+Copyright (c) 2025-present Xubin Ren and the nanobot contributors (https://github.com/HKUDS/nanobot)
+Copyright (c) 2025 Nous Research (https://github.com/NousResearch/hermes-agent)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
